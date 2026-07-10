@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node -v)",
+      "PowerShell(npm -v)",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command npm -ErrorAction SilentlyContinue)",
+      "PowerShell(node -v 2>$null)",
+      "PowerShell(npm -v 2>$null)",
+      "PowerShell(winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements)"
+    ]
+  }
+}
