@@ -121,9 +121,40 @@ function AlumnosHome() {
       </header>
 
       <div className="alumnos-container">
-        <div className="landing-hero reveal" style={{ margin: '3rem auto 2rem' }}>
-          <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Encuentre su plaza gratuita en cursos subvencionados</h1>
-          <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem' }}>Cursos 100% gratuitos para desempleados y ocupados. Solicite su plaza en menos de un minuto.</p>
+        <div className="landing-hero reveal" style={{ margin: '2rem auto 1.5rem', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '2.75rem', marginBottom: '0.75rem', color: 'var(--primary)', fontWeight: '800' }}>
+            Encuentre su <span style={{ background: 'var(--gradient-accent)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: '800' }}>plaza gratuita</span> en cursos subvencionados
+          </h1>
+          <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '2rem', maxWidth: '640px', margin: '0 auto 2rem' }}>
+            Formación oficial 100% subvencionada por el SEPE y ministerios públicos para desempleados y trabajadores en activo.
+          </p>
+
+          {/* FLOATING QUICK STATS BAR */}
+          <div className="reveal-scale stagger-1" style={{
+            display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap',
+            backgroundColor: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '12px',
+            padding: '1rem 2rem', maxWidth: '780px', margin: '0 auto 2.5rem',
+            boxShadow: 'var(--card-shadow)', alignItems: 'center'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>
+                {cursos.length > 0 ? cursos.length : '45+'}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Activos</span>
+            </div>
+            <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--lines)' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)', fontFamily: 'var(--font-title)' }}>
+                {cursos.length > 0 ? cursos.reduce((sum: number, c: any) => sum + (c.plazas - c.plazas_cubiertas), 0) : '350+'}
+              </span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Plazas Libres</span>
+            </div>
+            <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--lines)' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>100%</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subvencionado</span>
+            </div>
+          </div>
         </div>
 
         <form onSubmit={handleSearchSubmit} className="search-filters-bar reveal stagger-1" style={{ position: 'relative' }}>
@@ -286,55 +317,47 @@ function AlumnosHome() {
         )}
       </div>
 
-      {/* ESTADÍSTICAS EN VIVO */}
-      <div style={{ backgroundColor: 'var(--primary-dark)', padding: '4rem 2rem' }}>
-        <div className="alumnos-container" style={{ margin: '0 auto', borderTop: 'none' }}>
-          <div className="metrics-grid" style={{ gap: '2rem' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.75rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>{cursos.length > 0 ? cursos.length : '—'}</div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '0.375rem' }}>Cursos Disponibles</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.75rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>{cursos.length > 0 ? cursos.reduce((sum: number, c: any) => sum + (c.plazas - c.plazas_cubiertas), 0) : '—'}</div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '0.375rem' }}>Plazas Libres Ahora</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.75rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>100%</div>
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '0.375rem' }}>Gratuitos y Oficiales</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* BUSCADOR POR COMUNIDAD AUTÓNOMA */}
+      <div className="alumnos-container reveal" style={{ marginTop: '3.5rem', marginBottom: '2.5rem' }}>
+        <h2 style={{ fontSize: '1.75rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '0.5rem' }}>Buscar por Comunidad Autónoma</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9375rem' }}>
+          Explore y filtre las plazas subvencionadas disponibles en las principales regiones
+        </p>
 
-      {/* CATEGORÍAS DESTACADAS */}
-      <div className="alumnos-container" style={{ marginTop: '4rem' }}>
-        <h2 style={{ fontSize: '1.75rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '0.75rem' }}>Explore por Categoría Profesional</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2.5rem', fontSize: '0.9375rem' }}>Formación oficial subvencionada por el SEPE en las especialidades con mayor demanda laboral</p>
-        <div className="features-grid" style={{ marginBottom: '0' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem' }}>
           {[
-            { name: 'Informática', icon: <Code size={28} />, desc: 'Desarrollo web, ciberseguridad, redes y sistemas', color: '#1A73E8' },
-            { name: 'Sanidad', icon: <Shield size={28} />, desc: 'Auxiliar de enfermería, farmacia, atención sociosanitaria', color: '#0D7D4D' },
-            { name: 'Logística', icon: <MapPin size={28} />, desc: 'Almacén, transporte, cadena de suministro', color: '#E8710A' },
-            { name: 'Hostelería', icon: <BookOpen size={28} />, desc: 'Cocina, servicio de restaurante, gestión hotelera', color: '#B91C1C' },
-            { name: 'Administración', icon: <BarChart3 size={28} />, desc: 'Contabilidad, gestión, ofimática y RRHH', color: '#6D28D9' },
-            { name: 'Todos', icon: <Users size={28} />, desc: 'Ver todas las categorías y cursos disponibles', color: 'var(--primary)' },
-          ].map((cat) => (
+            { name: 'Madrid', desc: 'Comunidad de Madrid' },
+            { name: 'Cataluña', desc: 'Barcelona, Tarragona...' },
+            { name: 'Andalucía', desc: 'Sevilla, Málaga, Cádiz...' },
+            { name: 'Comunidad Valenciana', desc: 'Valencia, Alicante...' },
+            { name: 'País Vasco', desc: 'Bilbao, San Sebastián...' },
+            { name: 'Galicia', desc: 'Vigo, A Coruña...' },
+          ].map((reg) => (
             <button
-              key={cat.name}
+              key={reg.name}
               type="button"
-              onClick={() => { setCategoria(cat.name === 'Todos' ? 'Todas' : cat.name); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              style={{
-                background: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '8px', padding: '1.75rem 1.5rem', cursor: 'pointer', textAlign: 'left',
-                transition: 'all 0.2s ease', boxShadow: 'var(--card-shadow)',
+              onClick={() => {
+                setSearch(reg.name);
+                // Trigger fetch de inmediato
+                const params = new URLSearchParams();
+                params.append('search', reg.name);
+                if (categoria && categoria !== 'Todas') params.append('categoria', categoria);
+                if (modalidad && modalidad !== 'Todas') params.append('modalidad', modalidad);
+                fetch(`${API_BASE}/public/cursos?${params.toString()}`)
+                  .then(res => res.json())
+                  .then(data => setCursos(data));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow-hover)'; }}
+              style={{
+                background: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '8px',
+                padding: '1.25rem 1rem', cursor: 'pointer', textAlign: 'center',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: 'var(--card-shadow)',
+              }}
+              onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow-hover)'; }}
               onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow)'; }}
             >
-              <div style={{ width: '48px', height: '48px', borderRadius: '10px', backgroundColor: cat.color + '12', color: cat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
-                {cat.icon}
-              </div>
-              <h4 style={{ fontSize: '1.05rem', color: 'var(--primary)', marginBottom: '0.375rem' }}>{cat.name === 'Todos' ? 'Ver todos' : cat.name}</h4>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', lineHeight: '1.4', margin: 0 }}>{cat.desc}</p>
+              <div style={{ fontWeight: '700', color: 'var(--primary)', marginBottom: '0.25rem', fontSize: '0.9375rem' }}>{reg.name}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{reg.desc}</div>
             </button>
           ))}
         </div>
