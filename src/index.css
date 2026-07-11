@@ -145,6 +145,33 @@
   opacity: 0.4;
 }
 
+/* Barra de estadísticas flotante */
+.stats-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  background-color: var(--white);
+  border: 1px solid var(--lines);
+  border-radius: 12px;
+  padding: 1rem 2.5rem;
+  max-width: 780px;
+  margin: 0 auto 2.5rem;
+  box-shadow: var(--card-shadow);
+}
+
+.stats-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.stats-divider {
+  width: 1px;
+  height: 20px;
+  background-color: var(--lines);
+}
+
 /* Tarjetas con efecto glass y borde luminoso */
 .glass-card {
   background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(247,246,242,0.98) 100%);
@@ -1495,8 +1522,12 @@ tr:last-child td {
   background-color: var(--white);
   border-radius: 8px;
   border: 1px solid var(--lines);
-  padding: 3rem;
+  padding: 0;
   box-shadow: var(--card-shadow);
+}
+
+.course-detail-body {
+  padding: 2.5rem 3rem 3rem;
 }
 
 .course-detail-title {
@@ -1843,6 +1874,17 @@ tr:last-child td {
     grid-template-columns: 1fr 1fr;
   }
 
+  .stats-bar {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stats-divider {
+    display: none;
+  }
+
   .landing-hero h1 {
     font-size: 2rem;
   }
@@ -2055,6 +2097,17 @@ tr:last-child td {
 
   .course-detail-banner {
     height: 180px;
+  }
+
+  .course-detail-body {
+    padding: 1.5rem 1.25rem 2rem;
+  }
+
+  .course-detail-meta {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding: 1.25rem 0;
+    margin-bottom: 1.75rem;
   }
 
   .search-filters-bar {

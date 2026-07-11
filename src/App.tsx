@@ -130,27 +130,22 @@ function AlumnosHome() {
           </p>
 
           {/* FLOATING QUICK STATS BAR */}
-          <div className="reveal-scale stagger-1" style={{
-            display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap',
-            backgroundColor: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '12px',
-            padding: '1rem 2rem', maxWidth: '780px', margin: '0 auto 2.5rem',
-            boxShadow: 'var(--card-shadow)', alignItems: 'center'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          <div className="stats-bar reveal-scale stagger-1">
+            <div className="stats-item">
               <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>
                 {cursos.length > 0 ? cursos.length : '45+'}
               </span>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Activos</span>
             </div>
-            <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--lines)' }}></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <div className="stats-divider"></div>
+            <div className="stats-item">
               <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)', fontFamily: 'var(--font-title)' }}>
                 {cursos.length > 0 ? cursos.reduce((sum: number, c: any) => sum + (c.plazas - c.plazas_cubiertas), 0) : '350+'}
               </span>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Plazas Libres</span>
             </div>
-            <div style={{ width: '1px', height: '20px', backgroundColor: 'var(--lines)' }}></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <div className="stats-divider"></div>
+            <div className="stats-item">
               <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>100%</span>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subvencionado</span>
             </div>
@@ -559,7 +554,7 @@ function AlumnosDetalle() {
               </div>
             </div>
 
-            <div style={{ padding: '2.5rem 3rem 3rem' }}>
+            <div className="course-detail-body">
               <h1 className="course-detail-title" style={{ marginTop: 0 }}>{curso.titulo}</h1>
               <div style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Impartido por: <strong>{curso.centro_nombre}</strong></div>
 
