@@ -1081,6 +1081,12 @@ tr:last-child td {
   text-align: center;
 }
 
+.landing-hero.hero-gradient {
+  padding: 4.5rem 3rem;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(8, 42, 36, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
 .landing-hero h1 {
   font-size: 3.5rem;
   color: var(--primary);
@@ -1089,11 +1095,20 @@ tr:last-child td {
   letter-spacing: -0.03em;
 }
 
+.landing-hero.hero-gradient h1 {
+  color: var(--white);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
 .landing-hero p {
   font-size: 1.25rem;
   color: var(--text-muted);
   max-width: 650px;
   margin: 0 auto 2rem;
+}
+
+.landing-hero.hero-gradient p {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .landing-section {
@@ -2049,6 +2064,10 @@ tr:last-child td {
   .alumnos-container {
     margin-top: 2rem;
     padding: 0 1rem;
+  }
+
+  .landing-hero.hero-gradient {
+    padding: 2.25rem 1.25rem;
   }
 
   .landing-hero h1 {

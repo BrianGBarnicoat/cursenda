@@ -209,6 +209,10 @@ function AlumnosHome() {
               <option value="Mixta">Mixta</option>
             </select>
           </div>
+          <button type="submit" className="btn btn-primary" style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', whiteSpace: 'nowrap' }}>
+            <Search size={16} />
+            <span>Buscar</span>
+          </button>
          </form>
 
          <div className="reveal stagger-2" style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
