@@ -341,17 +341,17 @@ function AlumnosHome() {
         <h2 style={{ fontSize: '1.75rem', color: 'var(--primary)', textAlign: 'center', margin: '4rem 0 2.5rem' }}>Cómo funciona la matriculación en Cursenda</h2>
         <div className="features-grid">
           <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <span style={{ display: 'inline-flex', width: '48px', height: '48px', backgroundColor: 'var(--accent)', color: 'var(--white)', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.25rem', marginBottom: '1.25rem', boxShadow: '0 4px 12px rgba(201,150,46,0.3)' }}>1</span>
+            <span className="step-number">1</span>
             <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '1.125rem' }}>Encuentre su curso</h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>Explore los cursos subvencionados de distintas especialidades oficiales del SEPE disponibles en su zona o en modalidad online.</p>
           </div>
           <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <span style={{ display: 'inline-flex', width: '48px', height: '48px', backgroundColor: 'var(--accent)', color: 'var(--white)', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.25rem', marginBottom: '1.25rem', boxShadow: '0 4px 12px rgba(201,150,46,0.3)' }}>2</span>
+            <span className="step-number">2</span>
             <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '1.125rem' }}>Solicite su plaza gratis</h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>Rellene el formulario de inscripción en menos de un minuto. No requerimos ningún método de pago: el curso está subvencionado al 100%.</p>
           </div>
           <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <span style={{ display: 'inline-flex', width: '48px', height: '48px', backgroundColor: 'var(--accent)', color: 'var(--white)', borderRadius: '50%', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.25rem', marginBottom: '1.25rem', boxShadow: '0 4px 12px rgba(201,150,46,0.3)' }}>3</span>
+            <span className="step-number">3</span>
             <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '1.125rem' }}>Validación y Matrícula</h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>El centro de formación oficial se pondrá en contacto con usted en un plazo máximo de 24 horas para validar sus requisitos y formalizar la plaza.</p>
           </div>
@@ -995,11 +995,11 @@ function LandingCentros() {
         </div>
       </div>
 
-      <div id="planes" className="landing-section" style={{ backgroundColor: '#FAF9F6', padding: '5rem 2rem', borderTop: '1px solid var(--lines)', borderBottom: '1px solid var(--lines)', maxWidth: '100%' }}>
+      <div id="planes" className="landing-section reveal" style={{ backgroundColor: '#FAF9F6', padding: '5rem 2rem', borderTop: '1px solid var(--lines)', borderBottom: '1px solid var(--lines)', maxWidth: '100%' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
           <h2 className="landing-section-title">Planes flexibles para su centro</h2>
           <div className="pricing-grid">
-            <div className="price-card">
+            <div className="price-card reveal-scale stagger-1">
               <div className="price-name">Plan Starter</div>
               <div className="price-amount">79€ <span>/ mes</span></div>
               <ul className="price-features">
@@ -1011,7 +1011,7 @@ function LandingCentros() {
               <Link to="/centros/login" className="btn btn-secondary" style={{ marginTop: 'auto' }}>Comenzar ahora</Link>
             </div>
 
-            <div className="price-card popular">
+            <div className="price-card popular reveal-scale stagger-2">
               <div className="popular-badge">Recomendado</div>
               <div className="price-name">Plan Pro</div>
               <div className="price-amount">149€ <span>/ mes</span></div>
@@ -1024,7 +1024,7 @@ function LandingCentros() {
               <Link to="/centros/login" className="btn btn-primary" style={{ marginTop: 'auto' }}>Comenzar ahora</Link>
             </div>
 
-            <div className="price-card">
+            <div className="price-card reveal-scale stagger-3">
               <div className="price-name">Plan Custom</div>
               <div className="price-amount">A Medida <span></span></div>
               <ul className="price-features">
@@ -1042,32 +1042,46 @@ function LandingCentros() {
       <div id="faq" className="landing-section">
         <h2 className="landing-section-title">Preguntas Frecuentes</h2>
         <div className="faq-list">
-          <div className="faq-item" style={{ cursor: 'pointer' }} onClick={() => toggleFaq(0)}>
-            <h4 className="faq-question" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
-              <span>¿Tiene permanencia el servicio?</span>
-              <span style={{ fontSize: '1.25rem', color: 'var(--accent)', fontWeight: 'bold' }}>{activeFaq === 0 ? '−' : '+'}</span>
-            </h4>
-            {activeFaq === 0 && (
-              <p className="faq-answer" style={{ marginTop: '0.875rem' }}>No. Su suscripción es mensual y puede cancelarla o modificar su plan en cualquier momento desde su panel privado sin penalización.</p>
-            )}
+          <div className="faq-item reveal stagger-1" style={{ padding: 0, overflow: 'hidden' }}>
+            <button
+              type="button"
+              className="faq-toggle"
+              onClick={() => toggleFaq(0)}
+            >
+              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Tiene permanencia el servicio?</span>
+              <span className={`faq-icon ${activeFaq === 0 ? 'open' : ''}`}>+</span>
+            </button>
+            <div className={`faq-body ${activeFaq === 0 ? 'open' : ''}`}>
+              <p className="faq-answer">No. Su suscripción es mensual y puede cancelarla o modificar su plan en cualquier momento desde su panel privado sin penalización.</p>
+            </div>
           </div>
-          <div className="faq-item" style={{ cursor: 'pointer' }} onClick={() => toggleFaq(1)}>
-            <h4 className="faq-question" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
-               <span>¿Cómo reciben los alumnos la información?</span>
-               <span style={{ fontSize: '1.25rem', color: 'var(--accent)', fontWeight: 'bold' }}>{activeFaq === 1 ? '−' : '+'}</span>
-            </h4>
-            {activeFaq === 1 && (
-              <p className="faq-answer" style={{ marginTop: '0.875rem' }}>Los alumnos ven la ficha del curso en nuestra plataforma pública. Cuando solicitan la plaza, sus datos se graban encriptados y se le notifican en su panel de administración al instante.</p>
-            )}
+
+          <div className="faq-item reveal stagger-2" style={{ padding: 0, overflow: 'hidden' }}>
+            <button
+              type="button"
+              className="faq-toggle"
+              onClick={() => toggleFaq(1)}
+            >
+              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Cómo reciben los alumnos la información?</span>
+              <span className={`faq-icon ${activeFaq === 1 ? 'open' : ''}`}>+</span>
+            </button>
+            <div className={`faq-body ${activeFaq === 1 ? 'open' : ''}`}>
+              <p className="faq-answer">Los alumnos ven la ficha del curso en nuestra plataforma pública. Cuando solicitan la plaza, sus datos se graban encriptados y se le notifican en su panel de administración al instante.</p>
+            </div>
           </div>
-          <div className="faq-item" style={{ cursor: 'pointer' }} onClick={() => toggleFaq(2)}>
-            <h4 className="faq-question" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: 0 }}>
-              <span>¿Por qué es importante responder rápido?</span>
-              <span style={{ fontSize: '1.25rem', color: 'var(--accent)', fontWeight: 'bold' }}>{activeFaq === 2 ? '−' : '+'}</span>
-            </h4>
-            {activeFaq === 2 && (
-              <p className="faq-answer" style={{ marginTop: '0.875rem' }}>Hemos comprobado que contactar a los alumnos interesados en menos de 24 horas duplica la probabilidad de que finalicen con éxito el proceso de matrícula oficial.</p>
-            )}
+
+          <div className="faq-item reveal stagger-3" style={{ padding: 0, overflow: 'hidden' }}>
+            <button
+              type="button"
+              className="faq-toggle"
+              onClick={() => toggleFaq(2)}
+            >
+              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Por qué es importante responder rápido?</span>
+              <span className={`faq-icon ${activeFaq === 2 ? 'open' : ''}`}>+</span>
+            </button>
+            <div className={`faq-body ${activeFaq === 2 ? 'open' : ''}`}>
+              <p className="faq-answer">Hemos comprobado que contactar a los alumnos interesados en menos de 24 horas duplica la probabilidad de que finalicen con éxito el proceso de matrícula oficial.</p>
+            </div>
           </div>
         </div>
       </div>
