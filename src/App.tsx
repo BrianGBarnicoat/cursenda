@@ -56,6 +56,8 @@ function AlumnosHome() {
   const [loading, setLoading] = useState(true);
   const [alumnoFaq, setAlumnoFaq] = useState(-1);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [compareList, setCompareList] = useState<any[]>([]);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
 
   const popularSearches = [
     'IFCD0210 Desarrollo de Aplicaciones',
@@ -85,6 +87,18 @@ function AlumnosHome() {
       observer.disconnect();
     };
   }, [cursos]);
+
+  const toggleCompare = (curso: any) => {
+    if (compareList.some(c => c.id === curso.id)) {
+      setCompareList(compareList.filter(c => c.id !== curso.id));
+    } else {
+      if (compareList.length >= 3) {
+        alert("Puede comparar un máximo de 3 cursos simultáneamente.");
+        return;
+      }
+      setCompareList([...compareList, curso]);
+    }
+  };
 
   const fetchCursos = async () => {
     setLoading(true);
@@ -269,6 +283,20 @@ function AlumnosHome() {
             {cursos.map((curso, idx) => (
               <div key={curso.id} className={`course-card reveal stagger-${(idx % 4) + 1}`}>
                 <div className="course-card-banner">
+                  <button 
+                    type="button" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleCompare(curso); }}
+                    style={{
+                      position: 'absolute', top: '10px', right: '10px', zIndex: 10,
+                      backgroundColor: compareList.some(c => c.id === curso.id) ? 'var(--accent)' : 'rgba(12, 59, 51, 0.75)',
+                      color: 'var(--white)', border: 'none', borderRadius: '20px', padding: '6px 12px',
+                      fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)', backdropFilter: 'blur(4px)',
+                      display: 'flex', alignItems: 'center', gap: '4px'
+                    }}
+                  >
+                    {compareList.some(c => c.id === curso.id) ? '✓ Comparando' : '+ Comparar'}
+                  </button>
                   <img 
                     src={getCourseImage(curso.categoria)} 
                     alt={curso.titulo} 
@@ -457,6 +485,156 @@ function AlumnosHome() {
           </div>
         </div>
       </footer>
+
+      {/* COMPARADOR: BARRA FLOTANTE */}
+      {compareList.length > 0 && (
+        <div className="compare-floating-bar" style={{
+          position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem 1.5rem',
+          borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1.5rem',
+          boxShadow: '0 10px 35px rgba(8, 42, 36, 0.35)', zIndex: 9999,
+          border: '1px solid rgba(255,255,255,0.12)', width: 'max-content', maxWidth: '90%',
+          animation: 'fadeInScale 0.3s ease-out', flexWrap: 'wrap', justifyContent: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <span style={{ backgroundColor: 'var(--accent)', color: 'var(--white)', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
+              {compareList.length}
+            </span>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Cursos para comparar</span>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {compareList.map(c => (
+              <div key={c.id} style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.08)', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <span style={{ maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titulo}</span>
+                <button 
+                  onClick={() => setCompareList(compareList.filter(item => item.id !== c.id))}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.875rem', display: 'inline-flex', padding: 0 }}
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button 
+              onClick={() => setCompareModalOpen(true)}
+              className="btn btn-accent btn-sm"
+              style={{ padding: '6px 14px', fontSize: '0.8125rem' }}
+            >
+              Comparar ahora
+            </button>
+            <button 
+              onClick={() => setCompareList([])}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
+            >
+              Limpiar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* COMPARADOR: MODAL MATRIX */}
+      {compareModalOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
+          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '1rem', animation: 'fadeIn 0.25s ease-out'
+        }}>
+          <div className="reveal-scale visible" style={{
+            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '880px',
+            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh'
+          }}>
+            {/* Modal Header */}
+            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.25rem', fontWeight: 800 }}>Comparador de Cursos</h3>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Analice las diferencias cara a cara para elegir su plaza ideal</p>
+              </div>
+              <button 
+                onClick={() => setCompareModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.5rem', cursor: 'pointer', display: 'inline-flex', padding: '0.5rem' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable Table) */}
+            <div style={{ padding: '2rem', overflowX: 'auto', flexGrow: 1 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--lines)' }}>
+                    <th style={{ padding: '1rem', width: '180px', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Característica</th>
+                    {compareList.map(c => (
+                      <th key={c.id} style={{ padding: '1rem', color: 'var(--primary)', fontSize: '0.9375rem', fontWeight: 700, verticalAlign: 'top' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{c.categoria}</div>
+                        {c.titulo}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Centro Organizador</td>
+                    {compareList.map(c => (
+                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text)', fontWeight: 500 }}>{c.centro_nombre}</td>
+                    ))}
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Modalidad</td>
+                    {compareList.map(c => (
+                      <td key={c.id} style={{ padding: '1rem' }}>
+                        <span className="course-meta-tag" style={{ backgroundColor: 'var(--primary)', color: 'var(--white)', display: 'inline-block' }}>{c.modalidad}</span>
+                      </td>
+                    ))}
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Duración</td>
+                    {compareList.map(c => (
+                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text)', fontWeight: 600 }}>{c.duracion_horas} horas</td>
+                    ))}
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Localidad</td>
+                    {compareList.map(c => (
+                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text)' }}>{c.localidad}</td>
+                    ))}
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Dirigido a</td>
+                    {compareList.map(c => (
+                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{c.dirigido_a}</td>
+                    ))}
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Plazas Libres</td>
+                    {compareList.map(c => (
+                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--success-text)', fontWeight: 600 }}>
+                        {c.plazas - c.plazas_cubiertas} vacantes
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '1.5rem 1rem' }}></td>
+                    {compareList.map(c => (
+                      <td key={c.id} style={{ padding: '1.5rem 1rem' }}>
+                        <Link 
+                          to={`/curso/${c.id}`} 
+                          onClick={() => setCompareModalOpen(false)}
+                          className="btn btn-primary btn-sm" 
+                          style={{ width: '100%', textAlign: 'center' }}
+                        >
+                          Ver ficha y Matricularse
+                        </Link>
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -474,6 +652,7 @@ function AlumnosDetalle() {
   const [rgpd, setRgpd] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [eligibilityCheck, setEligibilityCheck] = useState({ sepe: false, region: false, level: false });
 
   const fetchCurso = async () => {
     try {
@@ -576,6 +755,62 @@ function AlumnosDetalle() {
             <div className="course-detail-description">
               <h3>Descripción del curso</h3>
               <p>{curso.descripcion}</p>
+            </div>
+
+            {/* COMPROBADOR INTERACTIVO DE REQUISITOS */}
+            <div style={{
+              marginTop: '2.5rem', padding: '1.75rem', backgroundColor: 'var(--bg)',
+              border: '1px solid var(--lines)', borderRadius: '12px',
+            }}>
+              <h4 style={{ margin: '0 0 0.5rem', color: 'var(--primary)', fontSize: '1.05rem', fontWeight: 700 }}>
+                ¿Cumplo los requisitos de acceso gratuito?
+              </h4>
+              <p style={{ margin: '0 0 1.25rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                Verifique su perfil para confirmar que es elegible para esta plaza 100% subvencionada.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text)' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={eligibilityCheck.sepe} 
+                    onChange={(e) => setEligibilityCheck({ ...eligibilityCheck, sepe: e.target.checked })}
+                    style={{ marginTop: '3px' }}
+                  />
+                  <span>Soy trabajador en activo, autónomo o desempleado inscrito como demandante de empleo.</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text)' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={eligibilityCheck.region} 
+                    onChange={(e) => setEligibilityCheck({ ...eligibilityCheck, region: e.target.checked })}
+                    style={{ marginTop: '3px' }}
+                  />
+                  <span>Resido en España (para modalidad Online) o en la provincia del centro (para modalidad Presencial/Mixta).</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text)' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={eligibilityCheck.level} 
+                    onChange={(e) => setEligibilityCheck({ ...eligibilityCheck, level: e.target.checked })}
+                    style={{ marginTop: '3px' }}
+                  />
+                  <span>Poseo el nivel mínimo de estudios/competencias requerido para este tipo de curso.</span>
+                </label>
+              </div>
+
+              {(eligibilityCheck.sepe && eligibilityCheck.region && eligibilityCheck.level) ? (
+                <div className="alert-box alert-success" style={{ padding: '0.875rem 1rem', marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem' }}>
+                  <Check size={16} />
+                  <span><strong>¡Apto para Subvención!</strong> Cumple los requisitos generales. Puede solicitar su plaza con total garantía.</span>
+                </div>
+              ) : (
+                <div className="alert-box alert-warning" style={{ padding: '0.875rem 1rem', marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', backgroundColor: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-border)', borderRadius: '6px' }}>
+                  <span>Marque las tres casillas para validar su perfil y confirmar su aptitud.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
