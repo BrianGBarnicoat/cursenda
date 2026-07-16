@@ -1070,6 +1070,25 @@ function AlumnosDetalle() {
     fetchCurso();
   }, [id]);
 
+  useEffect(() => {
+    if (!curso) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.05 });
+
+    const elements = document.querySelectorAll('.reveal, .reveal-scale, .reveal-left');
+    elements.forEach(el => observer.observe(el));
+
+    return () => {
+      elements.forEach(el => observer.unobserve(el));
+      observer.disconnect();
+    };
+  }, [curso]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError('');
