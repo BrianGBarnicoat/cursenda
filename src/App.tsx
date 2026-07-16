@@ -1113,6 +1113,32 @@ function AlumnosDetalle() {
                 </div>
               )}
             </div>
+
+            {/* MAPA DE UBICACIÓN / COBERTURA */}
+            <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--lines)', paddingTop: '2rem' }}>
+              <h4 style={{ color: 'var(--primary)', marginBottom: '1rem', fontSize: '1.1rem', fontWeight: 700 }}>
+                Ubicación y Cobertura
+              </h4>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                {curso.modalidad === 'Online' 
+                  ? 'Este curso se imparte en modalidad 100% online, disponible para residentes de cualquier localidad en España.'
+                  : `Este curso se imparte en modalidad ${curso.modalidad.toLowerCase()} con sede física en la localidad de ${curso.localidad}.`
+                }
+              </p>
+              <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--lines)', height: '280px', width: '100%', boxShadow: 'var(--card-shadow)' }}>
+                <iframe 
+                  title="Mapa de ubicación"
+                  width="100%" 
+                  height="100%" 
+                  frameBorder="0" 
+                  scrolling="no" 
+                  marginHeight={0} 
+                  marginWidth={0} 
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : curso.localidad + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 13}&ie=UTF8&iwloc=&output=embed`}
+                  style={{ border: 0 }}
+                ></iframe>
+              </div>
+            </div>
           </div>
         </div>
 

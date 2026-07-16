@@ -1327,6 +1327,11 @@ tr:last-child td {
   border-top: 1px solid rgba(226, 224, 216, 0.08);
 }
 
+.centros-cross-banner + .landing-footer {
+  margin-top: 0;
+  border-top: none;
+}
+
 .footer-content {
   max-width: 1000px;
   margin: 0 auto;
