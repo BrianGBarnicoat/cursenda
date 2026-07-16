@@ -113,6 +113,7 @@ app.post('/api/auth/register-invitation', async (req, res) => {
 
     const salt = crypto.randomBytes(16).toString('hex');
     const pwdHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    const apiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
     
     const fechaRenovacion = new Date();
     fechaRenovacion.setMonth(fechaRenovacion.getMonth() + 1);
@@ -120,9 +121,9 @@ app.post('/api/auth/register-invitation', async (req, res) => {
     await db.run('BEGIN TRANSACTION');
 
     const result = await db.run(`
-      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono)
-      VALUES (?, ?, ?, ?, 'starter', ?, ?, ?)
-    `, [nombre, invitacion.email, pwdHash, salt, fechaRenovacion.toISOString(), nombre_contacto || null, telefono || null]);
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token)
+      VALUES (?, ?, ?, ?, 'starter', ?, ?, ?, ?)
+    `, [nombre, invitacion.email, pwdHash, salt, fechaRenovacion.toISOString(), nombre_contacto || null, telefono || null, apiToken]);
 
     await db.run('UPDATE invitaciones SET usada = 1 WHERE id = ?', [invitacion.id]);
 
@@ -357,7 +358,12 @@ app.post('/api/public/solicitudes', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    const curso = await db.get('SELECT id FROM cursos WHERE id = ? AND estado = "publicado"', [curso_id]);
+    const curso = await db.get(`
+      SELECT cursos.id, cursos.titulo, centros.webhook_url, centros.nombre as centro_nombre
+      FROM cursos
+      JOIN centros ON cursos.centro_id = centros.id
+      WHERE cursos.id = ? AND cursos.estado = "publicado"
+    `, [curso_id]);
     
     if (!curso) {
       return res.status(404).json({ error: 'El curso no está disponible para solicitudes' });
@@ -367,6 +373,27 @@ app.post('/api/public/solicitudes', async (req, res) => {
       INSERT INTO solicitudes (curso_id, nombre, email, telefono, gestionado)
       VALUES (?, ?, ?, ?, 0)
     `, [curso_id, nombre, email, telefono]);
+
+    // Despachar Webhook si está configurado en el centro
+    if (curso.webhook_url) {
+      fetch(curso.webhook_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'lead.created',
+          timestamp: new Date().toISOString(),
+          data: {
+            curso: curso.titulo,
+            centro: curso.centro_nombre,
+            alumno: {
+              nombre,
+              email,
+              telefono
+            }
+          }
+        })
+      }).catch((err: any) => console.error('Error al despachar webhook:', err.message));
+    }
 
     res.status(201).json({ success: true, message: 'Solicitud enviada correctamente' });
   } catch (err) {
@@ -608,6 +635,46 @@ app.get('/api/facturas', authenticateToken, async (req: any, res) => {
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener facturas' });
+  }
+});
+
+// --- Endpoints de Configuración de API y Webhooks ---
+
+// Obtener configuración de API y Webhook
+app.get('/api/centro/api-settings', authenticateToken, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const row = await db.get('SELECT api_token, webhook_url FROM centros WHERE id = ?', [req.centro.id]);
+    res.json({
+      api_token: row?.api_token || '',
+      webhook_url: row?.webhook_url || ''
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener la configuración de API' });
+  }
+});
+
+// Regenerar clave API
+app.post('/api/centro/api-settings/regenerate', authenticateToken, async (req: any, res) => {
+  const nuevoToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
+  try {
+    const db = await getDatabase();
+    await db.run('UPDATE centros SET api_token = ? WHERE id = ?', [nuevoToken, req.centro.id]);
+    res.json({ success: true, api_token: nuevoToken });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al regenerar el token de API' });
+  }
+});
+
+// Guardar webhook
+app.post('/api/centro/api-settings/webhook', authenticateToken, async (req: any, res) => {
+  const { webhook_url } = req.body;
+  try {
+    const db = await getDatabase();
+    await db.run('UPDATE centros SET webhook_url = ? WHERE id = ?', [webhook_url || null, req.centro.id]);
+    res.json({ success: true, webhook_url: webhook_url || '' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar la URL de webhook' });
   }
 });
 

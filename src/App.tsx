@@ -2047,6 +2047,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [facturas, setFacturas] = useState<any[]>([]);
+  const [apiToken, setApiToken] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookSaveSuccess, setWebhookSaveSuccess] = useState(false);
 
   // Configuración del Centro
   const [confRazonSocial, setConfRazonSocial] = useState(user?.nombre || '');
@@ -2152,6 +2155,51 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     }
   };
 
+  const loadApiSettings = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/centro/api-settings`);
+      if (res.ok) {
+        const data = await res.json();
+        setApiToken(data.api_token);
+        setWebhookUrl(data.webhook_url || '');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRegenerateApiKey = async () => {
+    if (!window.confirm('¿Está seguro de que desea regenerar su clave API? Las integraciones actuales dejarán de funcionar hasta que actualice la clave.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/centro/api-settings/regenerate`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setApiToken(data.api_token);
+        alert('Nueva clave API generada y activada.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveWebhook = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/centro/api-settings/webhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhook_url: webhookUrl })
+      });
+      if (res.ok) {
+        setWebhookSaveSuccess(true);
+        setTimeout(() => setWebhookSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     if (!user) {
       navigate('/centros/login');
@@ -2161,6 +2209,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     loadSolicitudes();
     loadStats();
     loadFacturas();
+    loadApiSettings();
   }, [user]);
 
   // Manejar cursos
@@ -3001,25 +3050,45 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 
                 <div style={{ backgroundColor: '#FAF9F6', border: '1px solid var(--lines)', padding: '1rem', borderRadius: '6px', marginBottom: '1.5rem' }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Live API Token</span>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
-                    <code style={{ fontFamily: 'monospace', fontSize: '0.9375rem', fontWeight: '700' }}>cursenda_live_79a2b8e390cbf17e</code>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText('cursenda_live_79a2b8e390cbf17e');
-                        alert('Clave API copiada');
-                      }} 
-                      className="btn btn-secondary btn-sm"
-                    >
-                      Copiar
-                    </button>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <code style={{ fontFamily: 'monospace', fontSize: '0.875rem', fontWeight: '700', wordBreak: 'break-all' }}>{apiToken || 'Generando token...'}</code>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(apiToken);
+                          alert('Clave API copiada al portapapeles');
+                        }} 
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Copiar
+                      </button>
+                      <button 
+                        onClick={handleRegenerateApiKey} 
+                        className="btn btn-secondary btn-sm"
+                        style={{ color: 'var(--error-text)' }}
+                      >
+                        Regenerar
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', marginBottom: '1rem' }}>Webhooks activos</h4>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Configure una dirección URL para recibir una notificación HTTPS POST automática cada vez que un alumno solicite plaza.</p>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <input type="text" className="form-control" placeholder="https://mi-crm.com/webhooks/leads" readOnly style={{ backgroundColor: '#FAF9F6' }} />
-                  <button className="btn btn-primary btn-sm">Guardar webhook</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="https://mi-crm.com/webhooks/leads" 
+                    value={webhookUrl} 
+                    onChange={(e) => setWebhookUrl(e.target.value)} 
+                  />
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <button onClick={handleSaveWebhook} className="btn btn-primary btn-sm">Guardar webhook</button>
+                    {webhookSaveSuccess && (
+                      <span style={{ fontSize: '0.8125rem', color: 'var(--success-text)', fontWeight: 600 }}>✓ Webhook guardado correctamente</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -3029,7 +3098,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <pre style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflowX: 'auto', fontFamily: 'monospace' }}>
 {`GET /api/public/solicitudes
 Host: api.cursenda.es
-Authorization: Bearer cursenda_live_79a2b8e390c...`}
+Authorization: Bearer ${apiToken || 'cursenda_live_token'}`}
                 </pre>
               </div>
             </div>

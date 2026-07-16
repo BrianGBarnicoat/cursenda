@@ -91,19 +91,28 @@ export async function getDatabase(): Promise<Database> {
     );
   `);
 
+  // Migraciones de esquema
+  try {
+    await db.run('ALTER TABLE centros ADD COLUMN api_token TEXT');
+  } catch (_) {}
+  try {
+    await db.run('ALTER TABLE centros ADD COLUMN webhook_url TEXT');
+  } catch (_) {}
+
   // Semilla de datos si la base de datos está vacía
   const countCentros = await db.get('SELECT COUNT(*) as count FROM centros');
   if (countCentros && (countCentros as any).count === 0) {
     const salt = crypto.randomBytes(16).toString('hex');
     const pwdHash = hashPassword('demo123', salt);
+    const demoApiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
     
     const fechaRenovacion = new Date();
     fechaRenovacion.setMonth(fechaRenovacion.getMonth() + 1);
 
     // Insertar Centro Demo
     const resultCentro = await db.run(`
-      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       'Centro de Formación Tecnológica de Madrid',
       'demo@cursenda.es',
@@ -112,7 +121,8 @@ export async function getDatabase(): Promise<Database> {
       'starter',
       fechaRenovacion.toISOString(),
       'Brian Barnicoat',
-      '600112233'
+      '600112233',
+      demoApiToken
     ]);
 
     const centroId = resultCentro.lastID;
