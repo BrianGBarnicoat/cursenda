@@ -58,6 +58,10 @@ function AlumnosHome() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [compareList, setCompareList] = useState<any[]>([]);
   const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [wizardAnswers, setWizardAnswers] = useState({ categoria: '', modalidad: '', situacion: '' });
+  const [faqSearch, setFaqSearch] = useState('');
 
   const popularSearches = [
     'IFCD0210 Desarrollo de Aplicaciones',
@@ -266,9 +270,33 @@ function AlumnosHome() {
                onClick={() => setCategoria(cat)}
              >
                {cat}
-             </button>
-           ))}
-         </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="reveal stagger-3" style={{
+            marginTop: '1.75rem', backgroundColor: 'rgba(201, 150, 46, 0.08)',
+            border: '1px dashed var(--accent)', borderRadius: '12px',
+            padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', flexWrap: 'wrap', gap: '1rem', maxWidth: '100%',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ fontSize: '1.5rem' }}>💡</span>
+              <div>
+                <strong style={{ color: 'var(--primary)', fontSize: '0.9375rem' }}>¿No está seguro de qué curso elegir?</strong>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Responda 3 preguntas rápidas en nuestro Recomendador para encontrar su plaza ideal.</p>
+              </div>
+            </div>
+            <button 
+              type="button"
+              onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
+              className="btn btn-accent btn-sm"
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              Iniciar Asistente
+            </button>
+          </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem' }}>Cargando cursos disponibles...</div>
@@ -411,7 +439,23 @@ function AlumnosHome() {
       {/* FAQ ALUMNOS */}
       <div className="alumnos-container reveal" style={{ marginTop: '4rem' }}>
         <h2 style={{ fontSize: '1.75rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '0.75rem' }}>Preguntas Frecuentes</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2.5rem', fontSize: '0.9375rem' }}>Todo lo que necesita saber sobre la formación subvencionada</p>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9375rem' }}>Todo lo que necesita saber sobre la formación subvencionada</p>
+        
+        {/* BUSCADOR DE FAQ */}
+        <div style={{ maxWidth: '720px', margin: '0 auto 2rem', position: 'relative' }}>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Buscar en preguntas frecuentes..."
+            value={faqSearch}
+            onChange={(e) => setFaqSearch(e.target.value)}
+            style={{ paddingLeft: '2.5rem', height: '40px', fontSize: '0.875rem' }}
+          />
+          <span style={{ position: 'absolute', top: '50%', left: '1rem', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+            <Search size={14} />
+          </span>
+        </div>
+
         <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {[
             { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE (Servicio Público de Empleo Estatal) y los servicios autonómicos de empleo. No se requiere ningún pago ni dato bancario por parte del alumno.' },
@@ -419,7 +463,10 @@ function AlumnosHome() {
             { q: '¿Los certificados tienen validez oficial?', a: 'Sí. Los cursos de Certificado de Profesionalidad están reconocidos oficialmente por el SEPE en todo el territorio nacional y acreditan competencias profesionales con plena validez laboral.' },
             { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa en menos de 1 minuto. El centro de formación se pondrá en contacto con usted en un plazo máximo de 24 horas hábiles para confirmar su plaza y los requisitos documentales.' },
             { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes a todos los cursos que le interesen. Cada centro gestionará de forma independiente su candidatura y le informará de la disponibilidad.' },
-          ].map((faq, i) => (
+          ].filter(faq => 
+            faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
+            faq.a.toLowerCase().includes(faqSearch.toLowerCase())
+          ).map((faq, i) => (
             <div key={i} style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '8px', overflow: 'hidden' }}>
               <button
                 type="button"
@@ -434,6 +481,20 @@ function AlumnosHome() {
               )}
             </div>
           ))}
+          {[
+            { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE...' },
+            { q: '¿Quién puede acceder a estos cursos?', a: 'Trabajadores en activo...' },
+            { q: '¿Los certificados tienen validez oficial?', a: 'Sí...' },
+            { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa...' },
+            { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes...' },
+          ].filter(faq => 
+            faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
+            faq.a.toLowerCase().includes(faqSearch.toLowerCase())
+          ).length === 0 && (
+            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.875rem', border: '1px dashed var(--lines)', borderRadius: '8px' }}>
+              No se encontraron preguntas frecuentes que coincidan con "{faqSearch}".
+            </div>
+          )}
         </div>
       </div>
 
@@ -631,6 +692,239 @@ function AlumnosHome() {
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WIZARD RECOMENDADOR INTELIGENTE */}
+      {wizardOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
+          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '1rem', animation: 'fadeIn 0.25s ease-out'
+        }}>
+          <div className="reveal-scale visible" style={{
+            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '540px',
+            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh'
+          }}>
+            {/* Modal Header */}
+            <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
+              <div>
+                <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800 }}>Recomendador Inteligente</h3>
+                <p style={{ margin: '0.125rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Paso {wizardStep} de 3</p>
+              </div>
+              <button 
+                onClick={() => setWizardOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.375rem', cursor: 'pointer', display: 'inline-flex', padding: '0.25rem' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '1.75rem', overflowY: 'auto' }}>
+              {/* STEP 1: CATEGORY */}
+              {wizardStep === 1 && (
+                <div>
+                  <h4 style={{ color: 'var(--primary)', margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 700 }}>1. ¿Qué área profesional te interesa aprender?</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[
+                      { key: 'Informática', label: 'Informática y Tecnología (Web, Ciberseguridad...)', desc: 'Sectores con alta demanda y salarios competitivos' },
+                      { key: 'Sanidad', label: 'Sanidad y Cuidados (Auxiliar de Enfermería...)', desc: 'Empleabilidad del 95% en centros y residencias' },
+                      { key: 'Logística', label: 'Logística y Almacén (Gestión de Stock...)', desc: 'Clave para el comercio electrónico y distribución' },
+                      { key: 'Hostelería', label: 'Hostelería y Cocina (Sumillería, Sala...)', desc: 'Especializaciones en el principal motor turístico' },
+                      { key: 'Administración', label: 'Gestión y Administración (Microempresas...)', desc: 'Formación transversal útil para cualquier sector' }
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setWizardAnswers({ ...wizardAnswers, categoria: opt.key });
+                          setWizardStep(2);
+                        }}
+                        style={{
+                          textAlign: 'left', padding: '1rem', border: '1px solid var(--lines)',
+                          borderRadius: '8px', cursor: 'pointer', backgroundColor: 'var(--white)',
+                          transition: 'all 0.2s ease', display: 'block', width: '100%'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.backgroundColor = 'var(--bg)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--lines)'; e.currentTarget.style.backgroundColor = 'var(--white)'; }}
+                      >
+                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem' }}>{opt.label}</strong>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: MODALITY */}
+              {wizardStep === 2 && (
+                <div>
+                  <h4 style={{ color: 'var(--primary)', margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 700 }}>2. ¿Qué modalidad de estudio prefieres?</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[
+                      { key: 'Online', label: '100% Online', desc: 'Clases virtuales a tu ritmo desde cualquier lugar' },
+                      { key: 'Presencial', label: 'Presencial', desc: 'Clases y prácticas físicas en aula acreditada' },
+                      { key: 'Todas', label: 'Indiferente / Mixta', desc: 'Cualquier modalidad que tenga plazas libres rápidas' }
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setWizardAnswers({ ...wizardAnswers, modalidad: opt.key });
+                          setWizardStep(3);
+                        }}
+                        style={{
+                          textAlign: 'left', padding: '1rem', border: '1px solid var(--lines)',
+                          borderRadius: '8px', cursor: 'pointer', backgroundColor: 'var(--white)',
+                          transition: 'all 0.2s ease', display: 'block', width: '100%'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.backgroundColor = 'var(--bg)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--lines)'; e.currentTarget.style.backgroundColor = 'var(--white)'; }}
+                      >
+                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem' }}>{opt.label}</strong>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setWizardStep(1)} 
+                    style={{ marginTop: '1.25rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
+                  >
+                    Volver atrás
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 3: EMPLOYMENT STATUS */}
+              {wizardStep === 3 && (
+                <div>
+                  <h4 style={{ color: 'var(--primary)', margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 700 }}>3. ¿Cuál es su situación laboral actual?</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[
+                      { key: 'desempleado', label: 'Desempleado / Demandante de empleo', desc: 'Acceso preferente en cursos del plan nacional de empleo' },
+                      { key: 'ocupado', label: 'Trabajador contratado o autónomo', desc: 'Formación de reciclaje compatible con horarios laborales' },
+                      { key: 'joven', label: 'Joven menor de 30 años', desc: 'Programas de inserción y de garantía juvenil del SEPE' }
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setWizardAnswers({ ...wizardAnswers, situacion: opt.key });
+                          setWizardStep(4);
+                        }}
+                        style={{
+                          textAlign: 'left', padding: '1rem', border: '1px solid var(--lines)',
+                          borderRadius: '8px', cursor: 'pointer', backgroundColor: 'var(--white)',
+                          transition: 'all 0.2s ease', display: 'block', width: '100%'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.backgroundColor = 'var(--bg)'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--lines)'; e.currentTarget.style.backgroundColor = 'var(--white)'; }}
+                      >
+                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem' }}>{opt.label}</strong>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => setWizardStep(2)} 
+                    style={{ marginTop: '1.25rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
+                  >
+                    Volver atrás
+                  </button>
+                </div>
+              )}
+
+              {/* STEP 4: RECOMMENDATIONS RESULTS */}
+              {wizardStep === 4 && (() => {
+                // Filter the real catalog
+                const filtered = cursos.filter(c => {
+                  const matchCat = c.categoria === wizardAnswers.categoria;
+                  const matchMod = wizardAnswers.modalidad === 'Todas' || c.modalidad === wizardAnswers.modalidad;
+                  return matchCat && matchMod;
+                });
+
+                return (
+                  <div>
+                    <h4 style={{ color: 'var(--primary)', margin: '0 0 0.5rem', fontSize: '1.1rem', fontWeight: 800 }}>¡Plazas recomendadas para ti!</h4>
+                    <p style={{ margin: '0 0 1.5rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                      Recomendaciones basadas en: {wizardAnswers.categoria} • {wizardAnswers.modalidad === 'Todas' ? 'Cualquier modalidad' : wizardAnswers.modalidad}
+                    </p>
+
+                    {filtered.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                        {filtered.slice(0, 3).map(c => (
+                          <div key={c.id} style={{ padding: '1rem', border: '1px solid var(--lines)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', backgroundColor: 'var(--white)' }}>
+                            <div>
+                              <span className="course-meta-tag" style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '2px 8px', fontSize: '0.6875rem' }}>{c.modalidad}</span>
+                              <h5 style={{ margin: '0.375rem 0 0.125rem', fontSize: '0.875rem', color: 'var(--primary)', fontWeight: 700 }}>{c.titulo}</h5>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.centro_nombre} • {c.duracion_horas}h</span>
+                            </div>
+                            <Link 
+                              to={`/curso/${c.id}`}
+                              onClick={() => setWizardOpen(false)}
+                              className="btn btn-primary btn-sm"
+                              style={{ flexShrink: 0, padding: '6px 12px', fontSize: '0.75rem' }}
+                            >
+                              Ver Plaza
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                        <div style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>⚠️</div>
+                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>No hay convocatorias directas en este momento</strong>
+                        <p style={{ margin: '0 0 1.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          No hay cursos activos de {wizardAnswers.categoria} en la modalidad elegida. Te sugerimos registrarte en la base general o ver otros cursos populares:
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {cursos.slice(0, 2).map(c => (
+                            <div key={c.id} style={{ padding: '0.75rem 1rem', border: '1px solid var(--lines)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(201,150,46,0.03)', textAlign: 'left' }}>
+                              <div>
+                                <h6 style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--primary)', fontWeight: 700 }}>{c.titulo}</h6>
+                                <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>{c.categoria} • {c.modalidad}</span>
+                              </div>
+                              <Link 
+                                to={`/curso/${c.id}`}
+                                onClick={() => setWizardOpen(false)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                              >
+                                Ver Curso
+                              </Link>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', borderTop: '1px solid var(--lines)', paddingTop: '1.25rem' }}>
+                      <button 
+                        type="button"
+                        onClick={() => setWizardStep(1)} 
+                        className="btn btn-secondary" 
+                        style={{ flex: 1, padding: '8px', fontSize: '0.8125rem' }}
+                      >
+                        Reiniciar test
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setWizardOpen(false)} 
+                        className="btn btn-primary" 
+                        style={{ flex: 1, padding: '8px', fontSize: '0.8125rem' }}
+                      >
+                        Cerrar asistente
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
