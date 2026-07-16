@@ -1139,7 +1139,7 @@ tr:last-child td {
 }
 
 .landing-section {
-  max-width: 1040px;
+  max-width: 1200px;
   margin: 4.5rem auto;
   padding: 0 2rem;
 }
@@ -1360,7 +1360,7 @@ tr:last-child td {
 }
 
 .alumnos-container {
-  max-width: 1040px;
+  max-width: 1200px;
   margin: 2.25rem auto;
   padding: 0 2rem;
 }
@@ -1380,7 +1380,7 @@ tr:last-child td {
 
 .courses-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 2rem;
   margin-bottom: 3rem;
 }
