@@ -407,7 +407,7 @@ button, input, select, textarea {
 }
 
 /* Sidebar logo (white/gold style) */
-.sidebar .logo-text {
+.sidebar .logo-text, .logo-light .logo-text {
   color: var(--white);
 }
 
@@ -2137,5 +2137,9 @@ tr:last-child td {
 
   .centros-cross-title {
     font-size: 1.375rem;
+  }
+
+  .landing-footer {
+    padding: 3rem 1.5rem 2.25rem;
   }
 }

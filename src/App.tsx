@@ -28,9 +28,9 @@ import {
 const API_BASE = '/api';
 
 // --- LOGO ---
-export function Logo() {
+export function Logo({ light }: { light?: boolean }) {
   return (
-    <div className="logo-container">
+    <div className={`logo-container ${light ? 'logo-light' : ''}`}>
       <span className="logo-text">cursenda<span className="logo-dot">.</span></span>
     </div>
   );
@@ -132,45 +132,52 @@ function AlumnosHome() {
   };
 
   return (
-    <div>
-      <header className="alumnos-header">
-        <Logo />
-        <Link to="/centros" className="btn btn-secondary btn-sm">Acceso Centros</Link>
-      </header>
+    <div style={{ backgroundColor: 'var(--bg)', minHeight: '100vh' }}>
+      {/* CABECERA OSCURA DE ALUMNOS */}
+      <div style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', paddingBottom: '4.5rem', position: 'relative' }}>
+        <header className="alumnos-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'transparent' }}>
+          <Logo light={true} />
+          <Link to="/centros" className="btn btn-accent btn-sm">Acceso Centros</Link>
+        </header>
 
-      <div className="alumnos-container">
-        <div className="landing-hero reveal" style={{ margin: '2rem auto 1.5rem', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '2.75rem', marginBottom: '0.75rem', color: 'var(--primary)', fontWeight: '800' }}>
+        <div className="alumnos-container" style={{ textAlign: 'center', marginTop: '2.5rem', marginBottom: 0 }}>
+          <h1 style={{ fontSize: '2.75rem', marginBottom: '0.75rem', color: 'var(--white)', fontWeight: '800', lineHeight: '1.2' }}>
             Encuentre su <span style={{ background: 'var(--gradient-accent)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: '800' }}>plaza gratuita</span> en cursos subvencionados
           </h1>
-          <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '2rem', maxWidth: '640px', margin: '0 auto 2rem' }}>
+          <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.75)', marginBottom: '2.25rem', maxWidth: '640px', margin: '0 auto 2.25rem' }}>
             Formación oficial 100% subvencionada por el SEPE y ministerios públicos para desempleados y trabajadores en activo.
           </p>
 
           {/* FLOATING QUICK STATS BAR */}
-          <div className="stats-bar reveal-scale stagger-1">
+          <div className="stats-bar reveal-scale stagger-1" style={{
+            backgroundColor: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.1)', color: 'var(--white)',
+            boxShadow: 'none', margin: '0 auto'
+          }}>
             <div className="stats-item">
               <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>
                 {cursos.length > 0 ? cursos.length : '45+'}
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Activos</span>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Activos</span>
             </div>
-            <div className="stats-divider"></div>
+            <div className="stats-divider" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}></div>
             <div className="stats-item">
-              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)', fontFamily: 'var(--font-title)' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--white)', fontFamily: 'var(--font-title)' }}>
                 {cursos.length > 0 ? cursos.reduce((sum: number, c: any) => sum + (c.plazas - c.plazas_cubiertas), 0) : '350+'}
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Plazas Libres</span>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Plazas Libres</span>
             </div>
-            <div className="stats-divider"></div>
+            <div className="stats-divider" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}></div>
             <div className="stats-item">
               <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>100%</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subvencionado</span>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subvencionado</span>
             </div>
           </div>
         </div>
+      </div>
 
-        <form onSubmit={handleSearchSubmit} className="search-filters-bar reveal stagger-1" style={{ position: 'relative' }}>
+      <div className="alumnos-container" style={{ marginTop: '-2.25rem', position: 'relative', zIndex: 10 }}>
+        <form onSubmit={handleSearchSubmit} className="search-filters-bar reveal stagger-1" style={{ position: 'relative', boxShadow: '0 15px 35px rgba(8, 42, 36, 0.08)' }}>
           <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
             <label className="form-label">Buscar curso o localidad</label>
             <input 
