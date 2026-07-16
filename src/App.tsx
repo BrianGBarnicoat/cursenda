@@ -104,11 +104,12 @@ function AlumnosHome() {
     }
   };
 
-  const fetchCursos = async () => {
+  const fetchCursos = async (searchOverride?: string) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (search) params.append('search', search);
+      const currentSearch = searchOverride !== undefined ? searchOverride : search;
+      if (currentSearch) params.append('search', currentSearch);
       if (categoria && categoria !== 'Todas') params.append('categoria', categoria);
       if (modalidad && modalidad !== 'Todas') params.append('modalidad', modalidad);
 
@@ -307,14 +308,71 @@ function AlumnosHome() {
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem' }}>Cargando cursos disponibles...</div>
-        ) : cursos.length === 0 ? (
-          <div className="empty-state">
-            <BookOpen size={48} style={{ color: 'var(--text-muted)' }} />
-            <h3 className="empty-state-title">No se encontraron cursos</h3>
-            <p className="empty-state-desc">Intente ajustar los filtros de búsqueda o categoría para encontrar otras opciones.</p>
-          </div>
         ) : (
-          <div className="courses-grid">
+          <div>
+            {/* BARRA DE RESULTADOS Y CHIPS DE FILTRO */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
+              marginBottom: '1.5rem',
+              padding: '0.25rem 0.5rem',
+              animation: 'fadeIn 0.25s ease-out'
+            }}>
+              <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                Mostrando <strong style={{ color: 'var(--primary)' }}>{cursos.length}</strong> cursos de formación subvencionada
+              </div>
+              
+              {(search || (categoria && categoria !== 'Todas') || (modalidad && modalidad !== 'Todas')) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filtros activos:</span>
+                  {search && (
+                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', color: 'var(--primary)', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      "{search}"
+                      <button type="button" onClick={() => { setSearch(''); fetchCursos(''); }} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
+                    </span>
+                  )}
+                  {categoria && categoria !== 'Todas' && (
+                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', color: 'var(--primary)', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      {categoria}
+                      <button type="button" onClick={() => setCategoria('Todas')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
+                    </span>
+                  )}
+                  {modalidad && modalidad !== 'Todas' && (
+                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', color: 'var(--primary)', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      {modalidad}
+                      <button type="button" onClick={() => setModalidad('Todas')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
+                    </span>
+                  )}
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setSearch('');
+                      setCategoria('Todas');
+                      setModalidad('Todas');
+                      fetchCursos('');
+                    }} 
+                    style={{
+                      border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px',
+                      fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700, textDecoration: 'underline'
+                    }}
+                  >
+                    Limpiar todo
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {cursos.length === 0 ? (
+              <div className="empty-state">
+                <BookOpen size={48} style={{ color: 'var(--text-muted)' }} />
+                <h3 className="empty-state-title">No se encontraron cursos</h3>
+                <p className="empty-state-desc">Intente ajustar los filtros de búsqueda o categoría para encontrar otras opciones.</p>
+              </div>
+            ) : (
+              <div className="courses-grid">
             {cursos.map((curso, idx) => (
               <div key={curso.id} className={`course-card reveal stagger-${(idx % 4) + 1}`}>
                 <div className="course-card-banner">
@@ -364,6 +422,41 @@ function AlumnosHome() {
                     </div>
                   </div>
 
+                  {(() => {
+                    const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
+                    const percentage = Math.min(100, Math.max(5, ((curso.plazas_cubiertas || 0) / curso.plazas) * 100));
+                    return (
+                      <div style={{ marginTop: '1.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.375rem' }}>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Plazas ocupadas</span>
+                          <span style={{ 
+                            color: plazasLibres <= 3 ? 'var(--accent)' : 'var(--success-text)', 
+                            fontWeight: 700 
+                          }}>
+                            {plazasLibres <= 3 
+                              ? `¡Últimas ${plazasLibres} plazas!` 
+                              : `${plazasLibres} vacantes`
+                            }
+                          </span>
+                        </div>
+                        <div style={{ 
+                          height: '6px', 
+                          backgroundColor: 'var(--lines-light)', 
+                          borderRadius: '3px',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{ 
+                            height: '100%', 
+                            width: `${percentage}%`, 
+                            backgroundColor: plazasLibres <= 3 ? 'var(--accent)' : 'var(--primary)', 
+                            borderRadius: '3px',
+                            transition: 'width 0.3s ease'
+                          }}></div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   <div className="course-card-footer" style={{ borderTop: '1px solid var(--lines-light)', paddingTop: '1.25rem', marginTop: '1.5rem' }}>
                     <span className="course-price-badge">Gratis</span>
                     <Link to={`/curso/${curso.id}`} className="btn btn-primary btn-sm">Ver detalles</Link>
@@ -374,6 +467,8 @@ function AlumnosHome() {
           </div>
         )}
       </div>
+    )}
+  </div>
 
       {/* BUSCADOR POR COMUNIDAD AUTÓNOMA */}
       <div className="alumnos-container reveal" style={{ marginTop: '3.5rem', marginBottom: '2.5rem' }}>
