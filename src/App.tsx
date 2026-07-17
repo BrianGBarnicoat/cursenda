@@ -22,7 +22,9 @@ import {
   Code,
   MessageSquare,
   Shield,
-  Search
+  Search,
+  Grid,
+  Map
 } from 'lucide-react';
 
 const API_BASE = '/api';
@@ -62,6 +64,8 @@ function AlumnosHome() {
   const [wizardStep, setWizardStep] = useState(1);
   const [wizardAnswers, setWizardAnswers] = useState({ categoria: '', modalidad: '', situacion: '' });
   const [faqSearch, setFaqSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
+  const [activeMapCursoIndex, setActiveMapCursoIndex] = useState(0);
 
   const popularSearches = [
     'IFCD0210 Desarrollo de Aplicaciones',
@@ -321,8 +325,61 @@ function AlumnosHome() {
               padding: '0.25rem 0.5rem',
               animation: 'fadeIn 0.25s ease-out'
             }}>
-              <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                Mostrando <strong style={{ color: 'var(--primary)' }}>{cursos.length}</strong> cursos de formación subvencionada
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                  Mostrando <strong style={{ color: 'var(--primary)' }}>{cursos.length}</strong> cursos de formación subvencionada
+                </div>
+                {cursos.length > 0 && (
+                  <div style={{ display: 'flex', gap: '2px', backgroundColor: '#e2e0d880', padding: '3px', borderRadius: '8px', border: '1px solid var(--lines)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('grid')}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.375rem', 
+                        padding: '5px 12px', 
+                        borderRadius: '6px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        boxShadow: viewMode === 'grid' ? '0 2px 6px rgba(12, 59, 51, 0.1)' : 'none',
+                        backgroundColor: viewMode === 'grid' ? 'var(--white)' : 'transparent',
+                        color: viewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Grid size={13} />
+                      <span>Cuadrícula</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewMode('map');
+                        setActiveMapCursoIndex(0);
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '0.375rem', 
+                        padding: '5px 12px', 
+                        borderRadius: '6px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        boxShadow: viewMode === 'map' ? '0 2px 6px rgba(12, 59, 51, 0.1)' : 'none',
+                        backgroundColor: viewMode === 'map' ? 'var(--white)' : 'transparent',
+                        color: viewMode === 'map' ? 'var(--primary)' : 'var(--text-muted)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Map size={13} />
+                      <span>Mapa</span>
+                    </button>
+                  </div>
+                )}
               </div>
               
               {(search || (categoria && categoria !== 'Todas') || (modalidad && modalidad !== 'Todas')) && (
@@ -371,9 +428,74 @@ function AlumnosHome() {
                 <h3 className="empty-state-title">No se encontraron cursos</h3>
                 <p className="empty-state-desc">Intente ajustar los filtros de búsqueda o categoría para encontrar otras opciones.</p>
               </div>
+            ) : viewMode === 'map' ? (
+              <div className="map-explorer-layout reveal">
+                {/* Left Side: Compact List */}
+                <div className="map-explorer-list" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '100%' }}>
+                  {cursos.map((curso, idx) => {
+                    const active = idx === activeMapCursoIndex;
+                    const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
+                    return (
+                      <div 
+                        key={curso.id}
+                        onClick={() => setActiveMapCursoIndex(idx)}
+                        style={{
+                          backgroundColor: 'var(--white)',
+                          border: active ? '2px solid var(--accent)' : '1px solid var(--lines)',
+                          borderRadius: '12px',
+                          padding: '1.25rem',
+                          cursor: 'pointer',
+                          boxShadow: active ? 'var(--card-shadow-hover)' : 'var(--card-shadow)',
+                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                          transform: active ? 'translateX(4px)' : 'none',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{curso.categoria} • {curso.modalidad}</span>
+                          <Link 
+                            to={`/curso/${curso.id}`}
+                            style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700, textDecoration: 'underline' }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Detalles
+                          </Link>
+                        </div>
+                        <h4 style={{ color: 'var(--primary)', margin: '0.25rem 0 0.5rem', fontSize: '0.9375rem', fontWeight: 700, lineHeight: '1.3' }}>{curso.titulo}</h4>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8125rem' }}>
+                          <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <MapPin size={12} />
+                            {curso.localidad}
+                          </span>
+                          <span style={{ color: plazasLibres <= 3 ? 'var(--accent)' : 'var(--success-text)', fontWeight: 700 }}>
+                            {plazasLibres <= 3 ? `¡Últimas ${plazasLibres} plazas!` : `${plazasLibres} vacantes`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Right Side: Map Centered on Selected Course Locality */}
+                <div className="map-explorer-container" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', height: '100%' }}>
+                  {cursos[activeMapCursoIndex] && (
+                    <iframe 
+                      title="Geolocalización del curso"
+                      width="100%" 
+                      height="100%" 
+                      frameBorder="0" 
+                      scrolling="no" 
+                      marginHeight={0} 
+                      marginWidth={0} 
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(cursos[activeMapCursoIndex].modalidad === 'Online' ? 'España' : cursos[activeMapCursoIndex].localidad + ', España')}&t=&z=${cursos[activeMapCursoIndex].modalidad === 'Online' ? 5 : 12}&ie=UTF8&iwloc=&output=embed`}
+                      style={{ border: 0 }}
+                    ></iframe>
+                  )}
+                </div>
+              </div>
             ) : (
               <div className="courses-grid">
-            {cursos.map((curso, idx) => (
+                {cursos.map((curso, idx) => (
               <div key={curso.id} className={`course-card reveal stagger-${(idx % 4) + 1}`}>
                 <div className="course-card-banner">
                   <button 

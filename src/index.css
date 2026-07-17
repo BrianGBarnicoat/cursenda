@@ -2155,3 +2155,34 @@ tr:last-child td {
     padding: 3rem 1.5rem 2.25rem;
   }
 }
+
+/* Explorador de Mapa */
+.map-explorer-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1.8fr;
+  gap: 2rem;
+  margin-top: 1rem;
+  height: 600px;
+  align-items: stretch;
+}
+
+.map-explorer-list {
+  max-height: 100%;
+}
+
+.map-explorer-container {
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+  .map-explorer-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .map-explorer-list {
+    max-height: 250px !important;
+  }
+  .map-explorer-container {
+    height: 350px !important;
+  }
+}
