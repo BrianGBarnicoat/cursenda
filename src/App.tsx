@@ -27,7 +27,9 @@ import {
   Map
 } from 'lucide-react';
 
-const API_BASE = '/api';
+const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
+  ? 'http://localhost:3000/api' 
+  : '/api';
 
 const cleanLocalidad = (loc: string) => {
   if (!loc) return '';
