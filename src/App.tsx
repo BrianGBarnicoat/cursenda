@@ -29,6 +29,11 @@ import {
 
 const API_BASE = '/api';
 
+const cleanLocalidad = (loc: string) => {
+  if (!loc) return '';
+  return loc.split(/[\/,;-]/)[0].trim();
+};
+
 // --- LOGO ---
 export function Logo({ light }: { light?: boolean }) {
   return (
@@ -94,7 +99,7 @@ function AlumnosHome() {
       elements.forEach(el => observer.unobserve(el));
       observer.disconnect();
     };
-  }, [cursos]);
+  }, [cursos, viewMode]);
 
   const toggleCompare = (curso: any) => {
     if (compareList.some(c => c.id === curso.id)) {
@@ -428,7 +433,7 @@ function AlumnosHome() {
                 <p className="empty-state-desc">Intente ajustar los filtros de búsqueda o categoría para encontrar otras opciones.</p>
               </div>
             ) : viewMode === 'map' ? (
-              <div className="map-explorer-layout reveal">
+              <div className="map-explorer-layout">
                 {/* Left Side: Compact List */}
                 <div className="map-explorer-list" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '100%' }}>
                   {cursos.map((curso, idx) => {
@@ -486,7 +491,7 @@ function AlumnosHome() {
                       scrolling="no" 
                       marginHeight={0} 
                       marginWidth={0} 
-                      src={`https://maps.google.com/maps?q=${encodeURIComponent(safeCurso.modalidad === 'Online' ? 'España' : safeCurso.localidad + ', España')}&t=&z=${safeCurso.modalidad === 'Online' ? 5 : 12}&ie=UTF8&iwloc=&output=embed`}
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(safeCurso.modalidad === 'Online' ? 'España' : cleanLocalidad(safeCurso.localidad) + ', España')}&t=&z=${safeCurso.modalidad === 'Online' ? 5 : 12}&ie=UTF8&iwloc=&output=embed`}
                       style={{ border: 0 }}
                     ></iframe>
                   ) : (
@@ -1373,7 +1378,7 @@ function AlumnosDetalle() {
                   scrolling="no" 
                   marginHeight={0} 
                   marginWidth={0} 
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : curso.localidad + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 13}&ie=UTF8&iwloc=&output=embed`}
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : cleanLocalidad(curso.localidad) + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 13}&ie=UTF8&iwloc=&output=embed`}
                   style={{ border: 0 }}
                 ></iframe>
               </div>
