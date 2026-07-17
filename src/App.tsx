@@ -127,14 +127,22 @@ function AlumnosHome() {
     }
   };
 
+  // Búsqueda y filtrado en tiempo real con debounce
   useEffect(() => {
-    fetchCursos();
-  }, [categoria, modalidad]);
+    const delayDebounceFn = setTimeout(() => {
+      fetchCursos();
+    }, 200);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchCursos();
-  };
+    return () => clearTimeout(delayDebounceFn);
+  }, [search, categoria, modalidad]);
+
+  // Asegura que al cambiar los resultados se resetee el índice del mapa activo a 0
+  useEffect(() => {
+    setActiveMapCursoIndex(0);
+  }, [cursos]);
+
+  const safeIndex = (cursos && activeMapCursoIndex < cursos.length && activeMapCursoIndex >= 0) ? activeMapCursoIndex : 0;
+  const safeCurso = (cursos && cursos.length > 0) ? cursos[safeIndex] : null;
 
   return (
     <div style={{ backgroundColor: 'var(--bg)', minHeight: '100vh' }}>
@@ -182,7 +190,7 @@ function AlumnosHome() {
       </div>
 
       <div className="alumnos-container" style={{ marginTop: '-2.25rem', position: 'relative', zIndex: 10 }}>
-        <form onSubmit={handleSearchSubmit} className="search-filters-bar reveal stagger-1" style={{ position: 'relative', boxShadow: '0 15px 35px rgba(8, 42, 36, 0.08)' }}>
+        <form onSubmit={(e) => { e.preventDefault(); fetchCursos(); }} className="search-filters-bar reveal stagger-1" style={{ position: 'relative', boxShadow: '0 15px 35px rgba(8, 42, 36, 0.08)' }}>
           <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
             <label className="form-label">Buscar curso o localidad</label>
             <input 
@@ -218,14 +226,6 @@ function AlumnosHome() {
                       onMouseDown={() => {
                         setSearch(s);
                         setShowSuggestions(false);
-                        // Trigger immediate search
-                        const params = new URLSearchParams();
-                        params.append('search', s);
-                        if (categoria && categoria !== 'Todas') params.append('categoria', categoria);
-                        if (modalidad && modalidad !== 'Todas') params.append('modalidad', modalidad);
-                        fetch(`${API_BASE}/public/cursos?${params.toString()}`)
-                          .then(res => res.json())
-                          .then(data => setCursos(data));
                       }}
                       onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--lines-light)')}
                       onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
@@ -388,7 +388,7 @@ function AlumnosHome() {
                   {search && (
                     <span className="course-meta-tag" style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', color: 'var(--primary)', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       "{search}"
-                      <button type="button" onClick={() => { setSearch(''); fetchCursos(''); }} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
+                      <button type="button" onClick={() => setSearch('')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
                     </span>
                   )}
                   {categoria && categoria !== 'Todas' && (
@@ -409,7 +409,6 @@ function AlumnosHome() {
                       setSearch('');
                       setCategoria('Todas');
                       setModalidad('Todas');
-                      fetchCursos('');
                     }} 
                     style={{
                       border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px',
@@ -433,7 +432,7 @@ function AlumnosHome() {
                 {/* Left Side: Compact List */}
                 <div className="map-explorer-list" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '100%' }}>
                   {cursos.map((curso, idx) => {
-                    const active = idx === activeMapCursoIndex;
+                    const active = idx === safeIndex;
                     const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
                     return (
                       <div 
@@ -478,7 +477,7 @@ function AlumnosHome() {
 
                 {/* Right Side: Map Centered on Selected Course Locality */}
                 <div className="map-explorer-container" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', height: '100%' }}>
-                  {cursos[activeMapCursoIndex] && (
+                  {safeCurso ? (
                     <iframe 
                       title="Geolocalización del curso"
                       width="100%" 
@@ -487,9 +486,13 @@ function AlumnosHome() {
                       scrolling="no" 
                       marginHeight={0} 
                       marginWidth={0} 
-                      src={`https://maps.google.com/maps?q=${encodeURIComponent(cursos[activeMapCursoIndex].modalidad === 'Online' ? 'España' : cursos[activeMapCursoIndex].localidad + ', España')}&t=&z=${cursos[activeMapCursoIndex].modalidad === 'Online' ? 5 : 12}&ie=UTF8&iwloc=&output=embed`}
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(safeCurso.modalidad === 'Online' ? 'España' : safeCurso.localidad + ', España')}&t=&z=${safeCurso.modalidad === 'Online' ? 5 : 12}&ie=UTF8&iwloc=&output=embed`}
                       style={{ border: 0 }}
                     ></iframe>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                      Seleccione un curso del listado para ver su ubicación.
+                    </div>
                   )}
                 </div>
               </div>
