@@ -958,25 +958,28 @@ function AlumnosHome() {
       <footer className="landing-footer">
         <div className="footer-content">
           <div>
-            <Logo />
-            <p style={{ color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.5rem', fontSize: '0.875rem' }}>Buscador de cursos subvencionados gratuitos en España.</p>
+            <Logo light={true} />
+            <p style={{ color: 'rgba(255, 255, 255, 0.65)', marginTop: '0.75rem', fontSize: '0.8125rem', lineHeight: '1.6', maxWidth: '340px' }}>
+              Portal independiente para la consulta de convocatorias oficiales de formación subvencionada 100% gratuita financiada por fondos públicos en España.
+            </p>
           </div>
-          <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.875rem' }}>
-            <strong>Recursos</strong>
-            <p style={{ marginTop: '0.5rem' }}><Link to="/centros" style={{ color: 'rgba(255,255,255,0.5)' }}>Para Centros de Formación</Link></p>
-            <p><Link to="/centros/login" style={{ color: 'rgba(255,255,255,0.5)' }}>Panel de Gestión</Link></p>
+          <div style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.875rem' }}>
+            <strong style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--white)', letterSpacing: '0.03em' }}>Acceso Centros</strong>
+            <p style={{ margin: '0.35rem 0' }}><Link to="/centros" style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>Portal de Centros de Formación</Link></p>
+            <p style={{ margin: '0.35rem 0' }}><Link to="/centros/login" style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>Acceso a Gestión de Leads</Link></p>
           </div>
-          <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.875rem' }}>
-            <strong>Contacto</strong>
-            <p style={{ marginTop: '0.5rem' }}>soporte@cursenda.es</p>
+          <div style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.875rem' }}>
+            <strong style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--white)', letterSpacing: '0.03em' }}>Atención al Usuario</strong>
+            <p style={{ margin: '0.35rem 0', color: 'rgba(255,255,255,0.6)' }}>Soporte: info@cursenda.es</p>
+            <p style={{ margin: '0.35rem 0', color: 'rgba(255,255,255,0.6)' }}>Horario: L-V 09:00 - 18:00h</p>
           </div>
         </div>
         <div className="footer-bottom">
-          <span>&copy; {new Date().getFullYear()} Cursenda. Todos los derechos reservados.</span>
+          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)' }}>&copy; {new Date().getFullYear()} Cursenda • Formación Oficial Subvencionada.</span>
           <div className="footer-links">
             <a href="#" className="footer-link">Aviso Legal</a>
-            <a href="#" className="footer-link">Privacidad</a>
-            <a href="#" className="footer-link">Cookies</a>
+            <a href="#" className="footer-link">Política de Privacidad</a>
+            <a href="#" className="footer-link">Política de Cookies</a>
           </div>
         </div>
       </footer>
@@ -984,18 +987,19 @@ function AlumnosHome() {
       {/* COMPARADOR: BARRA FLOTANTE */}
       {compareList.length > 0 && (
         <div className="compare-floating-bar" style={{
-          position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
-          backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem 1.5rem',
-          borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '1.5rem',
-          boxShadow: '0 10px 35px rgba(8, 42, 36, 0.35)', zIndex: 9999,
-          border: '1px solid rgba(255,255,255,0.12)', width: 'max-content', maxWidth: '90%',
+          position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '0.85rem 1.5rem',
+          borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '1.25rem',
+          boxShadow: '0 12px 40px rgba(8, 42, 36, 0.4)', zIndex: 9999,
+          border: '1px solid rgba(255,255,255,0.18)', width: 'max-content', maxWidth: '92%',
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
           animation: 'fadeInScale 0.3s ease-out', flexWrap: 'wrap', justifyContent: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
             <span style={{ backgroundColor: 'var(--accent)', color: 'var(--white)', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
               {compareList.length}
             </span>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Cursos para comparar</span>
+            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Cursos a comparar</span>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {compareList.map(c => (
@@ -1005,7 +1009,7 @@ function AlumnosHome() {
                   onClick={() => setCompareList(compareList.filter(item => item.id !== c.id))}
                   style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.875rem', display: 'inline-flex', padding: 0 }}
                 >
-                  &times;
+                  <X size={12} />
                 </button>
               </div>
             ))}
@@ -1014,13 +1018,13 @@ function AlumnosHome() {
             <button 
               onClick={() => setCompareModalOpen(true)}
               className="btn btn-accent btn-sm"
-              style={{ padding: '6px 14px', fontSize: '0.8125rem' }}
+              style={{ padding: '6px 16px', fontSize: '0.8125rem', borderRadius: '20px', fontWeight: 700 }}
             >
               Comparar ahora
             </button>
             <button 
               onClick={() => setCompareList([])}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
+              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
             >
               Limpiar
             </button>
