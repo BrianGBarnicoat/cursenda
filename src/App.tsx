@@ -177,37 +177,51 @@ function AlumnosHome() {
           <Link to="/centros" className="btn btn-accent btn-sm">Acceso Centros</Link>
         </header>
 
-        <div className="alumnos-container" style={{ textAlign: 'center', marginTop: '2.5rem', marginBottom: 0 }}>
-          <h1 style={{ fontSize: '2.75rem', marginBottom: '0.75rem', color: 'var(--white)', fontWeight: '800', lineHeight: '1.2' }}>
+        <div className="alumnos-container" style={{ textAlign: 'center', marginTop: '2rem', marginBottom: 0 }}>
+          <div className="official-accreditation-badge reveal-scale">
+            <Shield size={13} className="shield-icon" />
+            <span>Catálogo Oficial de Cursos Subvencionados • SEPE y Comunidad de Madrid</span>
+          </div>
+
+          <h1 style={{ fontSize: '2.85rem', marginBottom: '0.75rem', color: 'var(--white)', fontWeight: '800', lineHeight: '1.18', letterSpacing: '-0.02em' }}>
             Encuentre su <span style={{ background: 'var(--gradient-accent)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: '800' }}>plaza gratuita</span> en cursos subvencionados
           </h1>
-          <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,0.75)', marginBottom: '2.25rem', maxWidth: '640px', margin: '0 auto 2.25rem' }}>
-            Formación oficial 100% subvencionada por el SEPE y ministerios públicos para desempleados y trabajadores en activo.
+          <p style={{ fontSize: '1.05rem', color: 'rgba(255,255,255,0.78)', marginBottom: '2.25rem', maxWidth: '640px', margin: '0 auto 2.25rem', lineHeight: '1.5' }}>
+            Formación 100% gratuita financiada por fondos públicos para personas desempleadas y ocupadas. Titulación oficial reconocida.
           </p>
 
           {/* FLOATING QUICK STATS BAR */}
           <div className="stats-bar reveal-scale stagger-1" style={{
-            backgroundColor: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.1)', color: 'var(--white)',
-            boxShadow: 'none', margin: '0 auto'
+            backgroundColor: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255,255,255,0.12)', color: 'var(--white)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.15)', margin: '0 auto', borderRadius: '16px'
           }}>
             <div className="stats-item">
-              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>
-                {cursos.length > 0 ? cursos.length : '45+'}
-              </span>
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Activos</span>
+              <div className="stats-icon-box"><BookOpen size={16} /></div>
+              <div>
+                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)', display: 'block', lineHeight: 1 }}>
+                  {cursos.length > 0 ? cursos.length : '45+'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Activos</span>
+              </div>
             </div>
             <div className="stats-divider" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}></div>
             <div className="stats-item">
-              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--white)', fontFamily: 'var(--font-title)' }}>
-                {cursos.length > 0 ? cursos.reduce((sum: number, c: any) => sum + (c.plazas - c.plazas_cubiertas), 0) : '350+'}
-              </span>
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Plazas Libres</span>
+              <div className="stats-icon-box"><Users size={16} /></div>
+              <div>
+                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--white)', fontFamily: 'var(--font-title)', display: 'block', lineHeight: 1 }}>
+                  {cursos.length > 0 ? cursos.reduce((sum: number, c: any) => sum + (c.plazas - c.plazas_cubiertas), 0) : '350+'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Plazas Vacantes</span>
+              </div>
             </div>
             <div className="stats-divider" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}></div>
             <div className="stats-item">
-              <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)' }}>100%</span>
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.6)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subvencionado</span>
+              <div className="stats-icon-box"><CheckCircle size={16} /></div>
+              <div>
+                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)', display: 'block', lineHeight: 1 }}>100%</span>
+                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subvencionado</span>
+              </div>
             </div>
           </div>
         </div>
