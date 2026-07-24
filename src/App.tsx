@@ -1326,7 +1326,7 @@ function AlumnosHome() {
                       </div>
                     ) : (
                       <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                        <div style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>⚠️</div>
+                        <HelpCircle size={28} style={{ color: 'var(--accent)', marginBottom: '0.5rem' }} />
                         <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>No hay convocatorias directas en este momento</strong>
                         <p style={{ margin: '0 0 1.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                           No hay cursos activos de {wizardAnswers.categoria} en la modalidad elegida para tu perfil. Te sugerimos registrarte en la base general o ver otros cursos populares:
@@ -1480,6 +1480,16 @@ function AlumnosDetalle() {
       </header>
 
       <div className="alumnos-container">
+        <div className="detail-breadcrumbs" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+          <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Inicio</Link>
+          <span style={{ opacity: 0.5 }}>/</span>
+          <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Catálogo de Cursos</Link>
+          <span style={{ opacity: 0.5 }}>/</span>
+          <span>{curso.categoria}</span>
+          <span style={{ opacity: 0.5 }}>/</span>
+          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{curso.titulo}</span>
+        </div>
+
         <div className="course-detail-layout">
           <div className="course-detail-main reveal" style={{ padding: 0, overflow: 'hidden' }}>
             <div className="course-detail-banner" style={{ height: '260px', width: '100%', overflow: 'hidden', position: 'relative' }}>
@@ -1488,15 +1498,18 @@ function AlumnosDetalle() {
                 alt={curso.titulo} 
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
               />
-              <div style={{ position: 'absolute', top: '1.5rem', left: '1.5rem', zIndex: 5, display: 'flex', gap: '0.5rem' }}>
-                <span className="course-meta-tag" style={{ backgroundColor: 'var(--primary)', color: 'var(--white)', padding: '4px 12px' }}>{curso.categoria}</span>
-                <span className="course-meta-tag" style={{ backgroundColor: 'var(--accent)', color: 'var(--white)', padding: '4px 12px' }}>{curso.modalidad}</span>
+              <div style={{ position: 'absolute', top: '1.25rem', left: '1.25rem', zIndex: 5, display: 'flex', gap: '0.5rem' }}>
+                <span className="course-meta-tag category-tag">{curso.categoria}</span>
+                <span className="course-meta-tag modality-tag">{curso.modalidad}</span>
               </div>
             </div>
 
             <div className="course-detail-body">
               <h1 className="course-detail-title" style={{ marginTop: 0 }}>{curso.titulo}</h1>
-              <div style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Impartido por: <strong>{curso.centro_nombre}</strong></div>
+              <div style={{ color: 'var(--text-muted)', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.875rem' }}>
+                <Building2 size={15} style={{ color: 'var(--accent)' }} />
+                <span>Impartido por: <strong style={{ color: 'var(--primary)' }}>{curso.centro_nombre}</strong></span>
+              </div>
 
             <div className="course-detail-meta">
               <div className="course-detail-meta-item">
