@@ -79,7 +79,8 @@ app.post('/api/auth/login', async (req, res) => {
       email: centro.email,
       plan: centro.plan,
       plan_pendiente: centro.plan_pendiente,
-      fecha_renovacion: centro.fecha_renovacion
+      fecha_renovacion: centro.fecha_renovacion,
+      rol: centro.rol
     });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -257,6 +258,14 @@ app.post('/api/cursos', authenticateToken, async (req: any, res) => {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
 
+  if (modalidad === 'Presencial' || modalidad === 'Mixta') {
+    const locLower = (localidad || '').trim().toLowerCase();
+    const invalidTerms = ['online', 'remoto', 'virtual', 'internet', 'no presencial', 'distancia', 'remota', 'pantalla', 'cualquiera'];
+    if (invalidTerms.some(term => locLower.includes(term)) || locLower === '') {
+      return res.status(400).json({ error: 'Para cursos presenciales o mixtos, debe indicar una localidad o dirección física real (no se permite "Online", "Remoto" o similar).' });
+    }
+  }
+
   try {
     const db = await getDatabase();
     const result = await db.run(`
@@ -294,6 +303,17 @@ app.put('/api/cursos/:id', authenticateToken, async (req: any, res) => {
 
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado o sin permisos' });
+    }
+
+    const finalModalidad = modalidad !== undefined ? modalidad : curso.modalidad;
+    const finalLocalidad = localidad !== undefined ? localidad : curso.localidad;
+
+    if (finalModalidad === 'Presencial' || finalModalidad === 'Mixta') {
+      const locLower = (finalLocalidad || '').trim().toLowerCase();
+      const invalidTerms = ['online', 'remoto', 'virtual', 'internet', 'no presencial', 'distancia', 'remota', 'pantalla', 'cualquiera'];
+      if (invalidTerms.some(term => locLower.includes(term)) || locLower === '') {
+        return res.status(400).json({ error: 'Para cursos presenciales o mixtos, debe indicar una localidad o dirección física real (no se permite "Online", "Remoto" o similar).' });
+      }
     }
 
     await db.run(`
@@ -442,6 +462,38 @@ app.post('/api/solicitudes/:id/gestionado', authenticateToken, async (req: any, 
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar el estado' });
+  }
+});
+
+// Actualizar estado detallado de una solicitud
+app.put('/api/solicitudes/:id/estado', authenticateToken, async (req: any, res) => {
+  const { id } = req.params;
+  const { estado_detalle } = req.body;
+
+  const validStates = ['Nuevo', 'Llamado', 'Interesado', 'Matriculado', 'Descartado'];
+  if (!validStates.includes(estado_detalle)) {
+    return res.status(400).json({ error: 'Estado no válido' });
+  }
+
+  try {
+    const db = await getDatabase();
+    const solicitud = await db.get(`
+      SELECT solicitudes.id 
+      FROM solicitudes 
+      JOIN cursos ON solicitudes.curso_id = cursos.id 
+      WHERE solicitudes.id = ? AND cursos.centro_id = ?
+    `, [id, req.centro.id]);
+
+    if (!solicitud) {
+      return res.status(404).json({ error: 'Solicitud no encontrada' });
+    }
+
+    const gestionado = estado_detalle === 'Nuevo' ? 0 : 1;
+
+    await db.run('UPDATE solicitudes SET estado_detalle = ?, gestionado = ? WHERE id = ?', [estado_detalle, gestionado, id]);
+    res.json({ success: true, estado_detalle, gestionado });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar el estado de la solicitud' });
   }
 });
 
@@ -675,6 +727,223 @@ app.post('/api/centro/api-settings/webhook', authenticateToken, async (req: any,
     res.json({ success: true, webhook_url: webhook_url || '' });
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar la URL de webhook' });
+  }
+});
+
+// Middleware para verificar que el usuario autenticado es administrador
+async function authenticateAdmin(req: any, res: any, next: any) {
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({ error: 'Sesión no iniciada' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; email: string };
+    const db = await getDatabase();
+    const admin = await db.get('SELECT id, nombre, email, rol FROM centros WHERE id = ? AND rol = "admin"', [decoded.id]);
+    
+    if (!admin) {
+      return res.status(403).json({ error: 'Acceso denegado: se requieren permisos de administrador' });
+    }
+
+    req.admin = admin;
+    next();
+  } catch (err) {
+    res.clearCookie('token');
+    return res.status(403).json({ error: 'Sesión inválida o expirada' });
+  }
+}
+
+// --- Endpoints de Administración (Portal de Admin) ---
+
+// Obtener todas las academias
+app.get('/api/admin/centros', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const list = await db.all('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros ORDER BY id DESC');
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener las academias' });
+  }
+});
+
+// Crear una nueva academia
+app.post('/api/admin/centros', authenticateAdmin, async (req, res) => {
+  const { nombre, email, password, plan, nombre_contacto, telefono } = req.body;
+
+  if (!nombre || !email || !password) {
+    return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
+  }
+
+  try {
+    const db = await getDatabase();
+    
+    const exists = await db.get('SELECT id FROM centros WHERE email = ?', [email]);
+    if (exists) {
+      return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const pwdHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    const apiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
+    
+    const fechaRenovacion = new Date();
+    fechaRenovacion.setMonth(fechaRenovacion.getMonth() + 1);
+
+    const result = await db.run(`
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, rol)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'centro')
+    `, [nombre, email, pwdHash, salt, plan || 'starter', fechaRenovacion.toISOString(), nombre_contacto || null, telefono || null, apiToken]);
+
+    const newCentro = await db.get('SELECT id, nombre, email, plan, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [result.lastID]);
+    res.status(201).json(newCentro);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear la academia' });
+  }
+});
+
+// Modificar datos de una academia (por ejemplo, cambiar su plan)
+app.put('/api/admin/centros/:id', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { nombre, email, plan, fecha_renovacion, nombre_contacto, telefono } = req.body;
+
+  try {
+    const db = await getDatabase();
+    const centro = await db.get('SELECT * FROM centros WHERE id = ?', [id]);
+    if (!centro) {
+      return res.status(404).json({ error: 'Academia no encontrada' });
+    }
+
+    await db.run(`
+      UPDATE centros
+      SET nombre = ?, email = ?, plan = ?, fecha_renovacion = ?, nombre_contacto = ?, telefono = ?
+      WHERE id = ?
+    `, [
+      nombre || centro.nombre,
+      email || centro.email,
+      plan || centro.plan,
+      fecha_renovacion || centro.fecha_renovacion,
+      nombre_contacto !== undefined ? nombre_contacto : centro.nombre_contacto,
+      telefono !== undefined ? telefono : centro.telefono,
+      id
+    ]);
+
+    const updated = await db.get('SELECT id, nombre, email, plan, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar la academia' });
+  }
+});
+
+// Eliminar una academia
+app.delete('/api/admin/centros/:id', authenticateAdmin, async (req: any, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = await getDatabase();
+    
+    if (parseInt(id) === req.admin.id) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta de administrador' });
+    }
+
+    const centro = await db.get('SELECT id FROM centros WHERE id = ?', [id]);
+    if (!centro) {
+      return res.status(404).json({ error: 'Academia no encontrada' });
+    }
+
+    await db.run('DELETE FROM centros WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Academia eliminada con éxito' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar la academia' });
+  }
+});
+
+// Obtener todos los cursos
+app.get('/api/admin/cursos', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const list = await db.all(`
+      SELECT cursos.*, centros.nombre as centro_nombre 
+      FROM cursos 
+      JOIN centros ON cursos.centro_id = centros.id 
+      ORDER BY cursos.id DESC
+    `);
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener los cursos' });
+  }
+});
+
+// Modificar un curso desde moderación (cambiar estado, título, descripción, etc.)
+app.put('/api/admin/cursos/:id', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, estado } = req.body;
+
+  try {
+    const db = await getDatabase();
+    const curso = await db.get('SELECT * FROM cursos WHERE id = ?', [id]);
+    if (!curso) {
+      return res.status(404).json({ error: 'Curso no encontrado' });
+    }
+
+    await db.run(`
+      UPDATE cursos 
+      SET titulo = ?, categoria = ?, modalidad = ?, localidad = ?, duracion_horas = ?, plazas = ?, plazas_cubiertas = ?, fecha_inicio = ?, dirigido_a = ?, descripcion = ?, estado = ?
+      WHERE id = ?
+    `, [
+      titulo || curso.titulo,
+      categoria || curso.categoria,
+      modalidad || curso.modalidad,
+      localidad || curso.localidad,
+      duracion_horas !== undefined ? parseInt(duracion_horas) : curso.duracion_horas,
+      plazas !== undefined ? parseInt(plazas) : curso.plazas,
+      plazas_cubiertas !== undefined ? parseInt(plazas_cubiertas) : curso.plazas_cubiertas,
+      fecha_inicio || curso.fecha_inicio,
+      dirigido_a || curso.dirigido_a,
+      descripcion || curso.descripcion,
+      estado || curso.estado,
+      id
+    ]);
+
+    const updated = await db.get('SELECT * FROM cursos WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar el curso' });
+  }
+});
+
+// Eliminar un curso
+app.delete('/api/admin/cursos/:id', authenticateAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const db = await getDatabase();
+    const curso = await db.get('SELECT id FROM cursos WHERE id = ?', [id]);
+    if (!curso) {
+      return res.status(404).json({ error: 'Curso no encontrado' });
+    }
+
+    await db.run('DELETE FROM cursos WHERE id = ?', [id]);
+    res.json({ success: true, message: 'Curso eliminado con éxito' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar el curso' });
+  }
+});
+
+// Obtener todas las solicitudes registradas
+app.get('/api/admin/solicitudes', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const list = await db.all(`
+      SELECT solicitudes.*, cursos.titulo as curso_titulo, centros.nombre as centro_nombre
+      FROM solicitudes
+      JOIN cursos ON solicitudes.curso_id = cursos.id
+      JOIN centros ON cursos.centro_id = centros.id
+      ORDER BY solicitudes.id DESC
+    `);
+    res.json(list);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener las solicitudes' });
   }
 });
 

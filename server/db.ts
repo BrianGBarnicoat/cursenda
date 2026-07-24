@@ -98,6 +98,41 @@ export async function getDatabase(): Promise<Database> {
   try {
     await db.run('ALTER TABLE centros ADD COLUMN webhook_url TEXT');
   } catch (_) {}
+  try {
+    await db.run("ALTER TABLE centros ADD COLUMN rol TEXT CHECK(rol IN ('centro', 'admin')) DEFAULT 'centro'");
+  } catch (_) {}
+  try {
+    await db.run("ALTER TABLE solicitudes ADD COLUMN estado_detalle TEXT CHECK(estado_detalle IN ('Nuevo', 'Llamado', 'Interesado', 'Matriculado', 'Descartado')) DEFAULT 'Nuevo'");
+  } catch (_) {}
+
+  // Semilla de administrador si no existe
+  try {
+    const adminEmail = 'admin@cursenda.es';
+    const adminExists = await db.get('SELECT * FROM centros WHERE email = ?', [adminEmail]);
+    if (!adminExists) {
+      const salt = crypto.randomBytes(16).toString('hex');
+      const pwdHash = hashPassword('admin123', salt);
+      const fechaRenovacion = new Date();
+      fechaRenovacion.setFullYear(fechaRenovacion.getFullYear() + 10);
+      
+      await db.run(`
+        INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, rol)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        'Administrador Cursenda',
+        adminEmail,
+        pwdHash,
+        salt,
+        'custom',
+        fechaRenovacion.toISOString(),
+        'Admin',
+        '900000000',
+        'admin'
+      ]);
+    }
+  } catch (err) {
+    console.error("Error al sembrar administrador:", err);
+  }
 
   // Semilla de datos si la base de datos está vacía
   const countCentros = await db.get('SELECT COUNT(*) as count FROM centros');

@@ -24,7 +24,9 @@ import {
   Shield,
   Search,
   Grid,
-  Map
+  Map,
+  Building2,
+  ArrowRight
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -39,9 +41,9 @@ const cleanLocalidad = (loc: string) => {
 // --- LOGO ---
 export function Logo({ light }: { light?: boolean }) {
   return (
-    <div className={`logo-container ${light ? 'logo-light' : ''}`}>
+    <Link to="/" className={`logo-container ${light ? 'logo-light' : ''}`} style={{ textDecoration: 'none', display: 'inline-flex' }}>
       <span className="logo-text">cursenda<span className="logo-dot">.</span></span>
-    </div>
+    </Link>
   );
 }
 
@@ -59,6 +61,8 @@ export const getCourseImage = (categoria: string) => {
 // --- PORTAL ALUMNOS: LISTADO ---
 function AlumnosHome() {
   const [cursos, setCursos] = useState<any[]>([]);
+  const [unfilteredCursos, setUnfilteredCursos] = useState<any[]>([]);
+  const [mapSearch, setMapSearch] = useState('');
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState('Todas');
   const [modalidad, setModalidad] = useState('Todas');
@@ -102,6 +106,20 @@ function AlumnosHome() {
       observer.disconnect();
     };
   }, [cursos, viewMode]);
+
+  // Cargar cursos sin filtros para el Asistente
+  useEffect(() => {
+    const fetchAllCursos = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/public/cursos`);
+        const data = await res.json();
+        setUnfilteredCursos(data);
+      } catch (err) {
+        console.error("Error al cargar cursos para el asistente:", err);
+      }
+    };
+    fetchAllCursos();
+  }, []);
 
   const toggleCompare = (curso: any) => {
     if (compareList.some(c => c.id === curso.id)) {
@@ -148,8 +166,7 @@ function AlumnosHome() {
     setActiveMapCursoIndex(0);
   }, [cursos]);
 
-  const safeIndex = (cursos && activeMapCursoIndex < cursos.length && activeMapCursoIndex >= 0) ? activeMapCursoIndex : 0;
-  const safeCurso = (cursos && cursos.length > 0) ? cursos[safeIndex] : null;
+
 
   return (
     <div style={{ backgroundColor: 'var(--bg)', minHeight: '100vh' }}>
@@ -194,128 +211,136 @@ function AlumnosHome() {
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="alumnos-container" style={{ marginTop: '-2.25rem', position: 'relative', zIndex: 10 }}>
-        <form onSubmit={(e) => { e.preventDefault(); fetchCursos(); }} className="search-filters-bar reveal stagger-1" style={{ position: 'relative', boxShadow: '0 15px 35px rgba(8, 42, 36, 0.08)' }}>
-          <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
-            <label className="form-label">Buscar curso o localidad</label>
-            <input 
-              type="text" 
-              className="form-control" 
-              placeholder="Ej: React, Logística, Madrid..." 
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
-            />
-            {showSuggestions && (
-              <div className="suggestions-dropdown" style={{
-                position: 'absolute', top: '100%', left: 0, right: 0,
-                backgroundColor: 'var(--white)', border: '1px solid var(--lines)',
-                borderRadius: '8px', boxShadow: 'var(--card-shadow-hover)',
-                zIndex: 999, marginTop: '0.5rem', maxHeight: '240px', overflowY: 'auto'
-              }}>
-                {popularSearches
-                  .filter(s => s.toLowerCase().includes(search.toLowerCase()))
-                  .map((s, idx) => (
-                    <div 
-                      key={idx} 
-                      className="suggestion-item"
-                      style={{
-                        padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '0.875rem',
-                        transition: 'background-color 0.2s ease', borderBottom: '1px solid var(--lines-light)',
-                        textAlign: 'left', color: 'var(--primary)'
-                      }}
-                      onMouseDown={() => {
-                        setSearch(s);
-                        setShowSuggestions(false);
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--lines-light)')}
-                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '0.625rem', color: 'var(--text-muted)', verticalAlign: 'middle' }}>
-                        <Search size={14} />
-                      </span> 
-                      <span style={{ verticalAlign: 'middle' }}>{s}</span>
+      </div>      <div className="alumnos-container" style={{ marginTop: '-2.25rem', position: 'relative', zIndex: 10 }}>
+        {/* PANEL DE BÚSQUEDA UNIFICADO */}
+        <div className="search-panel reveal stagger-1">
+          <form onSubmit={(e) => { e.preventDefault(); fetchCursos(); }} className="search-filters-bar">
+            <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
+              <label className="form-label">Buscar curso o localidad</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                placeholder="Ej: React, Logística, Madrid..." 
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+              />
+              {showSuggestions && (
+                <div className="suggestions-dropdown" style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0,
+                  backgroundColor: 'var(--white)', border: '1px solid var(--lines)',
+                  borderRadius: '8px', boxShadow: 'var(--card-shadow-hover)',
+                  zIndex: 999, marginTop: '0.5rem', maxHeight: '240px', overflowY: 'auto'
+                }}>
+                  {popularSearches
+                    .filter(s => s.toLowerCase().includes(search.toLowerCase()))
+                    .map((s, idx) => (
+                      <div 
+                        key={idx} 
+                        className="suggestion-item"
+                        style={{
+                          padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '0.875rem',
+                          transition: 'background-color 0.2s ease', borderBottom: '1px solid var(--lines-light)',
+                          textAlign: 'left', color: 'var(--primary)'
+                        }}
+                        onMouseDown={() => {
+                          setSearch(s);
+                          setShowSuggestions(false);
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--lines-light)')}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '0.625rem', color: 'var(--text-muted)', verticalAlign: 'middle' }}>
+                          <Search size={14} />
+                        </span> 
+                        <span style={{ verticalAlign: 'middle' }}>{s}</span>
+                      </div>
+                    ))}
+                  {popularSearches.filter(s => s.toLowerCase().includes(search.toLowerCase())).length === 0 && (
+                    <div style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                      No hay sugerencias que coincidan
                     </div>
-                  ))}
-                {popularSearches.filter(s => s.toLowerCase().includes(search.toLowerCase())).length === 0 && (
-                  <div style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                    No hay sugerencias que coincidan
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Categoría</label>
-            <select className="form-control" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-              <option value="Todas">Todas</option>
-              <option value="Informática">Informática</option>
-              <option value="Sanidad">Sanidad</option>
-              <option value="Logística">Logística</option>
-              <option value="Administración">Administración</option>
-              <option value="Hostelería">Hostelería</option>
-              <option value="Otros">Otros</option>
-            </select>
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Modalidad</label>
-            <select className="form-control" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
-              <option value="Todas">Todas</option>
-              <option value="Presencial">Presencial</option>
-              <option value="Online">Online</option>
-              <option value="Mixta">Mixta</option>
-            </select>
-          </div>
-          <button type="submit" className="btn btn-primary" style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', whiteSpace: 'nowrap' }}>
-            <Search size={16} />
-            <span>Buscar</span>
-          </button>
-         </form>
-
-         <div className="reveal stagger-2" style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-           <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '0.5rem', fontWeight: 600 }}>Categorías populares:</span>
-           {['Todas', 'Informática', 'Sanidad', 'Logística', 'Hostelería'].map((cat) => (
-             <button
-               key={cat}
-               type="button"
-               className="btn btn-secondary btn-sm"
-               style={categoria === cat ? { backgroundColor: 'var(--primary)', color: 'var(--white)', borderColor: 'var(--primary)', borderRadius: '16px' } : { borderRadius: '16px' }}
-               onClick={() => setCategoria(cat)}
-             >
-               {cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="reveal stagger-3" style={{
-            marginTop: '1.75rem', backgroundColor: 'rgba(201, 150, 46, 0.08)',
-            border: '1px dashed var(--accent)', borderRadius: '12px',
-            padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', flexWrap: 'wrap', gap: '1rem', maxWidth: '100%',
-            textAlign: 'left'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '1.5rem' }}>💡</span>
-              <div>
-                <strong style={{ color: 'var(--primary)', fontSize: '0.9375rem' }}>¿No está seguro de qué curso elegir?</strong>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Responda 3 preguntas rápidas en nuestro Recomendador para encontrar su plaza ideal.</p>
-              </div>
+                  )}
+                </div>
+              )}
             </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Categoría</label>
+              <select className="form-control" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+                <option value="Todas">Todas</option>
+                <option value="Informática">Informática</option>
+                <option value="Sanidad">Sanidad</option>
+                <option value="Logística">Logística</option>
+                <option value="Administración">Administración</option>
+                <option value="Hostelería">Hostelería</option>
+                <option value="Otros">Otros</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Modalidad</label>
+              <select className="form-control" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
+                <option value="Todas">Todas</option>
+                <option value="Presencial">Presencial</option>
+                <option value="Online">Online</option>
+                <option value="Mixta">Mixta</option>
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', whiteSpace: 'nowrap' }}>
+              <Search size={16} />
+              <span>Buscar</span>
+            </button>
+          </form>
+
+          {/* FILA INFERIOR: CATEGORÍAS POPULARES + BOTÓN AL ASISTENTE */}
+          <div className="search-panel-footer" style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: '1.25rem',
+            paddingTop: '1.25rem',
+            borderTop: '1px solid var(--lines-light)',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '0.5rem', fontWeight: 600 }}>Categorías populares:</span>
+              {['Todas', 'Informática', 'Sanidad', 'Logística', 'Hostelería'].map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={categoria === cat ? { backgroundColor: 'var(--primary)', color: 'var(--white)', borderColor: 'var(--primary)', borderRadius: '16px' } : { borderRadius: '16px' }}
+                  onClick={() => setCategoria(cat)}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
             <button 
               type="button"
               onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
-              className="btn btn-accent btn-sm"
-              style={{ whiteSpace: 'nowrap' }}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.8125rem',
+                color: 'var(--accent)',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.375rem',
+                padding: 0
+              }}
             >
-              Iniciar Asistente
+              <span>💡 ¿No está seguro? Pruebe el Asistente</span>
             </button>
           </div>
+        </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem' }}>Cargando cursos disponibles...</div>
@@ -435,197 +460,304 @@ function AlumnosHome() {
                 <p className="empty-state-desc">Intente ajustar los filtros de búsqueda o categoría para encontrar otras opciones.</p>
               </div>
             ) : viewMode === 'map' ? (
-              <div className="map-explorer-layout">
-                {/* Left Side: Compact List */}
-                <div className="map-explorer-list" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '100%' }}>
-                  {cursos.map((curso, idx) => {
-                    const active = idx === safeIndex;
-                    const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
-                    return (
-                      <div 
-                        key={curso.id}
-                        onClick={() => setActiveMapCursoIndex(idx)}
-                        style={{
-                          backgroundColor: 'var(--white)',
-                          border: active ? '2px solid var(--accent)' : '1px solid var(--lines)',
-                          borderRadius: '12px',
-                          padding: '1.25rem',
-                          cursor: 'pointer',
-                          boxShadow: active ? 'var(--card-shadow-hover)' : 'var(--card-shadow)',
-                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                          transform: active ? 'translateX(4px)' : 'none',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>{curso.categoria} • {curso.modalidad}</span>
-                          <Link 
-                            to={`/curso/${curso.id}`}
-                            style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700, textDecoration: 'underline' }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Detalles
-                          </Link>
-                        </div>
-                        <h4 style={{ color: 'var(--primary)', margin: '0.25rem 0 0.5rem', fontSize: '0.9375rem', fontWeight: 700, lineHeight: '1.3' }}>{curso.titulo}</h4>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8125rem' }}>
-                          <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                            <MapPin size={12} />
-                            {curso.localidad}
-                          </span>
-                          <span style={{ color: plazasLibres <= 3 ? 'var(--accent)' : 'var(--success-text)', fontWeight: 700 }}>
-                            {plazasLibres <= 3 ? `¡Últimas ${plazasLibres} plazas!` : `${plazasLibres} vacantes`}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              (() => {
+                const filteredMapCursos = cursos.filter(curso => {
+                  const query = mapSearch.toLowerCase();
+                  return (
+                    curso.titulo.toLowerCase().includes(query) ||
+                    curso.localidad.toLowerCase().includes(query) ||
+                    (curso.centro_nombre && curso.centro_nombre.toLowerCase().includes(query)) ||
+                    curso.categoria.toLowerCase().includes(query)
+                  );
+                });
 
-                {/* Right Side: Map Centered on Selected Course Locality */}
-                <div className="map-explorer-container" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', height: '100%' }}>
-                  {safeCurso ? (
-                    <iframe 
-                      title="Geolocalización del curso"
-                      width="100%" 
-                      height="100%" 
-                      frameBorder="0" 
-                      scrolling="no" 
-                      marginHeight={0} 
-                      marginWidth={0} 
-                      src={`https://maps.google.com/maps?q=${encodeURIComponent(safeCurso.modalidad === 'Online' ? 'España' : cleanLocalidad(safeCurso.localidad) + ', España')}&t=&z=${safeCurso.modalidad === 'Online' ? 5 : 12}&ie=UTF8&iwloc=&output=embed`}
-                      style={{ border: 0 }}
-                    ></iframe>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                      Seleccione un curso del listado para ver su ubicación.
+                const mapSafeIndex = (filteredMapCursos && activeMapCursoIndex < filteredMapCursos.length && activeMapCursoIndex >= 0) ? activeMapCursoIndex : 0;
+                const mapSafeCurso = (filteredMapCursos && filteredMapCursos.length > 0) ? filteredMapCursos[mapSafeIndex] : null;
+
+                return (
+                  <div className="map-explorer-layout">
+                    {/* Left Side: Search + Compact List */}
+                    <div className="map-explorer-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%' }}>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          placeholder="Buscar en el mapa (ciudad, academia, curso...)"
+                          value={mapSearch}
+                          onChange={(e) => {
+                            setMapSearch(e.target.value);
+                            setActiveMapCursoIndex(0);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '0.625rem 2.5rem 0.625rem 1.25rem',
+                            borderRadius: '8px',
+                            border: '1px solid var(--lines)',
+                            fontSize: '0.8125rem',
+                            backgroundColor: 'var(--white)',
+                            color: 'var(--primary)',
+                            boxShadow: 'var(--card-shadow)',
+                            outline: 'none',
+                            transition: 'border-color 0.2s ease'
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+                          onBlur={(e) => e.target.style.borderColor = 'var(--lines)'}
+                        />
+                        <Search size={14} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      </div>
+                      
+                      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, paddingRight: '0.25rem', maxHeight: '520px' }}>
+                        {filteredMapCursos.length > 0 ? (
+                          filteredMapCursos.map((curso, idx) => {
+                            const active = idx === mapSafeIndex;
+                            const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
+                            return (
+                              <div 
+                                key={curso.id}
+                                onClick={() => setActiveMapCursoIndex(idx)}
+                                style={{
+                                  backgroundColor: 'var(--white)',
+                                  border: active ? '2px solid var(--accent)' : '1px solid rgba(12, 59, 51, 0.1)',
+                                  borderRadius: '14px',
+                                  padding: '1.15rem 1.25rem',
+                                  cursor: 'pointer',
+                                  boxShadow: active ? '0 8px 24px -4px rgba(212, 158, 53, 0.25)' : '0 2px 8px rgba(0,0,0,0.04)',
+                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  transform: active ? 'translateX(4px)' : 'none',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                    <span className="course-meta-tag category-tag" style={{ fontSize: '0.625rem', padding: '2px 8px' }}>{curso.categoria}</span>
+                                    <span className="course-meta-tag modality-tag" style={{ fontSize: '0.625rem', padding: '2px 8px' }}>{curso.modalidad}</span>
+                                  </div>
+                                  <Link 
+                                    to={`/curso/${curso.id}`}
+                                    style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '2px' }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    Detalles <ArrowRight size={12} />
+                                  </Link>
+                                </div>
+                                <h4 style={{ color: 'var(--primary)', margin: '0.35rem 0 0.5rem', fontSize: '0.9375rem', fontWeight: 700, lineHeight: '1.3' }}>{curso.titulo}</h4>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8125rem' }}>
+                                  <span className="course-info-bullet" style={{ padding: '3px 8px', fontSize: '0.75rem' }}>
+                                    <MapPin size={12} style={{ color: 'var(--accent)' }} />
+                                    {curso.localidad}
+                                  </span>
+                                  <span style={{ 
+                                    color: plazasLibres <= 3 ? 'var(--accent)' : 'var(--success-text)', 
+                                    fontWeight: 700,
+                                    fontSize: '0.75rem'
+                                  }}>
+                                    {plazasLibres <= 3 ? `¡Últimas ${plazasLibres} plazas!` : `${plazasLibres} vacantes`}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                            No se encontraron cursos que coincidan con la búsqueda en el mapa.
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
+
+                    {/* Right Side: Map Centered on Selected Course Locality */}
+                    <div className="map-explorer-container" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', height: '100%' }}>
+                      {mapSafeCurso ? (
+                        <iframe 
+                          title="Geolocalización del curso"
+                          width="100%" 
+                          height="100%" 
+                          frameBorder="0" 
+                          scrolling="no" 
+                          marginHeight={0} 
+                          marginWidth={0} 
+                          src={`https://maps.google.com/maps?q=${encodeURIComponent(mapSafeCurso.modalidad === 'Online' ? 'España' : (mapSafeCurso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(mapSafeCurso.localidad) + ', España')}&t=&z=${mapSafeCurso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`}
+                          style={{ border: 0 }}
+                        ></iframe>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                          Seleccione un curso del listado para ver su ubicación.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               <div className="courses-grid">
-                {cursos.map((curso, idx) => (
-              <div key={curso.id} className={`course-card reveal stagger-${(idx % 4) + 1}`}>
-                <div className="course-card-banner">
-                  <button 
-                    type="button" 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleCompare(curso); }}
-                    style={{
-                      position: 'absolute', top: '10px', right: '10px', zIndex: 10,
-                      backgroundColor: compareList.some(c => c.id === curso.id) ? 'var(--accent)' : 'rgba(12, 59, 51, 0.75)',
-                      color: 'var(--white)', border: 'none', borderRadius: '20px', padding: '6px 12px',
-                      fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s ease',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)', backdropFilter: 'blur(4px)',
-                      display: 'flex', alignItems: 'center', gap: '4px'
-                    }}
-                  >
-                    {compareList.some(c => c.id === curso.id) ? '✓ Comparando' : '+ Comparar'}
-                  </button>
-                  <img 
-                    src={getCourseImage(curso.categoria)} 
-                    alt={curso.titulo} 
-                    className="course-card-img" 
-                  />
-                  <div className="course-card-meta-overlay">
-                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--primary)', color: 'var(--white)' }}>{curso.categoria}</span>
-                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--accent)', color: 'var(--white)' }}>{curso.modalidad}</span>
-                  </div>
-                </div>
-                
-                <div className="course-card-body">
-                  <div className="course-card-top">
-                    <h3>{curso.titulo}</h3>
-                    <div className="course-provider">{curso.centro_nombre}</div>
-                    
-                    <div className="course-info-row">
-                      <div className="course-info-item">
-                        <MapPin size={16} />
-                        <span>{curso.localidad}</span>
-                      </div>
-                      <div className="course-info-item">
-                        <Clock size={16} />
-                        <span>{curso.duracion_horas} horas</span>
-                      </div>
-                      <div className="course-info-item">
-                        <Users size={16} />
-                        <span>{curso.dirigido_a}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {(() => {
-                    const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
-                    const percentage = Math.min(100, Math.max(5, ((curso.plazas_cubiertas || 0) / curso.plazas) * 100));
-                    return (
-                      <div style={{ marginTop: '1.25rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.375rem' }}>
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Plazas ocupadas</span>
-                          <span style={{ 
-                            color: plazasLibres <= 3 ? 'var(--accent)' : 'var(--success-text)', 
-                            fontWeight: 700 
-                          }}>
-                            {plazasLibres <= 3 
-                              ? `¡Últimas ${plazasLibres} plazas!` 
-                              : `${plazasLibres} vacantes`
-                            }
-                          </span>
+                {(() => {
+                  const cards = [];
+                  
+                  cursos.forEach((curso, idx) => {
+                    cards.push(
+                      <div key={curso.id} className={`course-card reveal stagger-${(idx % 4) + 1}`}>
+                        <div className="course-card-banner">
+                          <button 
+                            type="button" 
+                            className={`course-card-compare-btn ${compareList.some(c => c.id === curso.id) ? 'active' : ''}`}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleCompare(curso); }}
+                          >
+                            {compareList.some(c => c.id === curso.id) ? (
+                              <><Check size={13} /> Comparando</>
+                            ) : (
+                              <><Plus size={13} /> Comparar</>
+                            )}
+                          </button>
+                          <img 
+                            src={getCourseImage(curso.categoria)} 
+                            alt={curso.titulo} 
+                            className="course-card-img" 
+                          />
+                          <div className="course-card-banner-shadow"></div>
+                          <div className="course-card-meta-overlay">
+                            <span className="course-meta-tag category-tag">{curso.categoria}</span>
+                            <span className="course-meta-tag modality-tag">{curso.modalidad}</span>
+                          </div>
                         </div>
-                        <div style={{ 
-                          height: '6px', 
-                          backgroundColor: 'var(--lines-light)', 
-                          borderRadius: '3px',
-                          overflow: 'hidden'
-                        }}>
-                          <div style={{ 
-                            height: '100%', 
-                            width: `${percentage}%`, 
-                            backgroundColor: plazasLibres <= 3 ? 'var(--accent)' : 'var(--primary)', 
-                            borderRadius: '3px',
-                            transition: 'width 0.3s ease'
-                          }}></div>
+                        
+                        <div className="course-card-body">
+                          <div className="course-card-top">
+                            <h3 className="course-card-title" title={curso.titulo}>{curso.titulo}</h3>
+                            <div className="course-provider">
+                              <Building2 size={14} className="provider-icon" />
+                              <span>{curso.centro_nombre}</span>
+                            </div>
+                            
+                            <div className="course-info-row">
+                              <div className="course-info-bullet">
+                                <span className="bullet-icon"><MapPin size={13} /></span>
+                                <span>{curso.localidad}</span>
+                              </div>
+                              <div className="course-info-bullet">
+                                <span className="bullet-icon"><Clock size={13} /></span>
+                                <span>{curso.duracion_horas} horas</span>
+                              </div>
+                              <div className="course-info-bullet">
+                                <span className="bullet-icon"><Users size={13} /></span>
+                                <span>{curso.dirigido_a}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {(() => {
+                            const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
+                            const percentage = Math.min(100, Math.max(5, ((curso.plazas_cubiertas || 0) / curso.plazas) * 100));
+                            const isUrgent = plazasLibres <= 3;
+                            return (
+                              <div className="course-plazas-box">
+                                <div className="plazas-header">
+                                  <span className="plazas-label">Plazas ocupadas</span>
+                                  <span className={`plazas-value ${isUrgent ? 'urgent' : 'available'}`}>
+                                    {isUrgent ? (
+                                      <span className="urgent-badge">
+                                        <span className="pulse-dot"></span>
+                                        ¡Últimas {plazasLibres} plazas!
+                                      </span>
+                                    ) : (
+                                      `${plazasLibres} vacantes`
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="plazas-bar-track">
+                                  <div 
+                                    className={`plazas-bar-fill ${isUrgent ? 'fill-urgent' : 'fill-normal'}`} 
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          <div className="course-card-footer">
+                            <div className="price-tag-wrapper">
+                              <span className="course-price-badge">Gratis</span>
+                              <span className="price-subtext">100% Subvencionado</span>
+                            </div>
+                            <Link to={`/curso/${curso.id}`} className="btn btn-primary btn-sm btn-card-action">
+                              <span>Ver detalles</span>
+                              <ArrowRight size={14} className="arrow-icon" />
+                            </Link>
+                          </div>
                         </div>
                       </div>
                     );
-                  })()}
 
-                  <div className="course-card-footer" style={{ borderTop: '1px solid var(--lines-light)', paddingTop: '1.25rem', marginTop: '1.5rem' }}>
-                    <span className="course-price-badge">Gratis</span>
-                    <Link to={`/curso/${curso.id}`} className="btn btn-primary btn-sm">Ver detalles</Link>
-                  </div>
-                </div>
+                    if (idx === 1) {
+                      cards.push(
+                        <div key="wizard-promo" className="course-card wizard-promo-card reveal stagger-3">
+                          <span style={{ fontSize: '2.5rem', marginBottom: '0.75rem', display: 'block' }}>💡</span>
+                          <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>¿No sabe qué elegir?</h3>
+                          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.5', padding: '0 0.5rem' }}>
+                            Responda a 3 preguntas rápidas en nuestro recomendador para encontrar su plaza ideal de inmediato.
+                          </p>
+                          <button 
+                            type="button"
+                            onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
+                            className="btn btn-accent btn-sm"
+                            style={{ width: '100%', marginTop: 'auto' }}
+                          >
+                            Iniciar Asistente
+                          </button>
+                        </div>
+                      );
+                    }
+                  });
+
+                  if (cursos.length < 2) {
+                    cards.push(
+                      <div key="wizard-promo" className="course-card wizard-promo-card reveal stagger-2">
+                        <span style={{ fontSize: '2.5rem', marginBottom: '0.75rem', display: 'block' }}>💡</span>
+                        <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>¿No sabe qué elegir?</h3>
+                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.5', padding: '0 0.5rem' }}>
+                          Responda a 3 preguntas rápidas en nuestro recomendador para encontrar su plaza ideal de inmediato.
+                        </p>
+                        <button 
+                          type="button"
+                          onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
+                          className="btn btn-accent btn-sm"
+                          style={{ width: '100%', marginTop: 'auto' }}
+                        >
+                          Iniciar Asistente
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return cards;
+                })()}
               </div>
-            ))}
-          </div>
         )}
       </div>
     )}
   </div>
 
       {/* BUSCADOR POR COMUNIDAD AUTÓNOMA */}
-      <div className="alumnos-container reveal" style={{ marginTop: '3.5rem', marginBottom: '2.5rem' }}>
-        <h2 style={{ fontSize: '1.75rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '0.5rem' }}>Buscar por Comunidad Autónoma</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9375rem' }}>
+      <div className="alumnos-container reveal" style={{ marginTop: '3.5rem', marginBottom: '3.5rem' }}>
+        <h2 style={{ fontSize: '1.5rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '0.5rem' }}>Buscar por Comunidad Autónoma</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
           Explore y filtre las plazas subvencionadas disponibles en las principales regiones
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap', maxWidth: '900px', margin: '0 auto' }}>
           {[
-            { name: 'Madrid', desc: 'Comunidad de Madrid' },
-            { name: 'Cataluña', desc: 'Barcelona, Tarragona...' },
-            { name: 'Andalucía', desc: 'Sevilla, Málaga, Cádiz...' },
-            { name: 'Comunidad Valenciana', desc: 'Valencia, Alicante...' },
-            { name: 'País Vasco', desc: 'Bilbao, San Sebastián...' },
-            { name: 'Galicia', desc: 'Vigo, A Coruña...' },
+            { name: 'Madrid', code: 'Madrid' },
+            { name: 'Cataluña', code: 'Cataluña' },
+            { name: 'Andalucía', code: 'Andalucía' },
+            { name: 'C. Valenciana', code: 'Valenciana' },
+            { name: 'País Vasco', code: 'Vasco' },
+            { name: 'Galicia', code: 'Galicia' },
           ].map((reg) => (
             <button
               key={reg.name}
               type="button"
               onClick={() => {
-                setSearch(reg.name);
-                // Trigger fetch de inmediato
+                setSearch(reg.code);
                 const params = new URLSearchParams();
-                params.append('search', reg.name);
+                params.append('search', reg.code);
                 if (categoria && categoria !== 'Todas') params.append('categoria', categoria);
                 if (modalidad && modalidad !== 'Todas') params.append('modalidad', modalidad);
                 fetch(`${API_BASE}/public/cursos?${params.toString()}`)
@@ -634,15 +766,33 @@ function AlumnosHome() {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               style={{
-                background: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '8px',
-                padding: '1.25rem 1rem', cursor: 'pointer', textAlign: 'center',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: 'var(--card-shadow)',
+                background: 'var(--white)',
+                border: '1px solid var(--lines)',
+                borderRadius: '30px',
+                padding: '0.625rem 1.25rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                color: 'var(--primary)',
+                transition: 'all 0.2s ease',
+                boxShadow: 'var(--card-shadow)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem'
               }}
-              onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow-hover)'; }}
-              onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow)'; }}
+              onMouseOver={(e) => { 
+                (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; 
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; 
+                (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow-hover)';
+              }}
+              onMouseOut={(e) => { 
+                (e.currentTarget as HTMLElement).style.transform = ''; 
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--lines)';
+                (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow)';
+              }}
             >
-              <div style={{ fontWeight: '700', color: 'var(--primary)', marginBottom: '0.25rem', fontSize: '0.9375rem' }}>{reg.name}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{reg.desc}</div>
+              <MapPin size={14} style={{ color: 'var(--accent)' }} />
+              <span>{reg.name}</span>
             </button>
           ))}
         </div>
@@ -670,78 +820,109 @@ function AlumnosHome() {
         </div>
       </div>
 
-      {/* FAQ ALUMNOS */}
-      <div className="alumnos-container reveal" style={{ marginTop: '4rem' }}>
-        <h2 style={{ fontSize: '1.75rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '0.75rem' }}>Preguntas Frecuentes</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9375rem' }}>Todo lo que necesita saber sobre la formación subvencionada</p>
-        
-        {/* BUSCADOR DE FAQ */}
-        <div style={{ maxWidth: '720px', margin: '0 auto 2rem', position: 'relative' }}>
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Buscar en preguntas frecuentes..."
-            value={faqSearch}
-            onChange={(e) => setFaqSearch(e.target.value)}
-            style={{ paddingLeft: '2.5rem', height: '40px', fontSize: '0.875rem' }}
-          />
-          <span style={{ position: 'absolute', top: '50%', left: '1rem', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-            <Search size={14} />
-          </span>
-        </div>
+      {/* SECCIÓN INFORMATIVA: FAQ Y REQUISITOS (2 COLUMNAS) */}
+      <div className="alumnos-container reveal" style={{ marginTop: '5rem', marginBottom: '3.5rem' }}>
+        <div className="info-requirements-grid">
+          {/* COLUMNA IZQUIERDA: FAQ */}
+          <div className="faq-column">
+            <h2 style={{ fontSize: '1.625rem', color: 'var(--primary)', marginBottom: '0.5rem', textAlign: 'left' }}>Preguntas Frecuentes</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.75rem', fontSize: '0.875rem', textAlign: 'left' }}>
+              Todo lo que necesita saber sobre la formación subvencionada
+            </p>
+            
+            {/* BUSCADOR DE FAQ */}
+            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Buscar en preguntas frecuentes..."
+                value={faqSearch}
+                onChange={(e) => setFaqSearch(e.target.value)}
+                style={{ paddingLeft: '2.5rem', height: '40px', fontSize: '0.875rem' }}
+              />
+              <span style={{ position: 'absolute', top: '50%', left: '1rem', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                <Search size={14} />
+              </span>
+            </div>
 
-        <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {[
-            { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE (Servicio Público de Empleo Estatal) y los servicios autonómicos de empleo. No se requiere ningún pago ni dato bancario por parte del alumno.' },
-            { q: '¿Quién puede acceder a estos cursos?', a: 'Trabajadores en activo (cuenta ajena, autónomos, ERTE), desempleados inscritos como demandantes de empleo y colectivos prioritarios (jóvenes menores de 30, mayores de 45, mujeres, personas con discapacidad).' },
-            { q: '¿Los certificados tienen validez oficial?', a: 'Sí. Los cursos de Certificado de Profesionalidad están reconocidos oficialmente por el SEPE en todo el territorio nacional y acreditan competencias profesionales con plena validez laboral.' },
-            { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa en menos de 1 minuto. El centro de formación se pondrá en contacto con usted en un plazo máximo de 24 horas hábiles para confirmar su plaza y los requisitos documentales.' },
-            { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes a todos los cursos que le interesen. Cada centro gestionará de forma independiente su candidatura y le informará de la disponibilidad.' },
-          ].filter(faq => 
-            faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
-            faq.a.toLowerCase().includes(faqSearch.toLowerCase())
-          ).map((faq, i) => (
-            <div key={i} style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '8px', overflow: 'hidden' }}>
-              <button
-                type="button"
-                onClick={() => setAlumnoFaq(alumnoFaq === i ? -1 : i)}
-                style={{ width: '100%', padding: '1.25rem 1.5rem', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' }}
-              >
-                <span style={{ fontWeight: '600', fontSize: '0.9375rem', color: 'var(--primary)' }}>{faq.q}</span>
-                <span style={{ fontSize: '1.25rem', color: 'var(--accent)', fontWeight: 'bold', flexShrink: 0, marginLeft: '1rem' }}>{alumnoFaq === i ? '−' : '+'}</span>
-              </button>
-              {alumnoFaq === i && (
-                <div style={{ padding: '0 1.5rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>{faq.a}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {[
+                { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE (Servicio Público de Empleo Estatal) y los servicios autonómicos de empleo. No se requiere ningún pago ni dato bancario por parte del alumno.' },
+                { q: '¿Quién puede acceder a estos cursos?', a: 'Trabajadores en activo (cuenta ajena, autónomos, ERTE), desempleados inscritos como demandantes de empleo y colectivos prioritarios (jóvenes menores de 30, mayores de 45, mujeres, personas con discapacidad).' },
+                { q: '¿Los certificados tienen validez oficial?', a: 'Sí. Los cursos de Certificado de Profesionalidad están reconocidos oficialmente por el SEPE en todo el territorio nacional y acreditan competencias profesionales con plena validez laboral.' },
+                { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa en menos de 1 minuto. El centro de formación se pondrá en contacto con usted en un plazo máximo de 24 horas hábiles para confirmar su plaza y los requisitos documentales.' },
+                { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes a todos los cursos que le interesen. Cada centro gestionará de forma independiente su candidatura y le informará de la disponibilidad.' },
+              ].filter(faq => 
+                faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
+                faq.a.toLowerCase().includes(faqSearch.toLowerCase())
+              ).map((faq, i) => (
+                <div key={i} style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAlumnoFaq(alumnoFaq === i ? -1 : i)}
+                    style={{ width: '100%', padding: '1.25rem 1.5rem', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' }}
+                  >
+                    <span style={{ fontWeight: '600', fontSize: '0.9375rem', color: 'var(--primary)' }}>{faq.q}</span>
+                    <span style={{ fontSize: '1.25rem', color: 'var(--accent)', fontWeight: 'bold', flexShrink: 0, marginLeft: '1rem' }}>{alumnoFaq === i ? '−' : '+'}</span>
+                  </button>
+                  {alumnoFaq === i && (
+                    <div style={{ padding: '0 1.5rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>{faq.a}</div>
+                  )}
+                </div>
+              ))}
+              {[
+                { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE...' },
+                { q: '¿Quién puede acceder a estos cursos?', a: 'Trabajadores en activo...' },
+                { q: '¿Los certificados tienen validez oficial?', a: 'Sí...' },
+                { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa...' },
+                { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes...' },
+              ].filter(faq => 
+                faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
+                faq.a.toLowerCase().includes(faqSearch.toLowerCase())
+              ).length === 0 && (
+                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.875rem', border: '1px dashed var(--lines)', borderRadius: '8px' }}>
+                  No se encontraron preguntas frecuentes que coincidan con "{faqSearch}".
+                </div>
               )}
             </div>
-          ))}
-          {[
-            { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE...' },
-            { q: '¿Quién puede acceder a estos cursos?', a: 'Trabajadores en activo...' },
-            { q: '¿Los certificados tienen validez oficial?', a: 'Sí...' },
-            { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa...' },
-            { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes...' },
-          ].filter(faq => 
-            faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
-            faq.a.toLowerCase().includes(faqSearch.toLowerCase())
-          ).length === 0 && (
-            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.875rem', border: '1px dashed var(--lines)', borderRadius: '8px' }}>
-              No se encontraron preguntas frecuentes que coincidan con "{faqSearch}".
-            </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* REQUISITOS */}
-      <div className="alumnos-container" style={{ marginTop: '4rem' }}>
-        <div style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', padding: '2.5rem 3rem', borderRadius: '8px', boxShadow: 'var(--card-shadow)' }}>
-          <h3 style={{ fontSize: '1.375rem', color: 'var(--primary)', marginBottom: '1rem' }}>Requisitos generales de la formación subvencionada</h3>
-          <p style={{ fontSize: '0.9375rem', color: 'var(--text)', lineHeight: '1.6', marginBottom: '1rem' }}>Los cursos publicados en Cursenda están financiados por fondos públicos del Servicio Público de Empleo Estatal (SEPE) y los servicios autonómicos de empleo. Para acceder a las plazas gratuitas, los aspirantes deben cumplir alguno de los siguientes perfiles:</p>
-          <ul style={{ paddingLeft: '1.5rem', fontSize: '0.875rem', color: 'var(--text)', display: 'flex', flexDirection: 'column', gap: '0.5rem', lineHeight: '1.5' }}>
-            <li><strong>Trabajadores en activo:</strong> Trabajadores por cuenta ajena, autónomos de cualquier sector y empleados en situación de ERTE. Las plazas se cofinancian a través de las cuotas de formación profesional de la Seguridad Social (Fundae).</li>
-            <li><strong>Desempleados inscritos:</strong> Personas inscritas como demandantes de empleo en las oficinas oficiales de empleo de España. Deben disponer de la tarjeta DARDE actualizada en el momento de comenzar el curso.</li>
-            <li><strong>Colectivos prioritarios:</strong> Jóvenes menores de 30 años, mayores de 45 años, mujeres, personas con discapacidad y trabajadores de baja cualificación tienen prioridad en la asignación de plazas.</li>
-          </ul>
+          {/* COLUMNA DERECHA: REQUISITOS GENERALES */}
+          <div className="requirements-column">
+            <div style={{ 
+              backgroundColor: 'var(--white)', 
+              border: '1px solid var(--lines)', 
+              padding: '2.25rem', 
+              borderRadius: '16px', 
+              boxShadow: 'var(--card-shadow)',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
+            }}>
+              <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '800' }}>
+                <Shield size={20} style={{ color: 'var(--accent)' }} />
+                <span>Requisitos de Acceso</span>
+              </h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1.5rem' }}>
+                Los cursos publicados están subvencionados al 100% por el SEPE. Para acceder, debe cumplir alguno de los siguientes requisitos en España:
+              </p>
+              <ul style={{ paddingLeft: '0', listStyle: 'none', fontSize: '0.875rem', color: 'var(--text)', display: 'flex', flexDirection: 'column', gap: '1.25rem', lineHeight: '1.5', margin: 0 }}>
+                <li style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <CheckCircle size={16} style={{ color: 'var(--success-text)', flexShrink: 0, marginTop: '2px' }} />
+                  <span><strong>Trabajadores en activo:</strong> Empleados de cualquier sector o autónomos. Financiado por Fundae.</span>
+                </li>
+                <li style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <CheckCircle size={16} style={{ color: 'var(--success-text)', flexShrink: 0, marginTop: '2px' }} />
+                  <span><strong>Desempleados:</strong> Inscritos oficialmente como demandantes de empleo (DARDE activa).</span>
+                </li>
+                <li style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <CheckCircle size={16} style={{ color: 'var(--success-text)', flexShrink: 0, marginTop: '2px' }} />
+                  <span><strong>Colectivos Prioritarios:</strong> Menores de 30 años, mayores de 45 años, mujeres y personas con discapacidad.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1077,17 +1258,31 @@ function AlumnosHome() {
               {/* STEP 4: RECOMMENDATIONS RESULTS */}
               {wizardStep === 4 && (() => {
                 // Filter the real catalog
-                const filtered = cursos.filter(c => {
+                const sourceCursos = unfilteredCursos.length > 0 ? unfilteredCursos : cursos;
+                const filtered = sourceCursos.filter(c => {
                   const matchCat = c.categoria === wizardAnswers.categoria;
                   const matchMod = wizardAnswers.modalidad === 'Todas' || c.modalidad === wizardAnswers.modalidad;
-                  return matchCat && matchMod;
+                  
+                  // Match situacion
+                  let matchSit = true;
+                  const sit = wizardAnswers.situacion;
+                  const dir = c.dirigido_a ? c.dirigido_a.toLowerCase() : '';
+                  if (sit === 'desempleado') {
+                    matchSit = dir.includes('desempleado') || dir.includes('todos') || dir.includes('cualquiera') || dir === '';
+                  } else if (sit === 'ocupado') {
+                    matchSit = dir.includes('ocupado') || dir.includes('todos') || dir.includes('cualquiera') || dir === '';
+                  } else if (sit === 'joven') {
+                    matchSit = dir.includes('joven') || dir.includes('todos') || dir.includes('desempleado') || dir.includes('cualquiera') || dir === '';
+                  }
+                  
+                  return matchCat && matchMod && matchSit;
                 });
 
                 return (
                   <div>
                     <h4 style={{ color: 'var(--primary)', margin: '0 0 0.5rem', fontSize: '1.1rem', fontWeight: 800 }}>¡Plazas recomendadas para ti!</h4>
                     <p style={{ margin: '0 0 1.5rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                      Recomendaciones basadas en: {wizardAnswers.categoria} • {wizardAnswers.modalidad === 'Todas' ? 'Cualquier modalidad' : wizardAnswers.modalidad}
+                      Recomendaciones basadas en: {wizardAnswers.categoria} • {wizardAnswers.modalidad === 'Todas' ? 'Cualquier modalidad' : wizardAnswers.modalidad} • {wizardAnswers.situacion === 'desempleado' ? 'Desempleado' : wizardAnswers.situacion === 'ocupado' ? 'Trabajador' : 'Joven <30'}
                     </p>
 
                     {filtered.length > 0 ? (
@@ -1115,10 +1310,10 @@ function AlumnosHome() {
                         <div style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>⚠️</div>
                         <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>No hay convocatorias directas en este momento</strong>
                         <p style={{ margin: '0 0 1.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          No hay cursos activos de {wizardAnswers.categoria} en la modalidad elegida. Te sugerimos registrarte en la base general o ver otros cursos populares:
+                          No hay cursos activos de {wizardAnswers.categoria} en la modalidad elegida para tu perfil. Te sugerimos registrarte en la base general o ver otros cursos populares:
                         </p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                          {cursos.slice(0, 2).map(c => (
+                          {sourceCursos.slice(0, 2).map(c => (
                             <div key={c.id} style={{ padding: '0.75rem 1rem', border: '1px solid var(--lines)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(201,150,46,0.03)', textAlign: 'left' }}>
                               <div>
                                 <h6 style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--primary)', fontWeight: 700 }}>{c.titulo}</h6>
@@ -1380,7 +1575,7 @@ function AlumnosDetalle() {
                   scrolling="no" 
                   marginHeight={0} 
                   marginWidth={0} 
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : cleanLocalidad(curso.localidad) + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 13}&ie=UTF8&iwloc=&output=embed`}
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : (curso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(curso.localidad) + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`}
                   style={{ border: 0 }}
                 ></iframe>
               </div>
@@ -2096,6 +2291,24 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
         <div className="auth-links">
           <Link to="/centros/recuperar" className="auth-link">¿Olvidó su contraseña?</Link>
         </div>
+
+        <div style={{
+          marginTop: '1.5rem',
+          padding: '1rem',
+          backgroundColor: '#e6f3f0',
+          border: '1px solid #cce7e1',
+          borderRadius: '8px',
+          fontSize: '0.75rem',
+          textAlign: 'left'
+        }}>
+          <strong style={{ color: 'var(--primary)', display: 'block', marginBottom: '0.5rem' }}>🔑 Credenciales de Prueba:</strong>
+          <div style={{ marginBottom: '0.35rem' }}>
+            <strong>Academia Demo:</strong> <code>demo@cursenda.es</code> / <code>demo123</code>
+          </div>
+          <div>
+            <strong>Administrador:</strong> <code>admin@cursenda.es</code> / <code>admin123</code>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -2287,7 +2500,824 @@ const getAvatarBg = (nombre: string) => {
   return colors[charCode % colors.length];
 };
 
+function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void }) {
+  const [tab, setTab] = useState<'inicio' | 'academias' | 'cursos' | 'solicitudes'>('inicio');
+  const [academias, setAcademias] = useState<any[]>([]);
+  const [cursos, setCursos] = useState<any[]>([]);
+  const [solicitudes, setSolicitudes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  // Modal Academias
+  const [showAcademiaModal, setShowAcademiaModal] = useState(false);
+  const [selectedAcademia, setSelectedAcademia] = useState<any>(null);
+  const [formAcademiaNombre, setFormAcademiaNombre] = useState('');
+  const [formAcademiaEmail, setFormAcademiaEmail] = useState('');
+  const [formAcademiaPassword, setFormAcademiaPassword] = useState('');
+  const [formAcademiaPlan, setFormAcademiaPlan] = useState('starter');
+  const [formAcademiaContacto, setFormAcademiaContacto] = useState('');
+  const [formAcademiaTelefono, setFormAcademiaTelefono] = useState('');
+  const [formAcademiaError, setFormAcademiaError] = useState('');
+
+  // Modal Curso (Moderación)
+  const [showCursoModal, setShowCursoModal] = useState(false);
+  const [selectedCurso, setSelectedCurso] = useState<any>(null);
+  const [formCursoTitulo, setFormCursoTitulo] = useState('');
+  const [formCursoCategoria, setFormCursoCategoria] = useState('Informática');
+  const [formCursoModalidad, setFormCursoModalidad] = useState('Online');
+  const [formCursoLocalidad, setFormCursoLocalidad] = useState('');
+  const [formCursoDuracion, setFormCursoDuracion] = useState('');
+  const [formCursoPlazas, setFormCursoPlazas] = useState('');
+  const [formCursoPlazasCubiertas, setFormCursoPlazasCubiertas] = useState('');
+  const [formCursoFechaInicio, setFormCursoFechaInicio] = useState('');
+  const [formCursoDirigidoA, setFormCursoDirigidoA] = useState('Todos');
+  const [formCursoDescripcion, setFormCursoDescripcion] = useState('');
+  const [formCursoEstado, setFormCursoEstado] = useState('publicado');
+  const [formCursoError, setFormCursoError] = useState('');
+
+  const navigate = useNavigate();
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Cargar centros
+      const resC = await fetch(`${API_BASE}/admin/centros`);
+      const dataC = await resC.json();
+      if (resC.ok) setAcademias(dataC);
+
+      // Cargar cursos
+      const resK = await fetch(`${API_BASE}/admin/cursos`);
+      const dataK = await resK.json();
+      if (resK.ok) setCursos(dataK);
+
+      // Cargar solicitudes
+      const resS = await fetch(`${API_BASE}/admin/solicitudes`);
+      const dataS = await resS.json();
+      if (resS.ok) setSolicitudes(dataS);
+
+    } catch (err) {
+      console.error(err);
+      setError('Error al cargar datos del panel de administrador.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+      onLogout();
+      navigate('/centros/login');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Crear/Editar Academia
+  const handleOpenAcademiaModal = (ac?: any) => {
+    setSelectedAcademia(ac || null);
+    if (ac) {
+      setFormAcademiaNombre(ac.nombre);
+      setFormAcademiaEmail(ac.email);
+      setFormAcademiaPassword('');
+      setFormAcademiaPlan(ac.plan);
+      setFormAcademiaContacto(ac.nombre_contacto || '');
+      setFormAcademiaTelefono(ac.telefono || '');
+    } else {
+      setFormAcademiaNombre('');
+      setFormAcademiaEmail('');
+      setFormAcademiaPassword('');
+      setFormAcademiaPlan('starter');
+      setFormAcademiaContacto('');
+      setFormAcademiaTelefono('');
+    }
+    setFormAcademiaError('');
+    setShowAcademiaModal(true);
+  };
+
+  const handleSaveAcademia = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormAcademiaError('');
+
+    if (!formAcademiaNombre || !formAcademiaEmail || (!selectedAcademia && !formAcademiaPassword)) {
+      setFormAcademiaError('Nombre, correo electrónico y contraseña son obligatorios.');
+      return;
+    }
+
+    const payload: any = {
+      nombre: formAcademiaNombre,
+      email: formAcademiaEmail,
+      plan: formAcademiaPlan,
+      nombre_contacto: formAcademiaContacto,
+      telefono: formAcademiaTelefono
+    };
+    if (formAcademiaPassword) {
+      payload.password = formAcademiaPassword;
+    }
+
+    try {
+      const url = selectedAcademia ? `${API_BASE}/admin/centros/${selectedAcademia.id}` : `${API_BASE}/admin/centros`;
+      const method = selectedAcademia ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setShowAcademiaModal(false);
+        loadData();
+      } else {
+        const errData = await res.json();
+        setFormAcademiaError(errData.error || 'Error al guardar la academia');
+      }
+    } catch (err) {
+      setFormAcademiaError('Error de red. Inténtelo de nuevo.');
+    }
+  };
+
+  const handleDeleteAcademia = async (id: number) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar esta academia? Esta acción es irreversible y eliminará todos sus cursos y solicitudes asociadas.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/centros/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadData();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Error al eliminar la academia');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Abrir Moderación de Curso
+  const handleOpenCursoModal = (c: any) => {
+    setSelectedCurso(c);
+    setFormCursoTitulo(c.titulo);
+    setFormCursoCategoria(c.categoria);
+    setFormCursoModalidad(c.modalidad);
+    setFormCursoLocalidad(c.localidad);
+    setFormCursoDuracion(c.duracion_horas.toString());
+    setFormCursoPlazas(c.plazas.toString());
+    setFormCursoPlazasCubiertas(c.plazas_cubiertas.toString());
+    setFormCursoFechaInicio(c.fecha_inicio);
+    setFormCursoDirigidoA(c.dirigido_a);
+    setFormCursoDescripcion(c.descripcion);
+    setFormCursoEstado(c.estado);
+    setFormCursoError('');
+    setShowCursoModal(true);
+  };
+
+  const handleSaveCurso = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormCursoError('');
+
+    if (!formCursoTitulo || !formCursoLocalidad || !formCursoDuracion || !formCursoPlazas || !formCursoFechaInicio || !formCursoDescripcion) {
+      setFormCursoError('Todos los campos son obligatorios.');
+      return;
+    }
+
+    const payload = {
+      titulo: formCursoTitulo,
+      categoria: formCursoCategoria,
+      modalidad: formCursoModalidad,
+      localidad: formCursoLocalidad,
+      duracion_horas: parseInt(formCursoDuracion),
+      plazas: parseInt(formCursoPlazas),
+      plazas_cubiertas: parseInt(formCursoPlazasCubiertas || '0'),
+      fecha_inicio: formCursoFechaInicio,
+      dirigido_a: formCursoDirigidoA,
+      descripcion: formCursoDescripcion,
+      estado: formCursoEstado
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/cursos/${selectedCurso.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setShowCursoModal(false);
+        loadData();
+      } else {
+        const errData = await res.json();
+        setFormCursoError(errData.error || 'Error al guardar el curso');
+      }
+    } catch (err) {
+      setFormCursoError('Error de red. Inténtelo de nuevo.');
+    }
+  };
+
+  const handleDeleteCurso = async (id: number) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar este curso? Se eliminarán también las solicitudes de plaza asociadas.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/admin/cursos/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadData();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || 'Error al eliminar el curso');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Cálculo de estadísticas
+  const totalAcademias = academias.filter(a => a.rol !== 'admin').length;
+  const totalCursos = cursos.length;
+  const totalLeads = solicitudes.length;
+  const totalFacturadoEst = academias
+    .filter(a => a.rol !== 'admin')
+    .reduce((sum, a) => {
+      if (a.plan === 'pro') return sum + 79;
+      if (a.plan === 'custom') return sum + 299;
+      return sum + 0;
+    }, 0);
+
+  return (
+    <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
+      {/* Sidebar Admin */}
+      <aside className="dashboard-sidebar" style={{ width: '260px', backgroundColor: 'var(--primary-dark)', color: 'var(--white)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div className="dashboard-sidebar-header" style={{ padding: '2rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Logo />
+          <span style={{ fontSize: '0.625rem', backgroundColor: 'var(--accent)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase' }}>Admin</span>
+        </div>
+        
+        <nav className="dashboard-nav" style={{ flex: 1, padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <button 
+            type="button" 
+            className={`dashboard-nav-item ${tab === 'inicio' ? 'active' : ''}`}
+            onClick={() => setTab('inicio')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'inicio' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'inicio' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
+          >
+            <BarChart3 size={16} />
+            <span>Inicio</span>
+          </button>
+          <button 
+            type="button" 
+            className={`dashboard-nav-item ${tab === 'academias' ? 'active' : ''}`}
+            onClick={() => setTab('academias')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'academias' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'academias' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
+          >
+            <Users size={16} />
+            <span>Academias</span>
+          </button>
+          <button 
+            type="button" 
+            className={`dashboard-nav-item ${tab === 'cursos' ? 'active' : ''}`}
+            onClick={() => setTab('cursos')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'cursos' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'cursos' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
+          >
+            <BookOpen size={16} />
+            <span>Moderación Cursos</span>
+          </button>
+          <button 
+            type="button" 
+            className={`dashboard-nav-item ${tab === 'solicitudes' ? 'active' : ''}`}
+            onClick={() => setTab('solicitudes')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'solicitudes' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'solicitudes' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
+          >
+            <MessageSquare size={16} />
+            <span>Solicitudes / Leads</span>
+          </button>
+        </nav>
+
+        <div className="dashboard-sidebar-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+            <div style={{ 
+              width: '36px', height: '36px', borderRadius: '50%', 
+              backgroundColor: 'var(--accent)', color: 'var(--primary)', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.875rem'
+            }}>
+              AD
+            </div>
+            <div style={{ textAlign: 'left', overflow: 'hidden' }}>
+              <h4 style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--white)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.nombre || 'Administrador'}</h4>
+              <p style={{ margin: 0, fontSize: '0.6875rem', color: 'rgba(255,255,255,0.45)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            onClick={handleLogout} 
+            className="btn btn-secondary btn-sm"
+            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', borderColor: 'rgba(255,255,255,0.1)', color: 'var(--white)' }}
+          >
+            Cerrar Sesión
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Admin Area */}
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2rem', padding: '2rem', height: '100vh', overflowY: 'auto', boxSizing: 'border-box' }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ textAlign: 'left' }}>
+            <h1 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--primary)', fontWeight: 800 }}>Panel de Control de Administración</h1>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Control global de academias, cursos y solicitudes registradas en Cursenda</p>
+          </div>
+        </header>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '5rem', color: 'var(--text-muted)' }}>Cargando datos globales del sistema...</div>
+        ) : error ? (
+          <div className="alert-box alert-error" style={{ padding: '1rem', color: 'var(--error-text)' }}>{error}</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* TAB: INICIO */}
+            {tab === 'inicio' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {/* Stats Counters */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
+                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Academias Registradas</span>
+                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(201,150,46,0.1)', color: 'var(--accent)', alignItems: 'center', justifyContent: 'center' }}><Users size={14} /></span>
+                    </div>
+                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalAcademias}</span>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Plataforma SaaS activa</span>
+                  </div>
+                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Publicados</span>
+                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(12,59,51,0.1)', color: 'var(--primary)', alignItems: 'center', justifyContent: 'center' }}><BookOpen size={14} /></span>
+                    </div>
+                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalCursos}</span>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Moderación activa</span>
+                  </div>
+                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Solicitudes</span>
+                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(46,92,83,0.1)', color: 'var(--primary-dark)', alignItems: 'center', justifyContent: 'center' }}><MessageSquare size={14} /></span>
+                    </div>
+                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalLeads}</span>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Estudiantes registrados</span>
+                  </div>
+                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ingresos Est. Mensual</span>
+                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(94,62,12,0.1)', color: 'var(--accent)', alignItems: 'center', justifyContent: 'center' }}>💰</span>
+                    </div>
+                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalFacturadoEst} €</span>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Suscripciones activas</span>
+                  </div>
+                </div>
+
+                <div style={{ padding: '2rem', backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
+                  <h3 style={{ margin: '0 0 1rem', color: 'var(--primary)', fontWeight: 800 }}>🔑 Acceso Directo de Administración</h3>
+                  <p style={{ margin: '0 0 1.5rem', color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight: 1.6 }}>
+                    Bienvenido al panel central de Cursenda. Desde aquí puedes autorizar y crear cuentas para nuevas academias que hayan contratado el servicio, actualizar sus planes de suscripción o supervisar y moderar los cursos que publican en la plataforma estudiantil pública.
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => setTab('academias')} className="btn btn-primary btn-sm">Ver Academias</button>
+                    <button type="button" onClick={() => setTab('cursos')} className="btn btn-secondary btn-sm">Moderar Cursos</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: ACADEMIAS */}
+            {tab === 'academias' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Gestión de Academias</h3>
+                    <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Da de alta nuevas empresas cuando paguen o actualiza sus suscripciones.</p>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => handleOpenAcademiaModal()} 
+                    className="btn btn-accent btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
+                  >
+                    <Plus size={14} />
+                    <span>Crear Academia</span>
+                  </button>
+                </div>
+
+                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
+                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Nombre</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Email</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Plan</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Contacto / Teléfono</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha Renovación</th>
+                        <th style={{ padding: '1rem', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {academias.filter(a => a.rol !== 'admin').map((ac) => (
+                        <tr key={ac.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{ac.nombre}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text)' }}>{ac.email}</td>
+                          <td style={{ padding: '1rem' }}>
+                            <span style={{ 
+                              fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', padding: '3px 8px', borderRadius: '4px',
+                              backgroundColor: ac.plan === 'starter' ? '#e2e8f0' : ac.plan === 'pro' ? 'rgba(201,150,46,0.15)' : 'rgba(12,59,51,0.15)',
+                              color: ac.plan === 'starter' ? '#4a5568' : ac.plan === 'pro' ? 'var(--accent)' : 'var(--primary)'
+                            }}>
+                              {ac.plan}
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                            {ac.nombre_contacto || 'N/D'} {ac.telefono && `(${ac.telefono})`}
+                          </td>
+                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                            {new Date(ac.fecha_renovacion).toLocaleDateString()}
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                              <button 
+                                type="button" 
+                                onClick={() => handleOpenAcademiaModal(ac)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                              >
+                                Editar
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => handleDeleteAcademia(ac.id)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'red', borderColor: 'rgba(255,0,0,0.15)' }}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {academias.filter(a => a.rol !== 'admin').length === 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay academias registradas.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: MODERACIÓN CURSOS */}
+            {tab === 'cursos' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Moderación de Cursos</h3>
+                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Administra y modera el catálogo completo de cursos activos e inactivos.</p>
+                </div>
+
+                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
+                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Título / Academia</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Categoría</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Modalidad / Zona</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Vacantes</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Estado</th>
+                        <th style={{ padding: '1rem', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cursos.map((c) => (
+                        <tr key={c.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                          <td style={{ padding: '1rem' }}>
+                            <strong style={{ color: 'var(--primary)', display: 'block' }}>{c.titulo}</strong>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Publicado por: {c.centro_nombre}</span>
+                          </td>
+                          <td style={{ padding: '1rem', color: 'var(--text)' }}>{c.categoria}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
+                            {c.modalidad} {c.localidad && `(${c.localidad})`}
+                          </td>
+                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
+                            {c.plazas_cubiertas} / {c.plazas} plazas
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <span style={{ 
+                              fontSize: '0.6875rem', fontWeight: 700, padding: '3px 8px', borderRadius: '4px',
+                              backgroundColor: c.estado === 'publicado' ? 'rgba(46,117,89,0.1)' : 'rgba(201,150,46,0.1)',
+                              color: c.estado === 'publicado' ? 'var(--success-text)' : 'var(--accent)'
+                            }}>
+                              {c.estado === 'publicado' ? 'Publicado' : 'Pausado'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                              <button 
+                                type="button" 
+                                onClick={() => handleOpenCursoModal(c)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                              >
+                                Moderar
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={() => handleDeleteCurso(c.id)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'red', borderColor: 'rgba(255,0,0,0.15)' }}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {cursos.length === 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay cursos creados en la plataforma.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: LEADS / SOLICITUDES */}
+            {tab === 'solicitudes' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Control de Solicitudes / Leads</h3>
+                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Supervisión de todos los estudiantes inscritos en los cursos.</p>
+                </div>
+
+                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
+                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Estudiante</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Contacto</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Curso Solicitado</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Academia</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha Registro</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {solicitudes.map((sol) => (
+                        <tr key={sol.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{sol.nombre}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
+                            <div style={{ fontSize: '0.8125rem' }}>📧 {sol.email}</div>
+                            <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>📞 {sol.telefono}</div>
+                          </td>
+                          <td style={{ padding: '1rem', color: 'var(--text)' }}>{sol.curso_titulo}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{sol.centro_nombre}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                            {new Date(sol.fecha_creacion).toLocaleDateString()} {new Date(sol.fecha_creacion).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))}
+                      {solicitudes.length === 0 && (
+                        <tr>
+                          <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay solicitudes de alumnos registradas.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Modal: Nueva / Editar Academia */}
+      {showAcademiaModal && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
+          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '1rem'
+        }}>
+          <div className="reveal-scale visible" style={{
+            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '500px',
+            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column', textAlign: 'left'
+          }}>
+            <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
+              <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800 }}>
+                {selectedAcademia ? 'Editar Academia' : 'Crear Nueva Academia'}
+              </h3>
+              <button 
+                onClick={() => setShowAcademiaModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.375rem', cursor: 'pointer' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAcademia} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {formAcademiaError && <div className="alert-box alert-error" style={{ fontSize: '0.8125rem', padding: '0.75rem' }}>{formAcademiaError}</div>}
+              
+              <div className="form-group">
+                <label className="form-label">Razon Social / Nombre Centro *</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Ej: Centro Tecnológico de Sevilla" 
+                  value={formAcademiaNombre}
+                  onChange={(e) => setFormAcademiaNombre(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Correo electrónico *</label>
+                <input 
+                  type="email" 
+                  className="form-control" 
+                  placeholder="ejemplo@academia.com" 
+                  value={formAcademiaEmail}
+                  onChange={(e) => setFormAcademiaEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Contraseña {selectedAcademia ? '(dejar vacío para no cambiar)' : '*'}</label>
+                <input 
+                  type="password" 
+                  className="form-control" 
+                  placeholder="••••••••" 
+                  value={formAcademiaPassword}
+                  onChange={(e) => setFormAcademiaPassword(e.target.value)}
+                  required={!selectedAcademia}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Plan de Suscripción</label>
+                <select 
+                  className="form-control"
+                  value={formAcademiaPlan}
+                  onChange={(e) => setFormAcademiaPlan(e.target.value)}
+                >
+                  <option value="starter">Starter (Gratis)</option>
+                  <option value="pro">Pro (79€/mes)</option>
+                  <option value="custom">Custom (299€/mes)</option>
+                </select>
+              </div>
+
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Nombre de Contacto</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="Ej: Ana Pérez" 
+                    value={formAcademiaContacto}
+                    onChange={(e) => setFormAcademiaContacto(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Teléfono de Contacto</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="Ej: 600000000" 
+                    value={formAcademiaTelefono}
+                    onChange={(e) => setFormAcademiaTelefono(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', borderTop: '1px solid var(--lines)', paddingTop: '1.25rem' }}>
+                <button type="button" onClick={() => setShowAcademiaModal(false)} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Guardar Academia</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Moderación / Edición Curso */}
+      {showCursoModal && (
+        <div style={{
+          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
+          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 10000, padding: '1rem'
+        }}>
+          <div className="reveal-scale visible" style={{
+            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '600px',
+            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column', textAlign: 'left', maxHeight: '90vh'
+          }}>
+            <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
+              <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800 }}>Moderar Curso</h3>
+              <button onClick={() => setShowCursoModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.375rem', cursor: 'pointer' }}>&times;</button>
+            </div>
+
+            <form onSubmit={handleSaveCurso} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
+              {formCursoError && <div className="alert-box alert-error" style={{ fontSize: '0.8125rem' }}>{formCursoError}</div>}
+
+              <div className="form-group">
+                <label className="form-label">Título del Curso *</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  value={formCursoTitulo}
+                  onChange={(e) => setFormCursoTitulo(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Categoría</label>
+                  <select className="form-control" value={formCursoCategoria} onChange={(e) => setFormCursoCategoria(e.target.value)}>
+                    <option value="Informática">Informática</option>
+                    <option value="Sanidad">Sanidad</option>
+                    <option value="Logística">Logística</option>
+                    <option value="Hostelería">Hostelería</option>
+                    <option value="Administración">Administración</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Modalidad</label>
+                  <select className="form-control" value={formCursoModalidad} onChange={(e) => setFormCursoModalidad(e.target.value)}>
+                    <option value="Presencial">Presencial</option>
+                    <option value="Online">Online</option>
+                    <option value="Mixta">Mixta</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Localidad / Zona *</label>
+                  <input type="text" className="form-control" value={formCursoLocalidad} onChange={(e) => setFormCursoLocalidad(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Duración en Horas *</label>
+                  <input type="number" className="form-control" value={formCursoDuracion} onChange={(e) => setFormCursoDuracion(e.target.value)} required />
+                </div>
+              </div>
+
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Plazas Totales *</label>
+                  <input type="number" className="form-control" value={formCursoPlazas} onChange={(e) => setFormCursoPlazas(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Plazas Cubiertas *</label>
+                  <input type="number" className="form-control" value={formCursoPlazasCubiertas} onChange={(e) => setFormCursoPlazasCubiertas(e.target.value)} required />
+                </div>
+              </div>
+
+              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Fecha de Inicio *</label>
+                  <input type="text" className="form-control" value={formCursoFechaInicio} onChange={(e) => setFormCursoFechaInicio(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Dirigido A</label>
+                  <input type="text" className="form-control" value={formCursoDirigidoA} onChange={(e) => setFormCursoDirigidoA(e.target.value)} required />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Estado de Moderación</label>
+                <select className="form-control" value={formCursoEstado} onChange={(e) => setFormCursoEstado(e.target.value)}>
+                  <option value="publicado">Publicado</option>
+                  <option value="pausado">Pausado (Ocultar)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Descripción *</label>
+                <textarea className="form-control" rows={3} value={formCursoDescripcion} onChange={(e) => setFormCursoDescripcion(e.target.value)} required style={{ resize: 'vertical' }}></textarea>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', borderTop: '1px solid var(--lines)', paddingTop: '1.25rem' }}>
+                <button type="button" onClick={() => setShowCursoModal(false)} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Guardar Cambios</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void }) {
+  if (user?.rol === 'admin') {
+    return <DashboardAdmin user={user} onLogout={onLogout} />;
+  }
+
   const [tab, setTab] = useState<'cursos' | 'solicitudes' | 'stats' | 'plan' | 'plantillas' | 'personal' | 'integraciones' | 'configuracion'>('cursos');
   const [cursos, setCursos] = useState<any[]>([]);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
@@ -2312,7 +3342,27 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     { id: 2, titulo: 'Requisitos SEPE (Email)', canal: 'Email', contenido: 'Estimado/a [Nombre],\n\nPara tramitar su matrícula gratuita en el curso "[Curso]", necesitamos que nos facilite una copia de su DNI y su documento de demanda de empleo (DARDE) actualizado.\n\nAtentamente,\n[Centro]' },
     { id: 3, titulo: 'Convocatoria de Inicio (WhatsApp)', canal: 'WhatsApp', contenido: '¡Buenas noticias [Nombre]! Tu plaza para el curso "[Curso]" ha sido confirmada. Iniciamos el próximo [Fecha] a las 09:00. Por favor, confirma asistencia respondiendo a este mensaje.' }
   ];
-  const [templates] = useState(initialTemplates);
+  const [templates, setTemplates] = useState<any[]>(() => {
+    const saved = localStorage.getItem('cursenda_templates');
+    return saved ? JSON.parse(saved) : initialTemplates;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('cursenda_templates', JSON.stringify(templates));
+  }, [templates]);
+
+  // Estados para gestión de plantillas
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [formTemplateTitulo, setFormTemplateTitulo] = useState('');
+  const [formTemplateCanal, setFormTemplateCanal] = useState('WhatsApp');
+  const [formTemplateContenido, setFormTemplateContenido] = useState('');
+  const [formTemplateError, setFormTemplateError] = useState('');
+
+  // Estados para feedback de copiado
+  const [copiedTemplateId, setCopiedTemplateId] = useState<number | null>(null);
+  const [copiedApiToken, setCopiedApiToken] = useState(false);
+  const [apiRegenSuccess, setApiRegenSuccess] = useState(false);
 
   // Gestión de Personal
   const initialTeam = [
@@ -2423,7 +3473,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       if (res.ok) {
         const data = await res.json();
         setApiToken(data.api_token);
-        alert('Nueva clave API generada y activada.');
+        setApiRegenSuccess(true);
+        setTimeout(() => setApiRegenSuccess(false), 3000);
       }
     } catch (err) {
       console.error(err);
@@ -2497,6 +3548,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       return;
     }
 
+    if (formModalidad === 'Presencial' || formModalidad === 'Mixta') {
+      const locLower = formLocalidad.trim().toLowerCase();
+      const invalidTerms = ['online', 'remoto', 'virtual', 'internet', 'no presencial', 'distancia', 'remota', 'pantalla', 'cualquiera'];
+      if (invalidTerms.some(term => locLower.includes(term)) || locLower === '') {
+        setFormError('Para cursos presenciales o mixtos, debe indicar una localidad o dirección física real (no se permite "Online", "Remoto" o similar).');
+        return;
+      }
+    }
+
     const payload = {
       titulo: formTitulo,
       categoria: formCategoria,
@@ -2530,6 +3590,67 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       }
     } catch (err) {
       setFormError('Error de red. Inténtelo de nuevo.');
+    }
+  };
+
+  const handleOpenTemplateModal = (template?: any) => {
+    setSelectedTemplate(template || null);
+    if (template) {
+      setFormTemplateTitulo(template.titulo);
+      setFormTemplateCanal(template.canal);
+      setFormTemplateContenido(template.contenido);
+    } else {
+      setFormTemplateTitulo('');
+      setFormTemplateCanal('WhatsApp');
+      setFormTemplateContenido('');
+    }
+    setFormTemplateError('');
+    setShowTemplateModal(true);
+  };
+
+  const handleSaveTemplate = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormTemplateError('');
+
+    if (!formTemplateTitulo.trim() || !formTemplateContenido.trim()) {
+      setFormTemplateError('El título y el contenido son campos requeridos.');
+      return;
+    }
+
+    if (selectedTemplate) {
+      setTemplates(templates.map(t => t.id === selectedTemplate.id ? { 
+        ...t, 
+        titulo: formTemplateTitulo, 
+        canal: formTemplateCanal, 
+        contenido: formTemplateContenido 
+      } : t));
+    } else {
+      const nextId = templates.length > 0 ? Math.max(...templates.map(t => t.id)) + 1 : 1;
+      setTemplates([...templates, { 
+        id: nextId, 
+        titulo: formTemplateTitulo, 
+        canal: formTemplateCanal, 
+        contenido: formTemplateContenido 
+      }]);
+    }
+    setShowTemplateModal(false);
+  };
+
+  const handleDeleteTemplate = (id: number) => {
+    if (window.confirm('¿Está seguro de que desea eliminar esta plantilla?')) {
+      setTemplates(templates.filter(t => t.id !== id));
+    }
+  };
+
+  const handleRemoveTeamMember = (id: number) => {
+    const member = team.find(t => t.id === id);
+    if (!member) return;
+    if (member.rol === 'Propietario / Superadmin') {
+      alert('No se puede eliminar al propietario principal del centro.');
+      return;
+    }
+    if (window.confirm(`¿Está seguro de que desea eliminar a ${member.nombre || member.email}?`)) {
+      setTeam(team.filter(t => t.id !== id));
     }
   };
 
@@ -2964,11 +4085,63 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                         <td style={{ color: 'var(--primary)' }}>{s.curso_titulo}</td>
                         <td>{new Date(s.fecha_creacion).toLocaleDateString('es-ES')}</td>
                         <td>
-                          {s.gestionado ? (
-                            <span className="badge badge-published">Gestionado</span>
-                          ) : (
-                            <span className="badge badge-new">Nuevo</span>
-                          )}
+                          {(() => {
+                            const status = s.estado_detalle || (s.gestionado ? 'Llamado' : 'Nuevo');
+                            const getStatusStyles = (st: string) => {
+                              switch (st) {
+                                case 'Nuevo':
+                                  return { backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' };
+                                case 'Llamado':
+                                  return { backgroundColor: '#fef3c7', color: '#d97706', borderColor: '#fde68a' };
+                                case 'Interesado':
+                                  return { backgroundColor: '#dbeafe', color: '#2563eb', borderColor: '#bfdbfe' };
+                                case 'Matriculado':
+                                  return { backgroundColor: '#d1fae5', color: '#059669', borderColor: '#6ee7b7' };
+                                case 'Descartado':
+                                  return { backgroundColor: '#f3f4f6', color: '#4b5563', borderColor: '#e5e7eb' };
+                                default:
+                                  return { backgroundColor: '#f3f4f6', color: '#4b5563', borderColor: '#e5e7eb' };
+                              }
+                            };
+                            const styles = getStatusStyles(status);
+                            return (
+                              <select
+                                value={status}
+                                onChange={async (e) => {
+                                  const val = e.target.value;
+                                  try {
+                                    const res = await fetch(`${API_BASE}/solicitudes/${s.id}/estado`, {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ estado_detalle: val })
+                                    });
+                                    if (res.ok) {
+                                      loadSolicitudes();
+                                      loadStats();
+                                    }
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
+                                }}
+                                style={{
+                                  ...styles,
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  outline: 'none'
+                                }}
+                              >
+                                <option value="Nuevo">Nuevo</option>
+                                <option value="Llamado">Llamado</option>
+                                <option value="Interesado">Interesado</option>
+                                <option value="Matriculado">Matriculado</option>
+                                <option value="Descartado">Descartado</option>
+                              </select>
+                            );
+                          })()}
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -3106,7 +4279,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--lines-light)' }}>
                   <span>Precio de suscripción:</span>
-                  <strong>{user?.plan === 'pro' ? '149,00 €' : '79,00 €'} / mes</strong>
+                  <strong>{user?.plan === 'custom' ? '299,00 €' : user?.plan === 'pro' ? '79,00 €' : '0,00 € (Starter)'} / mes</strong>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', marginBottom: '2rem' }}>
@@ -3114,19 +4287,25 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   <strong>{new Date(user?.fecha_renovacion).toLocaleDateString('es-ES')}</strong>
                 </div>
 
-                <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', marginBottom: '1rem' }}>Cambiar de plan de suscripción</h4>
+                <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', marginBottom: '1rem' }}>Suscripciones Disponibles</h4>
                 
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  {user?.plan !== 'starter' && (
-                    <button onClick={() => handlePlanChange('starter')} className="btn btn-secondary btn-sm">
-                      Cambiar a Plan Starter (79€/mes)
-                    </button>
-                  )}
-                  {user?.plan !== 'pro' && (
-                    <button onClick={() => handlePlanChange('pro')} className="btn btn-primary btn-sm">
-                      Cambiar a Plan Pro (149€/mes)
-                    </button>
-                  )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                  <div style={{ border: '1px solid var(--lines)', padding: '1rem', borderRadius: '8px', backgroundColor: user?.plan === 'starter' ? 'rgba(12,59,51,0.04)' : 'transparent' }}>
+                    <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan Starter</h5>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Soporte básico, hasta 3 cursos activos.</p>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>Gratis</div>
+                    {user?.plan !== 'starter' && (
+                      <button type="button" onClick={() => handlePlanChange('starter')} className="btn btn-secondary btn-sm" style={{ width: '100%' }}>Seleccionar Starter</button>
+                    )}
+                  </div>
+                  <div style={{ border: '1px solid var(--accent)', padding: '1rem', borderRadius: '8px', backgroundColor: user?.plan === 'pro' ? 'rgba(201,150,46,0.04)' : 'transparent' }}>
+                    <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan Pro</h5>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Cursos ilimitados, API y Webhooks activos.</p>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>79,00 € / mes</div>
+                    {user?.plan !== 'pro' && (
+                      <button type="button" onClick={() => handlePlanChange('pro')} className="btn btn-primary btn-sm" style={{ width: '100%' }}>Seleccionar Pro</button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -3165,7 +4344,17 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         {/* TAB: PLANTILLAS */}
         {tab === 'plantillas' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Plantillas de Contacto</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+              <div>
+                <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Plantillas de Contacto</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Personalice respuestas automáticas rápidas para contactar a los alumnos</p>
+              </div>
+              <button onClick={() => handleOpenTemplateModal()} className="btn btn-primary">
+                <Plus size={18} />
+                <span>Nueva plantilla</span>
+              </button>
+            </div>
+            
             <div className="alert-box alert-info">
               <MessageSquare size={20} />
               <span>Personalice las respuestas automáticas para contactar a los alumnos con un solo clic. Copie el contenido del portapapeles y péguelo en su cliente de WhatsApp o correo electrónico.</span>
@@ -3173,23 +4362,47 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
               {templates.map((t) => (
-                <div key={t.id} className="table-container" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '260px' }}>
+                <div key={t.id} className="table-container" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '280px' }}>
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <h3 style={{ fontSize: '1rem', color: 'var(--primary)' }}>{t.titulo}</h3>
-                      <span className="badge badge-published" style={{ textTransform: 'uppercase' }}>{t.canal}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '0.5rem' }}>
+                      <h3 style={{ fontSize: '1rem', color: 'var(--primary)', margin: 0, fontWeight: 700 }}>{t.titulo}</h3>
+                      <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center', flexShrink: 0 }}>
+                        <span className="badge badge-published" style={{ textTransform: 'uppercase', fontSize: '0.6875rem' }}>{t.canal}</span>
+                        <button 
+                          onClick={() => handleOpenTemplateModal(t)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: '2px', display: 'flex', alignItems: 'center' }}
+                          title="Editar plantilla"
+                        >
+                          <Edit size={13} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteTemplate(t.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error-text)', padding: '2px', display: 'flex', alignItems: 'center' }}
+                          title="Eliminar plantilla"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
                     </div>
-                    <p style={{ fontSize: '0.8125rem', color: 'var(--text)', whiteSpace: 'pre-line', lineHeight: '1.45', backgroundColor: '#FAF9F6', padding: '0.75rem', borderRadius: '4px', border: '1px solid var(--lines)' }}>{t.contenido}</p>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text)', whiteSpace: 'pre-line', lineHeight: '1.45', backgroundColor: '#FAF9F6', padding: '0.75rem', borderRadius: '4px', border: '1px solid var(--lines)', overflowY: 'auto', maxHeight: '120px' }}>{t.contenido}</p>
                   </div>
                   <button 
                     onClick={() => {
                       navigator.clipboard.writeText(t.contenido);
-                      alert('Plantilla copiada al portapapeles');
+                      setCopiedTemplateId(t.id);
+                      setTimeout(() => setCopiedTemplateId(null), 2000);
                     }} 
-                    className="btn btn-secondary btn-sm" 
-                    style={{ width: '100%', marginTop: '1.25rem' }}
+                    className={`btn ${copiedTemplateId === t.id ? 'btn-success' : 'btn-secondary'} btn-sm`} 
+                    style={{ width: '100%', marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem' }}
                   >
-                    Copiar texto
+                    {copiedTemplateId === t.id ? (
+                      <>
+                        <Check size={14} />
+                        <span>¡Copiado!</span>
+                      </>
+                    ) : (
+                      <span>Copiar texto</span>
+                    )}
                   </button>
                 </div>
               ))}
@@ -3220,6 +4433,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                       <th>Email</th>
                       <th>Rol</th>
                       <th>Estado</th>
+                      <th>Acción</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3232,6 +4446,19 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                           <span className={`badge ${t.estado === 'Activo' ? 'badge-published' : 'badge-paused'}`}>
                             {t.estado}
                           </span>
+                        </td>
+                        <td>
+                          {t.rol !== 'Propietario / Superadmin' ? (
+                            <button 
+                              onClick={() => handleRemoveTeamMember(t.id)} 
+                              className="btn btn-secondary btn-sm"
+                              style={{ color: 'var(--error-text)', padding: '2px 8px', fontSize: '0.75rem' }}
+                            >
+                              Eliminar
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>-</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -3298,15 +4525,19 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Live API Token</span>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <code style={{ fontFamily: 'monospace', fontSize: '0.875rem', fontWeight: '700', wordBreak: 'break-all' }}>{apiToken || 'Generando token...'}</code>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      {apiRegenSuccess && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--success-text)', marginRight: '0.5rem', fontWeight: 600 }}>✓ Regenerada</span>
+                      )}
                       <button 
                         onClick={() => {
                           navigator.clipboard.writeText(apiToken);
-                          alert('Clave API copiada al portapapeles');
+                          setCopiedApiToken(true);
+                          setTimeout(() => setCopiedApiToken(false), 2000);
                         }} 
-                        className="btn btn-secondary btn-sm"
+                        className={`btn ${copiedApiToken ? 'btn-success' : 'btn-secondary'} btn-sm`}
                       >
-                        Copiar
+                        {copiedApiToken ? '¡Copiado!' : 'Copiar'}
                       </button>
                       <button 
                         onClick={handleRegenerateApiKey} 
@@ -3341,11 +4572,27 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               <div className="table-container" style={{ padding: '2rem' }}>
                 <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Guía Rápida de API</h3>
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.45' }}>Realice consultas HTTPS GET para descargar su listado de solicitudes en formato JSON desde otros sistemas:</p>
-                <pre style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflowX: 'auto', fontFamily: 'monospace' }}>
-{`GET /api/public/solicitudes
-Host: api.cursenda.es
-Authorization: Bearer ${apiToken || 'cursenda_live_token'}`}
-                </pre>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--accent)', textTransform: 'uppercase' }}>Ejemplo cURL</span>
+                    <pre style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflowX: 'auto', fontFamily: 'monospace', marginTop: '0.25rem' }}>
+{`curl -X GET "${window.location.origin}/api/public/solicitudes" \\
+  -H "Authorization: Bearer ${apiToken || 'TU_API_TOKEN'}"`}
+                    </pre>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--accent)', textTransform: 'uppercase' }}>Ejemplo Node.js</span>
+                    <pre style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflowX: 'auto', fontFamily: 'monospace', marginTop: '0.25rem' }}>
+{`fetch("${window.location.origin}/api/public/solicitudes", {
+  headers: {
+    "Authorization": "Bearer ${apiToken || 'TU_API_TOKEN'}"
+  }
+})
+.then(res => res.json())
+.then(data => console.log(data));`}
+                    </pre>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -3648,6 +4895,67 @@ Authorization: Bearer ${apiToken || 'cursenda_live_token'}`}
             <div className="modal-footer">
               <button onClick={() => setShowLeadModal(false)} className="btn btn-secondary">Cerrar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PLANTILLA: CREAR/EDITAR */}
+      {showTemplateModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '550px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">{selectedTemplate ? 'Editar Plantilla' : 'Nueva Plantilla de Contacto'}</h3>
+              <button onClick={() => setShowTemplateModal(false)} className="btn-close-modal">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveTemplate}>
+              <div className="modal-body">
+                {formTemplateError && (
+                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+                    {formTemplateError}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Título de la plantilla *</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    placeholder="Ej: Primer contacto WhatsApp"
+                    value={formTemplateTitulo}
+                    onChange={(e) => setFormTemplateTitulo(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Canal de comunicación *</label>
+                  <select 
+                    className="form-control" 
+                    value={formTemplateCanal} 
+                    onChange={(e) => setFormTemplateCanal(e.target.value)}
+                  >
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="Email">Email</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Contenido del mensaje *</label>
+                  <textarea 
+                    className="form-control" 
+                    rows={6} 
+                    placeholder="Escriba aquí el mensaje. Puede usar variables como [Nombre], [Curso], [Centro], [Fecha]..."
+                    value={formTemplateContenido}
+                    onChange={(e) => setFormTemplateContenido(e.target.value)}
+                  ></textarea>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" onClick={() => setShowTemplateModal(false)} className="btn btn-secondary">Cancelar</button>
+                <button type="submit" className="btn btn-primary">Guardar plantilla</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
