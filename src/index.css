@@ -2435,19 +2435,32 @@ tr:last-child td {
   align-items: center;
   text-align: center;
   padding: 2.25rem 1.75rem;
-  background-color: rgba(201, 150, 46, 0.04);
-  border: 2px dashed var(--accent);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow);
+  background: linear-gradient(180deg, #FAF8F5 0%, #FFFFFF 100%);
+  border: 1px dashed rgba(201, 150, 46, 0.4);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px -2px rgba(12, 59, 51, 0.05);
   transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  min-height: 420px;
+  min-height: 440px;
 }
 
 .course-card.wizard-promo-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--card-shadow-hover);
-  background-color: rgba(201, 150, 46, 0.08);
+  transform: translateY(-6px);
+  box-shadow: 0 16px 36px -8px rgba(12, 59, 51, 0.12);
+  background-color: var(--white);
   border-color: var(--accent);
+}
+
+.wizard-promo-icon-box {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background-color: rgba(201, 150, 46, 0.12);
+  border: 1px solid rgba(201, 150, 46, 0.25);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
 }
 
 /* Grid Informativo: FAQ + Requisitos (2 Columnas) */

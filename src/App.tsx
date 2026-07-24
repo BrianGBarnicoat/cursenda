@@ -351,7 +351,8 @@ function AlumnosHome() {
                 padding: 0
               }}
             >
-              <span>💡 ¿No está seguro? Pruebe el Asistente</span>
+              <HelpCircle size={14} />
+              <span>Test de orientación de cursos</span>
             </button>
           </div>
         </div>
@@ -703,18 +704,20 @@ function AlumnosHome() {
                     if (idx === 1) {
                       cards.push(
                         <div key="wizard-promo" className="course-card wizard-promo-card reveal stagger-3">
-                          <span style={{ fontSize: '2.5rem', marginBottom: '0.75rem', display: 'block' }}>💡</span>
-                          <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>¿No sabe qué elegir?</h3>
+                          <div className="wizard-promo-icon-box">
+                            <HelpCircle size={26} />
+                          </div>
+                          <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>Test de Orientación Académica</h3>
                           <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.5', padding: '0 0.5rem' }}>
-                            Responda a 3 preguntas rápidas en nuestro recomendador para encontrar su plaza ideal de inmediato.
+                            Responda 3 sencillas preguntas para recibir una recomendación personalizada basada en su perfil y ubicación.
                           </p>
                           <button 
                             type="button"
                             onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
                             className="btn btn-accent btn-sm"
-                            style={{ width: '100%', marginTop: 'auto' }}
+                            style={{ width: '100%', marginTop: 'auto', fontWeight: 700 }}
                           >
-                            Iniciar Asistente
+                            Iniciar Test de Orientación
                           </button>
                         </div>
                       );
@@ -724,18 +727,20 @@ function AlumnosHome() {
                   if (cursos.length < 2) {
                     cards.push(
                       <div key="wizard-promo" className="course-card wizard-promo-card reveal stagger-2">
-                        <span style={{ fontSize: '2.5rem', marginBottom: '0.75rem', display: 'block' }}>💡</span>
-                        <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>¿No sabe qué elegir?</h3>
+                        <div className="wizard-promo-icon-box">
+                          <HelpCircle size={26} />
+                        </div>
+                        <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>Test de Orientación Académica</h3>
                         <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.5', padding: '0 0.5rem' }}>
-                          Responda a 3 preguntas rápidas en nuestro recomendador para encontrar su plaza ideal de inmediato.
+                          Responda 3 sencillas preguntas para recibir una recomendación personalizada basada en su perfil y ubicación.
                         </p>
                         <button 
                           type="button"
                           onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
                           className="btn btn-accent btn-sm"
-                          style={{ width: '100%', marginTop: 'auto' }}
+                          style={{ width: '100%', marginTop: 'auto', fontWeight: 700 }}
                         >
-                          Iniciar Asistente
+                          Iniciar Test de Orientación
                         </button>
                       </div>
                     );
