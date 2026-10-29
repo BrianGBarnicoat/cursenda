@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import { getDatabase, verifyPassword, hashPassword } from './db.js';
+import { ACCESO_SQL, PLANES_DE_PAGO, pagosConfigurados, modoPruebaStripe, crearCheckout, crearPortal, handleWebhook } from './pagos.js';
 import crypto from 'crypto';
 import path from 'path';
 import net from 'net';
@@ -35,6 +36,9 @@ app.use(cors({
   origin: (origin, callback) => callback(null, !origin || ALLOWED_ORIGINS.includes(origin)),
   credentials: true
 }));
+// Avisos de Stripe: necesitan el cuerpo sin procesar para comprobar la firma
+app.post('/api/pagos/webhook', express.raw({ type: 'application/json', limit: '1mb' }), handleWebhook);
+
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 
@@ -155,6 +159,16 @@ function baseUrl(req: any) {
   return IS_PRODUCTION ? ALLOWED_ORIGINS[0] : `${req.protocol}://${req.get('host')}`;
 }
 
+// Datos del centro que ve el panel (sin contraseñas ni claves)
+const CAMPOS_CENTRO = `id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol, cif, direccion, web,
+  suscripcion_estado, prueba_hasta, stripe_subscription_id IS NOT NULL as tiene_suscripcion,
+  CASE WHEN ${ACCESO_SQL} THEN 1 ELSE 0 END as acceso`;
+
+async function cargarCentro(id: number) {
+  const db = await getDatabase();
+  return db.get(`SELECT ${CAMPOS_CENTRO} FROM centros WHERE id = ?`, [id]);
+}
+
 // Middleware de autenticación: deja en req.centro el centro y en req.usuario quién es
 async function authenticateToken(req: any, res: any, next: any) {
   const token = req.cookies.token;
@@ -166,7 +180,6 @@ async function authenticateToken(req: any, res: any, next: any) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: number; tipo?: 'centro' | 'miembro' };
     const db = await getDatabase();
-    const camposCentro = 'id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol, cif, direccion, web';
 
     let centro: any;
     let usuario: any;
@@ -177,10 +190,10 @@ async function authenticateToken(req: any, res: any, next: any) {
         res.clearCookie('token');
         return res.status(401).json({ error: 'Usuario no encontrado' });
       }
-      centro = await db.get(`SELECT ${camposCentro} FROM centros WHERE id = ?`, [miembro.centro_id]);
+      centro = await cargarCentro(miembro.centro_id);
       usuario = { tipo: 'miembro', id: miembro.id, nombre: miembro.nombre, email: miembro.email, rol: miembro.rol };
     } else {
-      centro = await db.get(`SELECT ${camposCentro} FROM centros WHERE id = ?`, [decoded.id]);
+      centro = await cargarCentro(decoded.id);
       if (centro) {
         usuario = { tipo: 'centro', id: centro.id, nombre: centro.nombre_contacto || centro.nombre, email: centro.email, rol: 'propietario' };
       }
@@ -210,6 +223,14 @@ function requireRol(...roles: string[]) {
   };
 }
 const soloPropietario = requireRol('propietario');
+
+// Si se acabó la prueba y no paga, solo puede entrar a "Plan y facturas"
+function requiereAcceso(req: any, res: any, next: any) {
+  if (!req.centro?.acceso) {
+    return res.status(402).json({ error: 'Su periodo de prueba ha terminado. Active su suscripción para seguir usando Cursenda.', codigo: 'sin_suscripcion' });
+  }
+  next();
+}
 const puedeEditar = requireRol('propietario', 'gestor');
 
 function datosSesion(centro: any, usuario: any) {
@@ -235,14 +256,13 @@ app.post('/api/auth/login', loginRateLimit, async (req, res) => {
     if (centro) {
       if (!verifyPassword(password, centro.salt, centro.password_hash)) return error();
       setSessionCookie(res, { id: centro.id, tipo: 'centro' });
-      const { password_hash, salt, api_token, webhook_url, ...publico } = centro;
-      return res.json(datosSesion(publico, { tipo: 'centro', id: centro.id, nombre: centro.nombre_contacto || centro.nombre, email: centro.email, rol: 'propietario' }));
+      return res.json(datosSesion(await cargarCentro(centro.id), { tipo: 'centro', id: centro.id, nombre: centro.nombre_contacto || centro.nombre, email: centro.email, rol: 'propietario' }));
     }
 
     const miembro = await db.get('SELECT * FROM miembros WHERE lower(email) = ? AND activo = 1 AND password_hash IS NOT NULL', [emailLimpio]);
     if (!miembro || !verifyPassword(password, miembro.salt, miembro.password_hash)) return error();
 
-    const centroMiembro = await db.get('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [miembro.centro_id]);
+    const centroMiembro = await cargarCentro(miembro.centro_id);
     setSessionCookie(res, { id: miembro.id, tipo: 'miembro' });
     res.json(datosSesion(centroMiembro, { tipo: 'miembro', id: miembro.id, nombre: miembro.nombre, email: miembro.email, rol: miembro.rol }));
   } catch (err) {
@@ -360,7 +380,7 @@ app.post('/api/auth/activar-miembro', async (req, res) => {
     await db.run('UPDATE miembros SET nombre = ?, password_hash = ?, salt = ?, invitacion_hash = NULL, invitacion_expira = NULL WHERE id = ?',
       [String(nombre).trim().slice(0, 120), hashPassword(password, salt), salt, miembro.id]);
 
-    const centro = await db.get('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [miembro.centro_id]);
+    const centro = await cargarCentro(miembro.centro_id);
     setSessionCookie(res, { id: miembro.id, tipo: 'miembro' });
     res.json(datosSesion(centro, { tipo: 'miembro', id: miembro.id, nombre: String(nombre).trim(), email: miembro.email, rol: miembro.rol }));
   } catch (err) {
@@ -415,8 +435,8 @@ app.post('/api/auth/register-invitation', async (req, res) => {
     await db.run('BEGIN TRANSACTION');
 
     const result = await db.run(`
-      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token)
-      VALUES (?, ?, ?, ?, 'starter', ?, ?, ?, ?)
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, prueba_hasta)
+      VALUES (?, ?, ?, ?, 'starter', ?, ?, ?, ?, datetime('now', '+30 days'))
     `, [nombre, invitacion.email, pwdHash, salt, fechaRenovacion.toISOString(), nombre_contacto || null, telefono || null, apiToken]);
 
     await db.run('UPDATE invitaciones SET usada = 1 WHERE id = ?', [invitacion.id]);
@@ -457,7 +477,7 @@ app.get('/api/public/cursos', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    let query = 'SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = "publicado"';
+    let query = `SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${ACCESO_SQL}`;
     const params: any[] = [];
 
     if (search) {
@@ -489,7 +509,7 @@ app.get('/api/public/cursos/:id', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    const curso = await db.get('SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = "publicado"', [id]);
+    const curso = await db.get(`SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${ACCESO_SQL}`, [id]);
 
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado' });
@@ -546,7 +566,7 @@ app.get('/api/cursos', authenticateToken, async (req: any, res) => {
 });
 
 // Crear curso
-app.post('/api/cursos', authenticateToken, puedeEditar, async (req: any, res) => {
+app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion } = req.body;
 
   if (!titulo || !categoria || !modalidad || !localidad || !duracion_horas || !plazas || !fecha_inicio || !dirigido_a || !descripcion) {
@@ -588,7 +608,7 @@ app.post('/api/cursos', authenticateToken, puedeEditar, async (req: any, res) =>
 });
 
 // Editar curso
-app.put('/api/cursos/:id', authenticateToken, puedeEditar, async (req: any, res) => {
+app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
   const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion } = req.body;
 
@@ -637,7 +657,7 @@ app.put('/api/cursos/:id', authenticateToken, puedeEditar, async (req: any, res)
 });
 
 // Pausar/Reanudar curso
-app.post('/api/cursos/:id/toggle-estado', authenticateToken, puedeEditar, async (req: any, res) => {
+app.post('/api/cursos/:id/toggle-estado', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
 
   try {
@@ -677,7 +697,7 @@ app.post('/api/public/solicitudes', async (req, res) => {
       SELECT cursos.id, cursos.titulo, centros.webhook_url, centros.nombre as centro_nombre
       FROM cursos
       JOIN centros ON cursos.centro_id = centros.id
-      WHERE cursos.id = ? AND cursos.estado = "publicado"
+      WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${ACCESO_SQL}
     `, [curso_id]);
     
     if (!curso) {
@@ -717,7 +737,7 @@ app.post('/api/public/solicitudes', async (req, res) => {
 });
 
 // Obtener solicitudes del centro
-app.get('/api/solicitudes', authenticateToken, async (req: any, res) => {
+app.get('/api/solicitudes', authenticateToken, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const list = await db.all(`
@@ -735,7 +755,7 @@ app.get('/api/solicitudes', authenticateToken, async (req: any, res) => {
 });
 
 // Marcar solicitud como gestionada
-app.post('/api/solicitudes/:id/gestionado', authenticateToken, async (req: any, res) => {
+app.post('/api/solicitudes/:id/gestionado', authenticateToken, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
   const { gestionado } = req.body;
 
@@ -761,7 +781,7 @@ app.post('/api/solicitudes/:id/gestionado', authenticateToken, async (req: any, 
 });
 
 // Actualizar estado detallado de una solicitud
-app.put('/api/solicitudes/:id/estado', authenticateToken, async (req: any, res) => {
+app.put('/api/solicitudes/:id/estado', authenticateToken, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
   const { estado_detalle } = req.body;
 
@@ -793,7 +813,7 @@ app.put('/api/solicitudes/:id/estado', authenticateToken, async (req: any, res) 
 });
 
 // Obtener notas de una solicitud
-app.get('/api/solicitudes/:id/notas', authenticateToken, async (req: any, res) => {
+app.get('/api/solicitudes/:id/notas', authenticateToken, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
 
   try {
@@ -817,7 +837,7 @@ app.get('/api/solicitudes/:id/notas', authenticateToken, async (req: any, res) =
 });
 
 // Añadir nota de contacto (marca automáticamente como gestionado)
-app.post('/api/solicitudes/:id/notas', authenticateToken, async (req: any, res) => {
+app.post('/api/solicitudes/:id/notas', authenticateToken, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
   const { texto } = req.body;
 
@@ -857,7 +877,7 @@ app.post('/api/solicitudes/:id/notas', authenticateToken, async (req: any, res) 
 });
 
 // Exportar solicitudes a CSV con formato español (; y UTF-8 BOM)
-app.get('/api/solicitudes/export', authenticateToken, puedeEditar, async (req: any, res) => {
+app.get('/api/solicitudes/export', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const list = await db.all(`
@@ -974,6 +994,58 @@ app.post('/api/plan/cancelar-cambio', authenticateToken, soloPropietario, async 
   }
 });
 
+// --- Pagos con Stripe ---
+
+// Estado de la suscripción para la pestaña "Plan y facturas"
+app.get('/api/pagos/estado', authenticateToken, soloPropietario, async (req: any, res) => {
+  const c = req.centro;
+  const finPrueba = c.prueba_hasta ? new Date(String(c.prueba_hasta).replace(' ', 'T') + 'Z') : null;
+  const diasPrueba = finPrueba ? Math.max(0, Math.ceil((finPrueba.getTime() - Date.now()) / 86400000)) : 0;
+  res.json({
+    configurado: pagosConfigurados(),
+    modo_prueba: modoPruebaStripe(),
+    estado: c.suscripcion_estado,
+    acceso: !!c.acceso,
+    prueba_hasta: c.prueba_hasta,
+    dias_prueba: diasPrueba,
+    tiene_suscripcion: !!c.tiene_suscripcion,
+    plan: c.plan,
+    fecha_renovacion: c.fecha_renovacion
+  });
+});
+
+// Ir a la página de pago de Stripe para contratar un plan
+app.post('/api/pagos/checkout', authenticateToken, soloPropietario, async (req: any, res) => {
+  const plan = req.body?.plan;
+  if (!PLANES_DE_PAGO.includes(plan)) {
+    return res.status(400).json({ error: 'Plan no válido' });
+  }
+  if (!pagosConfigurados()) {
+    return res.status(503).json({ error: 'Los pagos todavía no están activados. Escríbanos para contratar.' });
+  }
+  if (req.centro.tiene_suscripcion) {
+    return res.status(400).json({ error: 'Ya tiene una suscripción. Use "Gestionar pago" para cambiar de plan.' });
+  }
+  try {
+    res.json({ url: await crearCheckout(req.centro.id, plan, baseUrl(req)) });
+  } catch (err: any) {
+    console.error('Error creando el pago:', err.message);
+    res.status(500).json({ error: 'No se pudo abrir la página de pago. Inténtelo de nuevo.' });
+  }
+});
+
+// Portal de Stripe para cambiar tarjeta, plan, ver facturas o darse de baja
+app.post('/api/pagos/portal', authenticateToken, soloPropietario, async (req: any, res) => {
+  if (!pagosConfigurados()) {
+    return res.status(503).json({ error: 'Los pagos todavía no están activados.' });
+  }
+  try {
+    res.json({ url: await crearPortal(req.centro.id, baseUrl(req)) });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'No se pudo abrir el portal de pago' });
+  }
+});
+
 // Obtener facturas
 app.get('/api/facturas', authenticateToken, soloPropietario, async (req: any, res) => {
   try {
@@ -1072,7 +1144,7 @@ app.get('/api/equipo', authenticateToken, soloPropietario, async (req: any, res)
 });
 
 // Invitar a alguien: devuelve el enlace para pasárselo (válido 7 días)
-app.post('/api/equipo', authenticateToken, soloPropietario, async (req: any, res) => {
+app.post('/api/equipo', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const rol = req.body?.rol;
 
@@ -1180,7 +1252,7 @@ function validarPlantilla(body: any) {
   return { titulo, texto, tipo };
 }
 
-app.post('/api/plantillas', authenticateToken, puedeEditar, async (req: any, res) => {
+app.post('/api/plantillas', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const p = validarPlantilla(req.body);
   if (!p) return res.status(400).json({ error: 'El título y el texto son obligatorios' });
   try {
@@ -1192,7 +1264,7 @@ app.post('/api/plantillas', authenticateToken, puedeEditar, async (req: any, res
   }
 });
 
-app.put('/api/plantillas/:id', authenticateToken, puedeEditar, async (req: any, res) => {
+app.put('/api/plantillas/:id', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const p = validarPlantilla(req.body);
   if (!p) return res.status(400).json({ error: 'El título y el texto son obligatorios' });
   try {
@@ -1205,7 +1277,7 @@ app.put('/api/plantillas/:id', authenticateToken, puedeEditar, async (req: any, 
   }
 });
 
-app.delete('/api/plantillas/:id', authenticateToken, puedeEditar, async (req: any, res) => {
+app.delete('/api/plantillas/:id', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const result = await db.run('DELETE FROM plantillas WHERE id = ? AND centro_id = ?', [req.params.id, req.centro.id]);
@@ -1250,7 +1322,7 @@ async function authenticateAdmin(req: any, res: any, next: any) {
 app.get('/api/admin/centros', authenticateAdmin, async (req, res) => {
   try {
     const db = await getDatabase();
-    const list = await db.all('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros ORDER BY id DESC');
+    const list = await db.all(`SELECT ${CAMPOS_CENTRO} FROM centros ORDER BY id DESC`);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener las academias' });
@@ -1282,8 +1354,8 @@ app.post('/api/admin/centros', authenticateAdmin, async (req, res) => {
     fechaRenovacion.setMonth(fechaRenovacion.getMonth() + 1);
 
     const result = await db.run(`
-      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, rol)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'centro')
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, rol, prueba_hasta)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'centro', datetime('now', '+30 days'))
     `, [nombre, email, pwdHash, salt, plan || 'starter', fechaRenovacion.toISOString(), nombre_contacto || null, telefono || null, apiToken]);
 
     const newCentro = await db.get('SELECT id, nombre, email, plan, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [result.lastID]);
@@ -1435,6 +1507,27 @@ app.get('/api/admin/solicitudes', authenticateAdmin, async (req, res) => {
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener las solicitudes' });
+  }
+});
+
+// Ampliar la prueba gratis de un centro (por defecto 30 días más desde hoy o desde su fin)
+app.post('/api/admin/centros/:id/ampliar-prueba', authenticateAdmin, async (req, res) => {
+  const dias = Math.min(365, Math.max(1, parseInt(req.body?.dias) || 30));
+  try {
+    const db = await getDatabase();
+    const centro = await db.get("SELECT id, stripe_subscription_id FROM centros WHERE id = ? AND (rol IS NULL OR rol != 'admin')", [req.params.id]);
+    if (!centro) return res.status(404).json({ error: 'Academia no encontrada' });
+    if (centro.stripe_subscription_id) {
+      return res.status(400).json({ error: 'Esta academia ya paga con Stripe; la prueba se cambia desde Stripe.' });
+    }
+    await db.run(`
+      UPDATE centros SET suscripcion_estado = 'prueba',
+        prueba_hasta = datetime(MAX(COALESCE(prueba_hasta, datetime('now')), datetime('now')), '+' || ? || ' days')
+      WHERE id = ?
+    `, [dias, centro.id]);
+    res.json(await db.get(`SELECT ${CAMPOS_CENTRO} FROM centros WHERE id = ?`, [centro.id]));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al ampliar la prueba' });
   }
 });
 

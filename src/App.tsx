@@ -2086,7 +2086,7 @@ function LandingCentros() {
           <div className="pricing-grid">
             <div className="price-card reveal-scale stagger-1">
               <div className="price-name">Plan Starter</div>
-              <div className="price-amount">79€ <span>/ mes</span></div>
+              <div className="price-amount">79€ <span>/ mes + IVA</span></div>
               <ul className="price-features">
                 <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Hasta 5 cursos activos</li>
                 <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Gestión de leads e historial</li>
@@ -2099,7 +2099,7 @@ function LandingCentros() {
             <div className="price-card popular reveal-scale stagger-2">
               <div className="popular-badge">Recomendado</div>
               <div className="price-name">Plan Pro</div>
-              <div className="price-amount">149€ <span>/ mes</span></div>
+              <div className="price-amount">149€ <span>/ mes + IVA</span></div>
               <ul className="price-features">
                 <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Cursos activos ilimitados</li>
                 <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Gestión de leads e historial</li>
@@ -2861,6 +2861,67 @@ const haceCuanto = (valor: string) => {
   return `el ${d.toLocaleDateString('es-ES')}`;
 };
 
+// Planes (los mismos precios que en la página para centros)
+const PLANES = [
+  { id: 'starter', nombre: 'Starter', precio: '79 € / mes + IVA', descripcion: 'Hasta 5 cursos activos, gestión de leads y exportación CSV.' },
+  { id: 'pro', nombre: 'Pro', precio: '149 € / mes + IVA', descripcion: 'Cursos ilimitados y estadísticas detalladas de visitas.' },
+  { id: 'custom', nombre: 'Custom', precio: 'A medida', descripcion: 'Redes de centros, integración por API y gestor de cuenta.' }
+];
+
+const textoEstadoSuscripcion = (centro: any, pagos?: any) => {
+  const estado = centro?.suscripcion_estado;
+  if (estado === 'activa') return 'Activa';
+  if (estado === 'impago') return 'Pago pendiente: revise su tarjeta';
+  if (estado === 'cancelada') return 'Cancelada';
+  if (estado === 'prueba') {
+    if (!centro?.acceso) return 'Prueba terminada';
+    const dias = pagos?.dias_prueba;
+    return dias !== undefined ? `Prueba gratis: ${dias} ${dias === 1 ? 'día' : 'días'} restantes` : 'Prueba gratis';
+  }
+  return 'Sin suscripción';
+};
+
+// Aviso arriba del panel: días de prueba que quedan o prueba terminada
+function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { user: any; pagos: any; esPropietario: boolean; onIrAPlan: () => void; enPlan: boolean }) {
+  if (!user || user.rol === 'admin') return null;
+
+  if (!user.acceso) {
+    return (
+      <div className="alert-box alert-error" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1 }}>
+          <strong>Su periodo de prueba ha terminado.</strong>{' '}
+          {esPropietario
+            ? 'Sus cursos no se muestran en la web y no puede ver las solicitudes hasta que active su suscripción.'
+            : 'Pida al responsable del centro que active la suscripción para seguir usando Cursenda.'}
+        </span>
+        {esPropietario && !enPlan && <button type="button" className="btn btn-primary btn-sm" onClick={onIrAPlan}>Activar suscripción</button>}
+      </div>
+    );
+  }
+
+  if (user.suscripcion_estado === 'impago' && esPropietario) {
+    return (
+      <div className="alert-box alert-warning" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1 }}><strong>No hemos podido cobrar su suscripción.</strong> Revise su tarjeta para no perder el acceso.</span>
+        {!enPlan && <button type="button" className="btn btn-primary btn-sm" onClick={onIrAPlan}>Revisar pago</button>}
+      </div>
+    );
+  }
+
+  if (user.suscripcion_estado === 'prueba' && !user.tiene_suscripcion && esPropietario && pagos && pagos.dias_prueba <= 7) {
+    return (
+      <div className="alert-box alert-warning" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1 }}>
+          Le {pagos.dias_prueba === 1 ? 'queda 1 día' : `quedan ${pagos.dias_prueba} días`} de prueba gratis. Elija un plan para no perder sus cursos ni sus solicitudes.
+        </span>
+        {!enPlan && <button type="button" className="btn btn-primary btn-sm" onClick={onIrAPlan}>Ver planes</button>}
+      </div>
+    );
+  }
+
+  return null;
+}
+
 // Ventana para copiar un enlace (invitaciones, contraseña nueva)
 function EnlaceModal({ titulo, texto, enlace, onClose }: { titulo: string; texto: string; enlace: string; onClose: () => void }) {
   const [copiado, setCopiado] = useState(false);
@@ -2996,6 +3057,21 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
     }
     setEnlaceGenerado({ para, enlace: data.enlace });
     if (peticionId) setRecuperaciones(recuperaciones.map(r => r.id === peticionId ? { ...r, atendida: 1 } : r));
+  };
+
+  const handleAmpliarPrueba = async (ac: any) => {
+    if (!window.confirm(`¿Dar 30 días más de prueba gratis a ${ac.nombre}?`)) return;
+    const res = await fetch(`${API_BASE}/admin/centros/${ac.id}/ampliar-prueba`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dias: 30 })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'No se pudo ampliar la prueba');
+      return;
+    }
+    setAcademias(academias.map(a => a.id === ac.id ? { ...a, ...data } : a));
   };
 
   const handleDescartarRecuperacion = async (id: number) => {
@@ -3175,8 +3251,9 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
   const totalAcademias = academias.filter(a => a.rol !== 'admin').length;
   const totalCursos = cursos.length;
   const totalLeads = solicitudes.length;
+  // Solo cuentan las academias que ya pagan (sin IVA)
   const totalFacturadoEst = academias
-    .filter(a => a.rol !== 'admin')
+    .filter(a => a.rol !== 'admin' && a.suscripcion_estado === 'activa')
     .reduce((sum, a) => {
       // Custom es a medida, no se suma
       if (a.plan === 'pro') return sum + 149;
@@ -3367,7 +3444,7 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
                         <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Email</th>
                         <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Plan</th>
                         <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Contacto / Teléfono</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha Renovación</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Suscripción</th>
                         <th style={{ padding: '1rem', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>Acciones</th>
                       </tr>
                     </thead>
@@ -3389,7 +3466,12 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
                             {ac.nombre_contacto || 'N/D'} {ac.telefono && `(${ac.telefono})`}
                           </td>
                           <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                            {new Date(ac.fecha_renovacion).toLocaleDateString()}
+                            <div style={{ fontWeight: 600, color: ac.acceso ? 'var(--success-text)' : 'var(--error-text)' }}>{textoEstadoSuscripcion(ac)}</div>
+                            <div style={{ fontSize: '0.75rem' }}>
+                              {ac.suscripcion_estado === 'prueba' && ac.prueba_hasta
+                                ? `Prueba hasta ${formatFechaHora(ac.prueba_hasta).split(' ')[0]}`
+                                : ac.tiene_suscripcion ? `Renueva el ${new Date(ac.fecha_renovacion).toLocaleDateString('es-ES')}` : ''}
+                            </div>
                           </td>
                           <td style={{ padding: '1rem', textAlign: 'center' }}>
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
@@ -3401,6 +3483,17 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
                               >
                                 Editar
                               </button>
+                              {!ac.tiene_suscripcion && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAmpliarPrueba(ac)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                  title="Dar 30 días más de prueba gratis"
+                                >
+                                  +30 días
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/centros/${ac.id}/enlace-recuperacion`, ac.email)}
@@ -4100,7 +4193,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       loadFacturas();
       loadApiSettings();
       loadEquipo();
+      loadPagos();
     }
+    // Sin prueba ni suscripción, directo a "Plan y facturas"
+    if (user && !user.acceso && esPropietario) setTab('plan');
   }, [user]);
 
   // Manejar cursos
@@ -4371,34 +4467,64 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     }
   };
 
-  // Manejar Cambios de Plan
-  const handlePlanChange = async (plan: string) => {
+  // Pagos con Stripe
+  const [pagos, setPagos] = useState<any>(null);
+  const [pagoError, setPagoError] = useState('');
+  const [pagoCargando, setPagoCargando] = useState(false);
+  const [pagoAviso, setPagoAviso] = useState<'ok' | 'cancelado' | null>(null);
+
+  const loadPagos = async () => {
     try {
-      const res = await fetch(`${API_BASE}/plan/cambio`, {
+      const res = await fetch(`${API_BASE}/pagos/estado`);
+      if (res.ok) setPagos(await res.json());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Al volver de Stripe: avisar y esperar a que llegue la confirmación
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pago = params.get('pago');
+    if (pago !== 'ok' && pago !== 'cancelado') return;
+    setPagoAviso(pago);
+    setTab('plan');
+    window.history.replaceState({}, '', '/centros/dashboard');
+    if (pago === 'ok') {
+      let intentos = 0;
+      const t = setInterval(() => {
+        intentos++;
+        loadPagos();
+        loadFacturas();
+        if (intentos >= 5) clearInterval(t);
+      }, 2000);
+      return () => clearInterval(t);
+    }
+  }, []);
+
+  const irAStripe = async (url: string, body?: any) => {
+    setPagoError('');
+    setPagoCargando(true);
+    try {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan })
+        body: JSON.stringify(body || {})
       });
-
-      if (res.ok) {
-        // Recargar info del centro simulada
-        window.location.reload();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+        return;
       }
+      setPagoError(data.error || 'No se pudo abrir la página de pago.');
     } catch (err) {
-      console.error(err);
+      setPagoError('Error de red. Inténtelo de nuevo.');
     }
+    setPagoCargando(false);
   };
 
-  const handleCancelPlanChange = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/plan/cancelar-cambio`, { method: 'POST' });
-      if (res.ok) {
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const handleContratar = (plan: string) => irAStripe(`${API_BASE}/pagos/checkout`, { plan });
+  const handlePortal = () => irAStripe(`${API_BASE}/pagos/portal`);
 
   // Cerrar Sesión
   const handleLogoutClick = async () => {
@@ -4529,6 +4655,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
       {/* Contenido principal */}
       <main className="dashboard-content">
+        <AvisoSuscripcion user={user} pagos={pagos} esPropietario={esPropietario} onIrAPlan={() => setTab('plan')} enPlan={tab === 'plan'} />
         {/* TAB: MIS CURSOS */}
         {tab === 'cursos' && (
           <div>
@@ -4913,59 +5040,88 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
           <div>
             <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Suscripción y Facturación</h1>
 
-            {/* Alerta de cambio de plan pendiente */}
-            {user?.plan_pendiente && (
+            {pagoAviso === 'ok' && (
+              <div className="alert-box alert-info">
+                <CheckCircle size={20} />
+                <span>¡Gracias! Su suscripción se ha activado. Puede tardar unos segundos en aparecer aquí.</span>
+              </div>
+            )}
+            {pagoAviso === 'cancelado' && (
               <div className="alert-box alert-warning">
-                <Calendar size={20} />
-                <div style={{ flexGrow: 1 }}>
-                  <strong>Plan pendiente de cambio:</strong> Su cuenta se actualizará automáticamente al plan <strong>{user.plan_pendiente.toUpperCase()}</strong> en su próxima renovación programada ({new Date(user.fecha_renovacion).toLocaleDateString('es-ES')}).
-                </div>
-                <button onClick={handleCancelPlanChange} className="btn btn-secondary btn-sm" style={{ border: 'none', background: 'transparent', padding: '2px' }}>
-                  Cancelar solicitud
-                </button>
+                <span>No se ha completado el pago. Puede intentarlo de nuevo cuando quiera.</span>
+              </div>
+            )}
+            {pagoError && (
+              <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.875rem' }}>{pagoError}</div>
+            )}
+            {pagos?.modo_prueba && (
+              <div className="alert-box alert-warning" style={{ fontSize: '0.8125rem' }}>
+                <span><strong>Stripe en modo pruebas:</strong> no se cobra de verdad. Use la tarjeta 4242 4242 4242 4242, cualquier fecha futura y cualquier CVC.</span>
               </div>
             )}
 
-            <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem', marginBottom: '3rem' }}>
-              {/* Configuración Plan */}
+            <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(280px, 1fr)', gap: '2rem', marginBottom: '3rem' }}>
+              {/* Estado de la suscripción */}
               <div className="table-container" style={{ padding: '2rem' }}>
-                <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Detalle de su suscripción</h3>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--lines-light)' }}>
-                  <span>Plan contratado:</span>
-                  <strong style={{ textTransform: 'uppercase', color: 'var(--accent)' }}>{user?.plan || 'Starter'}</strong>
+                <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Su suscripción</h3>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--lines-light)', gap: '1rem' }}>
+                  <span>Estado:</span>
+                  <strong style={{ color: user?.acceso ? 'var(--success-text)' : 'var(--error-text)', textAlign: 'right' }}>
+                    {textoEstadoSuscripcion(user, pagos)}
+                  </strong>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--lines-light)' }}>
-                  <span>Precio de suscripción:</span>
-                  <strong>{user?.plan === 'custom' ? 'A medida' : user?.plan === 'pro' ? '149,00 € / mes' : '79,00 € / mes'}</strong>
+                  <span>Plan:</span>
+                  <strong style={{ textTransform: 'uppercase', color: 'var(--accent)' }}>{user?.plan || 'starter'}</strong>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', marginBottom: '2rem' }}>
-                  <span>Próxima renovación:</span>
-                  <strong>{new Date(user?.fecha_renovacion).toLocaleDateString('es-ES')}</strong>
-                </div>
+                {user?.tiene_suscripcion ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', marginBottom: '1.5rem' }}>
+                      <span>{user?.suscripcion_estado === 'prueba' ? 'Primer cobro:' : 'Próxima renovación:'}</span>
+                      <strong>{new Date(user?.fecha_renovacion).toLocaleDateString('es-ES')}</strong>
+                    </div>
+                    <button type="button" className="btn btn-primary" style={{ width: '100%' }} disabled={pagoCargando} onClick={handlePortal}>
+                      {pagoCargando ? 'Abriendo...' : 'Gestionar pago'}
+                    </button>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'center' }}>
+                      Cambie la tarjeta o el plan, descargue facturas o dé de baja la suscripción.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', margin: '1.5rem 0 0.5rem' }}>Elija su plan</h4>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                      {pagos?.dias_prueba > 2
+                        ? `Añada su tarjeta ahora y no se le cobrará nada hasta que acabe la prueba (${new Date(String(pagos.prueba_hasta).replace(' ', 'T') + 'Z').toLocaleDateString('es-ES')}). Puede cancelar cuando quiera.`
+                        : 'El cobro es mensual y puede cancelar cuando quiera.'}
+                    </p>
 
-                <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', marginBottom: '1rem' }}>Suscripciones Disponibles</h4>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
-                  <div style={{ border: '1px solid var(--lines)', padding: '1rem', borderRadius: '8px', backgroundColor: user?.plan === 'starter' ? 'rgba(12,59,51,0.04)' : 'transparent' }}>
-                    <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan Starter</h5>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Hasta 5 cursos activos, gestión de leads y exportación CSV.</p>
-                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>79,00 € / mes</div>
-                    {user?.plan !== 'starter' && (
-                      <button type="button" onClick={() => handlePlanChange('starter')} className="btn btn-secondary btn-sm" style={{ width: '100%' }}>Seleccionar Starter</button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
+                      {PLANES.map((pl) => (
+                        <div key={pl.id} style={{ border: `1px solid ${pl.id === 'pro' ? 'var(--accent)' : 'var(--lines)'}`, padding: '1rem', borderRadius: '8px', display: 'flex', flexDirection: 'column' }}>
+                          <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan {pl.nombre}</h5>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0', flex: 1 }}>{pl.descripcion}</p>
+                          <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>{pl.precio}</div>
+                          {pl.id === 'custom' ? (
+                            <a href={`mailto:${DATOS_LEGALES.email}?subject=Plan%20Custom%20Cursenda`} className="btn btn-secondary btn-sm" style={{ width: '100%', textAlign: 'center' }}>Contactar</a>
+                          ) : (
+                            <button type="button" disabled={pagoCargando || !pagos?.configurado} onClick={() => handleContratar(pl.id)} className={`btn ${pl.id === 'pro' ? 'btn-primary' : 'btn-secondary'} btn-sm`} style={{ width: '100%' }}>
+                              Contratar {pl.nombre}
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {pagos && !pagos.configurado && (
+                      <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
+                        El pago con tarjeta se activará muy pronto. Mientras tanto, para contratar escríbanos a <a href={`mailto:${DATOS_LEGALES.email}`}>{DATOS_LEGALES.email}</a>.
+                      </p>
                     )}
-                  </div>
-                  <div style={{ border: '1px solid var(--accent)', padding: '1rem', borderRadius: '8px', backgroundColor: user?.plan === 'pro' ? 'rgba(201,150,46,0.04)' : 'transparent' }}>
-                    <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan Pro</h5>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Cursos ilimitados y estadísticas detalladas de visitas.</p>
-                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>149,00 € / mes</div>
-                    {user?.plan !== 'pro' && (
-                      <button type="button" onClick={() => handlePlanChange('pro')} className="btn btn-primary btn-sm" style={{ width: '100%' }}>Seleccionar Pro</button>
-                    )}
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
 
               {/* Historial de Facturas */}
@@ -4974,9 +5130,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   <h3 className="table-title">Facturas</h3>
                 </div>
                 {facturas.length === 0 ? (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay facturas registradas.</div>
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Todavía no hay facturas.</div>
                 ) : (
-                  <table>
+                  <table style={{ minWidth: 0 }}>
                     <thead>
                       <tr>
                         <th>Número</th>
@@ -4987,18 +5143,21 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     <tbody>
                       {facturas.map((f) => (
                         <tr key={f.id}>
-                          <td>{f.numero}</td>
+                          <td>
+                            {f.url ? <a href={f.url} target="_blank" rel="noopener noreferrer">{f.numero}</a> : f.numero}
+                            {f.estado === 'pendiente' && <span className="badge badge-paused" style={{ marginLeft: '0.5rem' }}>Pendiente</span>}
+                          </td>
                           <td>{f.fecha}</td>
-                          <td><strong>{f.importe.toFixed(2)} €</strong></td>
+                          <td><strong>{Number(f.importe).toFixed(2)} €</strong></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
         {/* TAB: PLANTILLAS */}
         {tab === 'plantillas' && (

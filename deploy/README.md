@@ -31,6 +31,29 @@ sudo bash deploy/desplegar.sh
 
 Si la versión nueva no arranca, vuelve sola a la anterior.
 
+## Activar los pagos (Stripe)
+
+1. Crear la cuenta en [stripe.com](https://stripe.com) (gratis). Para probar no hace falta NIF.
+2. En Stripe, con **Modo de prueba** activado: Desarrolladores → Claves de API → copiar la **clave secreta** (`sk_test_...`).
+3. En el servidor, como root:
+   ```bash
+   cd "/home/Brian/Paginas Web/Cursenda" && node deploy/configurar-stripe.mjs
+   systemctl restart cursenda
+   ```
+   Pide la clave (no se ve al escribirla) y crea solo los planes, el IVA, el portal del cliente y el aviso de pagos.
+4. Probar con la tarjeta `4242 4242 4242 4242`.
+
+Para cobrar de verdad: activar la cuenta en Stripe (pide NIF y cuenta bancaria), borrar la línea
+`STRIPE_SECRET_KEY` de `/etc/cursenda/cursenda.env`, volver a lanzar el script con la clave `sk_live_...`
+y reiniciar.
+
+Cómo funciona:
+- Cada centro nuevo tiene **30 días gratis** sin tarjeta. Desde el admin se puede dar +30 días.
+- Si mete la tarjeta durante la prueba, no se cobra hasta que acabe.
+- Si se acaba la prueba sin pagar, sus cursos dejan de salir en la web y no ve las solicitudes hasta que pague.
+- Si falla un cobro, sigue funcionando mientras Stripe reintenta. Si al final no paga, se bloquea.
+- Las facturas salen solas en "Plan y facturas". Ojo: las de Stripe no valen para VeriFactu (obligatorio en 2027).
+
 ## Ver cómo va
 
 ```bash

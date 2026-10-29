@@ -111,6 +111,24 @@ export async function getDatabase(): Promise<Database> {
     } catch (_) {}
   }
 
+  // Suscripción y pagos con Stripe
+  const columnasPago = [
+    'ALTER TABLE centros ADD COLUMN stripe_customer_id TEXT',
+    'ALTER TABLE centros ADD COLUMN stripe_subscription_id TEXT',
+    "ALTER TABLE centros ADD COLUMN suscripcion_estado TEXT DEFAULT 'prueba'",
+    'ALTER TABLE centros ADD COLUMN prueba_hasta DATETIME',
+    'ALTER TABLE facturas ADD COLUMN stripe_invoice_id TEXT',
+    'ALTER TABLE facturas ADD COLUMN url TEXT'
+  ];
+  for (const sql of columnasPago) {
+    try {
+      await db.run(sql);
+    } catch (_) {}
+  }
+  await db.run('CREATE UNIQUE INDEX IF NOT EXISTS facturas_stripe ON facturas(stripe_invoice_id)');
+  // Los centros que ya existían empiezan con su mes de prueba
+  await db.run("UPDATE centros SET suscripcion_estado = 'prueba', prueba_hasta = datetime('now', '+30 days') WHERE prueba_hasta IS NULL AND (rol IS NULL OR rol != 'admin')");
+
   await db.exec(`
     CREATE TABLE IF NOT EXISTS solicitudes_demo (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -210,8 +228,8 @@ export async function getDatabase(): Promise<Database> {
 
     // Insertar Centro Demo
     const resultCentro = await db.run(`
-      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, prueba_hasta)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+30 days'))
     `, [
       'Centro de Formación Tecnológica de Madrid',
       'demo@cursenda.es',
