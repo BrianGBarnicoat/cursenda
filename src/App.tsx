@@ -47,6 +47,37 @@ export function Logo({ light }: { light?: boolean }) {
   );
 }
 
+// Mapa de Google que solo se carga si el visitante lo pide (Google pone cookies)
+function MapaGoogle({ titulo, src }: { titulo: string; src: string }) {
+  const [visible, setVisible] = useState(false);
+
+  if (!visible) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', height: '100%', minHeight: '200px', backgroundColor: 'var(--bg)', color: 'var(--text-muted)', fontSize: '0.8125rem', textAlign: 'center', padding: '1rem' }}>
+        <MapPin size={28} style={{ color: 'var(--accent)' }} />
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setVisible(true)}>Ver mapa</button>
+        <span>Se cargará Google Maps, que puede usar sus propias cookies.</span>
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      title={titulo}
+      width="100%"
+      height="100%"
+      frameBorder="0"
+      scrolling="no"
+      marginHeight={0}
+      marginWidth={0}
+      src={src}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      style={{ border: 0 }}
+    ></iframe>
+  );
+}
+
 export const getCourseImage = (categoria: string) => {
   const mapping: { [key: string]: string } = {
     'Informática': 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=800&h=450&q=80',
@@ -180,14 +211,14 @@ function AlumnosHome() {
         <div className="alumnos-container" style={{ textAlign: 'center', marginTop: '2rem', marginBottom: 0 }}>
           <div className="official-accreditation-badge reveal-scale">
             <Shield size={13} className="shield-icon" />
-            <span>Catálogo Oficial de Cursos Subvencionados • SEPE y Comunidad de Madrid</span>
+            <span>Cursos subvencionados por el SEPE y las comunidades autónomas</span>
           </div>
 
           <h1 style={{ fontSize: '2.85rem', marginBottom: '0.75rem', color: 'var(--white)', fontWeight: '800', lineHeight: '1.18', letterSpacing: '-0.02em' }}>
             Encuentre su <span style={{ background: 'var(--gradient-accent)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: '800' }}>plaza gratuita</span> en cursos subvencionados
           </h1>
           <p style={{ fontSize: '1.05rem', color: 'rgba(255,255,255,0.78)', marginBottom: '2.25rem', maxWidth: '640px', margin: '0 auto 2.25rem', lineHeight: '1.5' }}>
-            Formación 100% gratuita financiada por fondos públicos para personas desempleadas y ocupadas. Titulación oficial reconocida.
+            Formación 100% gratuita financiada por fondos públicos para personas desempleadas y ocupadas.
           </p>
 
           {/* FLOATING QUICK STATS BAR */}
@@ -582,17 +613,7 @@ function AlumnosHome() {
                     {/* Right Side: Map Centered on Selected Course Locality */}
                     <div className="map-explorer-container" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', height: '100%' }}>
                       {mapSafeCurso ? (
-                        <iframe 
-                          title="Geolocalización del curso"
-                          width="100%" 
-                          height="100%" 
-                          frameBorder="0" 
-                          scrolling="no" 
-                          marginHeight={0} 
-                          marginWidth={0} 
-                          src={`https://maps.google.com/maps?q=${encodeURIComponent(mapSafeCurso.modalidad === 'Online' ? 'España' : (mapSafeCurso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(mapSafeCurso.localidad) + ', España')}&t=&z=${mapSafeCurso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`}
-                          style={{ border: 0 }}
-                        ></iframe>
+                        <MapaGoogle titulo="Geolocalización del curso" src={`https://maps.google.com/maps?q=${encodeURIComponent(mapSafeCurso.modalidad === 'Online' ? 'España' : (mapSafeCurso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(mapSafeCurso.localidad) + ', España')}&t=&z=${mapSafeCurso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`} />
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                           Seleccione un curso del listado para ver su ubicación.
@@ -715,7 +736,7 @@ function AlumnosHome() {
                             type="button"
                             onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
                             className="btn btn-accent btn-sm"
-                            style={{ width: '100%', marginTop: 'auto', fontWeight: 700 }}
+                            style={{ width: '100%', marginTop: '0.5rem', fontWeight: 700 }}
                           >
                             Iniciar Test de Orientación
                           </button>
@@ -738,7 +759,7 @@ function AlumnosHome() {
                           type="button"
                           onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
                           className="btn btn-accent btn-sm"
-                          style={{ width: '100%', marginTop: 'auto', fontWeight: 700 }}
+                          style={{ width: '100%', marginTop: '0.5rem', fontWeight: 700 }}
                         >
                           Iniciar Test de Orientación
                         </button>
@@ -970,16 +991,16 @@ function AlumnosHome() {
           </div>
           <div style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.875rem' }}>
             <strong style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--white)', letterSpacing: '0.03em' }}>Atención al Usuario</strong>
-            <p style={{ margin: '0.35rem 0', color: 'rgba(255,255,255,0.6)' }}>Soporte: info@cursenda.es</p>
+            <p style={{ margin: '0.35rem 0', color: 'rgba(255,255,255,0.6)' }}>Soporte: {DATOS_LEGALES.email}</p>
             <p style={{ margin: '0.35rem 0', color: 'rgba(255,255,255,0.6)' }}>Horario: L-V 09:00 - 18:00h</p>
           </div>
         </div>
         <div className="footer-bottom">
-          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)' }}>&copy; {new Date().getFullYear()} Cursenda • Formación Oficial Subvencionada.</span>
+          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)' }}>&copy; {new Date().getFullYear()} Cursenda • Buscador de formación subvencionada.</span>
           <div className="footer-links">
-            <a href="#" className="footer-link">Aviso Legal</a>
-            <a href="#" className="footer-link">Política de Privacidad</a>
-            <a href="#" className="footer-link">Política de Cookies</a>
+            <Link to="/legal/aviso-legal" className="footer-link">Aviso Legal</Link>
+            <Link to="/legal/privacidad" className="footer-link">Política de Privacidad</Link>
+            <Link to="/legal/cookies" className="footer-link">Política de Cookies</Link>
           </div>
         </div>
       </footer>
@@ -1603,17 +1624,7 @@ function AlumnosDetalle() {
                 }
               </p>
               <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--lines)', height: '280px', width: '100%', boxShadow: 'var(--card-shadow)' }}>
-                <iframe 
-                  title="Mapa de ubicación"
-                  width="100%" 
-                  height="100%" 
-                  frameBorder="0" 
-                  scrolling="no" 
-                  marginHeight={0} 
-                  marginWidth={0} 
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : (curso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(curso.localidad) + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`}
-                  style={{ border: 0 }}
-                ></iframe>
+                <MapaGoogle titulo="Mapa de ubicación" src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : (curso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(curso.localidad) + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`} />
               </div>
             </div>
           </div>
@@ -1694,7 +1705,7 @@ function AlumnosDetalle() {
                       onChange={(e) => setRgpd(e.target.checked)}
                     />
                     <label htmlFor="rgpd" className="form-checkbox-label">
-                      Acepto que mis datos de contacto se entreguen al centro de formación organizador para la gestión y tramitación de mi matrícula gratuita.
+                      Acepto que mis datos de contacto se entreguen al centro de formación organizador para la gestión y tramitación de mi matrícula gratuita (<Link to="/legal/privacidad" target="_blank">política de privacidad</Link>).
                     </label>
                   </div>
 
@@ -1768,7 +1779,7 @@ function LandingCentros() {
     setActiveFaq(activeFaq === index ? null : index);
   };
 
-  const handleDemoSubmit = (e: React.FormEvent) => {
+  const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -1782,7 +1793,21 @@ function LandingCentros() {
       return;
     }
 
-    setSuccess(true);
+    try {
+      const res = await fetch(`${API_BASE}/public/demo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre_centro: nombreCentro, nombre_contacto: contacto, email, telefono, rgpd })
+      });
+      if (res.ok) {
+        setSuccess(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'No se pudo enviar la solicitud. Inténtelo de nuevo.');
+      }
+    } catch (err) {
+      setError('Error de red. Inténtelo de nuevo.');
+    }
   };
 
   return (
@@ -1949,10 +1974,9 @@ function LandingCentros() {
           {/* MAPA INTERACTIVO DE DEMANDA EN ESPAÑA */}
           <div className="table-container sales-map-grid reveal stagger-2">
             <div>
-              <h3 style={{ color: 'var(--primary)', fontSize: '1.5rem', marginBottom: '1rem' }}>Mapa de Demanda Estudiantil</h3>
+              <h3 style={{ color: 'var(--primary)', fontSize: '1.5rem', marginBottom: '1rem' }}>Mapa de Demanda Estudiantil <span className="badge badge-paused" style={{ fontSize: '0.6875rem', verticalAlign: 'middle' }}>Ejemplo</span></h3>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.5' }}>
-                Haga clic sobre los principales nodos de población para ver el número de candidatos activos que buscan formación oficial subvencionada en este momento.
-              </p>
+                Así verá la demanda por zonas cuando tenga sus cursos publicados. Las cifras de este ejemplo son ilustrativas.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', gap: '1rem' }}>
@@ -1985,7 +2009,7 @@ function LandingCentros() {
 
               <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--lines)', paddingTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontSize: '0.875rem' }}>
                 <div>
-                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Candidatos Activos</span>
+                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Candidatos (ejemplo)</span>
                   <strong style={{ fontSize: '1.5rem', color: 'var(--accent)', fontWeight: '800' }}>{regionDetails[selectedRegion].leads.toLocaleString('es-ES')} alumnos</strong>
                 </div>
                 <div>
@@ -2214,7 +2238,7 @@ function LandingCentros() {
                   onChange={(e) => setRgpd(e.target.checked)} 
                 />
                 <label htmlFor="rgpd-demo" className="form-checkbox-label">
-                  Acepto el aviso legal y la política de privacidad. Consiento el tratamiento de mis datos de contacto para la demostración comercial del servicio de Cursenda.
+                  Acepto el <Link to="/legal/aviso-legal" target="_blank">aviso legal</Link> y la <Link to="/legal/privacidad" target="_blank">política de privacidad</Link>. Consiento el tratamiento de mis datos de contacto para la demostración comercial del servicio de Cursenda.
                 </label>
               </div>
 
@@ -2227,20 +2251,20 @@ function LandingCentros() {
       <footer className="landing-footer">
         <div className="footer-content">
           <div>
-            <Logo />
+            <Logo light={true} />
             <p style={{ color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.5rem', fontSize: '0.875rem' }}>SaaS de captación de alumnos para centros de formación en España.</p>
           </div>
           <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.875rem' }}>
             <strong>Contacto</strong>
-            <p style={{ marginTop: '0.5rem' }}>soporte@cursenda.es</p>
+            <p style={{ marginTop: '0.5rem' }}>{DATOS_LEGALES.email}</p>
           </div>
         </div>
         <div className="footer-bottom">
           <span>&copy; {new Date().getFullYear()} Cursenda. Todos los derechos reservados.</span>
           <div className="footer-links">
-            <a href="#" className="footer-link">Aviso Legal</a>
-            <a href="#" className="footer-link">Privacidad</a>
-            <a href="#" className="footer-link">Cookies</a>
+            <Link to="/legal/aviso-legal" className="footer-link">Aviso Legal</Link>
+            <Link to="/legal/privacidad" className="footer-link">Privacidad</Link>
+            <Link to="/legal/cookies" className="footer-link">Cookies</Link>
           </div>
         </div>
       </footer>
@@ -2350,10 +2374,28 @@ function RecuperarCentros() {
   const [activationSuccess, setActivationSuccess] = useState(false);
 
 
-  const handleRecoverySubmit = (e: React.FormEvent) => {
+  const [recoveryError, setRecoveryError] = useState('');
+
+  const handleRecoverySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setRecoveryError('');
     if (!email) return;
-    setRecoverySent(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/recuperar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      if (res.ok) {
+        setRecoverySent(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setRecoveryError(data.error || 'No se pudo enviar la petición. Inténtelo de nuevo.');
+      }
+    } catch (err) {
+      setRecoveryError('Error de red. Inténtelo de nuevo.');
+    }
   };
 
   const handleActivationSubmit = async (e: React.FormEvent) => {
@@ -2475,13 +2517,19 @@ function RecuperarCentros() {
             {recoverySent ? (
               <div style={{ textAlign: 'center', padding: '1rem 0' }}>
                 <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
-                <h4 style={{ color: 'var(--primary)' }}>Instrucciones enviadas</h4>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Le hemos enviado un enlace de recuperación a su correo electrónico si este está registrado.</p>
+                <h4 style={{ color: 'var(--primary)' }}>Petición recibida</h4>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Si el correo está registrado, el equipo de Cursenda le enviará un enlace para crear una contraseña nueva en menos de 24 horas laborables.</p>
                 <Link to="/centros/login" className="btn btn-secondary btn-sm" style={{ marginTop: '1.5rem' }}>Volver al login</Link>
               </div>
             ) : (
               <form onSubmit={handleRecoverySubmit}>
-                <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Introduzca su correo electrónico y le enviaremos instrucciones para restablecer su contraseña.</p>
+                <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Introduzca su correo electrónico y le enviaremos un enlace para crear una contraseña nueva.</p>
+
+                {recoveryError && (
+                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+                    {recoveryError}
+                  </div>
+                )}
 
                 <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                   <label className="form-label">Correo electrónico</label>
@@ -2494,11 +2542,337 @@ function RecuperarCentros() {
                   />
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Enviar instrucciones</button>
+                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Pedir enlace</button>
               </form>
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// --- PÁGINAS LEGALES ---
+// Datos del titular de la web (rellenar antes de publicar)
+const DATOS_LEGALES = {
+  titular: '[Nombre y apellidos o razón social]',
+  nif: '[NIF]',
+  domicilio: '[Dirección completa]',
+  email: '[Email de contacto]',
+  dominio: 'gbarnicoat.uk',
+  actualizado: '29 de octubre de 2026'
+};
+
+function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' }) {
+  const d = DATOS_LEGALES;
+  const titulos = { 'aviso-legal': 'Aviso legal', privacidad: 'Política de privacidad', cookies: 'Política de cookies' };
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.title = `${titulos[tipo]} · Cursenda`;
+  }, [tipo]);
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', backgroundColor: 'var(--white)', borderBottom: '1px solid var(--lines)' }}>
+        <Logo />
+        <Link to="/" className="btn btn-secondary btn-sm">← Volver</Link>
+      </nav>
+      <article className="legal-page">
+        <h1>{titulos[tipo]}</h1>
+        <p className="legal-updated">Última actualización: {d.actualizado}</p>
+
+        {tipo === 'aviso-legal' && (
+          <>
+            <h2>Titular de la web</h2>
+            <p>En cumplimiento de la Ley 34/2002 de Servicios de la Sociedad de la Información (LSSI-CE), estos son los datos del titular de {d.dominio}:</p>
+            <ul>
+              <li><strong>Titular:</strong> {d.titular}</li>
+              <li><strong>NIF:</strong> {d.nif}</li>
+              <li><strong>Domicilio:</strong> {d.domicilio}</li>
+              <li><strong>Email:</strong> {d.email}</li>
+            </ul>
+            <h2>Qué es Cursenda</h2>
+            <p>Cursenda es un buscador independiente de cursos subvencionados. No imparte formación ni concede las subvenciones: los cursos los publican y gestionan los centros de formación, que son los responsables de su contenido, de los requisitos de acceso y de la matrícula.</p>
+            <p>Cursenda no es un organismo público ni está vinculado al SEPE ni a las comunidades autónomas.</p>
+            <h2>Uso de la web</h2>
+            <p>Quien use esta web se compromete a dar datos verdaderos y a no usarla para fines ilícitos o que puedan dañar el servicio o a terceros.</p>
+            <h2>Responsabilidad</h2>
+            <p>Intentamos que la información de los cursos sea correcta, pero la publica cada centro. Ante cualquier duda sobre un curso, plazas o requisitos, consulte directamente con el centro.</p>
+            <h2>Propiedad intelectual</h2>
+            <p>El diseño, los textos y el código de la web pertenecen a su titular. Las fotografías son de Unsplash y se usan según su licencia.</p>
+            <h2>Ley aplicable</h2>
+            <p>Esta web se rige por la legislación española.</p>
+          </>
+        )}
+
+        {tipo === 'privacidad' && (
+          <>
+            <h2>Quién trata sus datos</h2>
+            <p><strong>{d.titular}</strong>, con NIF {d.nif} y domicilio en {d.domicilio}. Puede escribirnos a <strong>{d.email}</strong>.</p>
+
+            <h2>Qué datos recogemos y para qué</h2>
+            <ul>
+              <li><strong>Si pide plaza en un curso:</strong> nombre, email y teléfono. Los usamos para hacérselos llegar al centro que imparte el curso, que se pondrá en contacto con usted. A partir de ese momento el centro también es responsable del tratamiento de sus datos para gestionar su matrícula.</li>
+              <li><strong>Si es un centro y pide una demo:</strong> nombre del centro, persona de contacto, email y teléfono, para contactarle y enseñarle la plataforma.</li>
+              <li><strong>Si tiene cuenta de centro:</strong> los datos de su cuenta y de su equipo, para darle acceso al panel y prestarle el servicio.</li>
+            </ul>
+
+            <h2>Base legal</h2>
+            <p>Su consentimiento, que da al marcar la casilla del formulario, y en el caso de los centros con cuenta, el contrato del servicio. Puede retirar su consentimiento cuando quiera.</p>
+
+            <h2>Cuánto tiempo los guardamos</h2>
+            <p>Las solicitudes de plaza se guardan mientras el centro las necesite para gestionar la matrícula y, como máximo, 2 años. Las solicitudes de demo, hasta 1 año si no se contrata el servicio. Los datos de cuentas, mientras la cuenta esté activa.</p>
+
+            <h2>Quién más los ve</h2>
+            <p>Solo el centro de formación al que pide plaza. No vendemos datos ni los usamos para publicidad. La web está alojada en un servidor propio en la Unión Europea.</p>
+
+            <h2>Sus derechos</h2>
+            <p>Puede pedir ver, corregir o borrar sus datos, oponerse a su uso, limitarlo o llevárselos a otro sitio escribiendo a {d.email}. Si cree que no los tratamos bien, puede reclamar ante la Agencia Española de Protección de Datos (www.aepd.es).</p>
+
+            <h2>Seguridad</h2>
+            <p>Los datos viajan cifrados, las contraseñas se guardan cifradas y las copias de seguridad también lo están.</p>
+          </>
+        )}
+
+        {tipo === 'cookies' && (
+          <>
+            <h2>Qué cookies usamos</h2>
+            <p>Esta web solo usa una cookie técnica, necesaria para que los centros puedan entrar en su panel:</p>
+            <ul>
+              <li><strong>token</strong>: mantiene la sesión iniciada. Dura 1 día. Solo se crea si inicia sesión.</li>
+            </ul>
+            <p>Las cookies técnicas no necesitan su consentimiento. No usamos cookies de publicidad ni de analítica.</p>
+
+            <h2>Servicios de terceros</h2>
+            <p>En las fichas de los cursos puede ver la ubicación en Google Maps. El mapa no se carga hasta que pulsa "Ver mapa"; si lo hace, Google puede usar sus propias cookies según su política de privacidad.</p>
+            <p>Las fotografías de los cursos se cargan desde Unsplash, que no instala cookies.</p>
+
+            <h2>Cómo borrarlas</h2>
+            <p>Puede borrar las cookies desde la configuración de su navegador o cerrando sesión en el panel.</p>
+          </>
+        )}
+      </article>
+    </div>
+  );
+}
+
+// --- PORTAL COMERCIAL: CONTRASEÑA NUEVA CON ENLACE ---
+function RestablecerCentros() {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') || '';
+  const [valido, setValido] = useState<boolean | null>(null);
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
+  const [error, setError] = useState('');
+  const [hecho, setHecho] = useState(false);
+
+  useEffect(() => {
+    if (!token) { setValido(false); return; }
+    fetch(`${API_BASE}/auth/restablecer/${encodeURIComponent(token)}`)
+      .then(r => r.json())
+      .then(d => setValido(!!d.valido))
+      .catch(() => setValido(false));
+  }, [token]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
+    if (password !== password2) { setError('Las contraseñas no coinciden.'); return; }
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/restablecer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setHecho(true);
+      else setError(data.error || 'No se pudo cambiar la contraseña.');
+    } catch (err) {
+      setError('Error de red. Inténtelo de nuevo.');
+    }
+  };
+
+  return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+          <Logo />
+        </div>
+        <h2 className="auth-title">Contraseña nueva</h2>
+
+        {valido === null && <p className="auth-subtitle">Comprobando el enlace...</p>}
+
+        {valido === false && (
+          <div style={{ textAlign: 'center' }}>
+            <p className="auth-subtitle">Este enlace no es válido o ya ha caducado.</p>
+            <Link to="/centros/recuperar" className="btn btn-secondary btn-sm" style={{ marginTop: '1rem' }}>Pedir otro enlace</Link>
+          </div>
+        )}
+
+        {valido && hecho && (
+          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+            <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
+            <h4 style={{ color: 'var(--primary)' }}>Contraseña cambiada</h4>
+            <Link to="/centros/login" className="btn btn-primary btn-sm" style={{ marginTop: '1.5rem' }}>Iniciar sesión</Link>
+          </div>
+        )}
+
+        {valido && !hecho && (
+          <form onSubmit={handleSubmit}>
+            <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Elija una contraseña de al menos 8 caracteres.</p>
+            {error && (
+              <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
+            )}
+            <div className="form-group">
+              <label className="form-label">Contraseña nueva</label>
+              <input type="password" className="form-control" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="form-label">Repita la contraseña</label>
+              <input type="password" className="form-control" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} />
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Guardar contraseña</button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- PORTAL COMERCIAL: UNIRSE AL EQUIPO DE UN CENTRO ---
+function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const token = searchParams.get('token') || '';
+  const [invitacion, setInvitacion] = useState<any>(undefined);
+  const [nombre, setNombre] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!token) { setInvitacion(null); return; }
+    fetch(`${API_BASE}/auth/invitacion-miembro/${encodeURIComponent(token)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setInvitacion(d))
+      .catch(() => setInvitacion(null));
+  }, [token]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!nombre.trim()) { setError('Indique su nombre.'); return; }
+    if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/activar-miembro`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, nombre, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        onLogin(data);
+        navigate('/centros/dashboard');
+      } else {
+        setError(data.error || 'No se pudo activar la cuenta.');
+      }
+    } catch (err) {
+      setError('Error de red. Inténtelo de nuevo.');
+    }
+  };
+
+  const rolTexto = invitacion?.rol === 'colaborador' ? 'Colaborador' : 'Gestor';
+
+  return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+          <Logo />
+        </div>
+        <h2 className="auth-title">Unirse al equipo</h2>
+
+        {invitacion === undefined && <p className="auth-subtitle">Comprobando la invitación...</p>}
+
+        {invitacion === null && (
+          <div style={{ textAlign: 'center' }}>
+            <p className="auth-subtitle">Esta invitación no es válida o ya ha caducado. Pida al responsable de su centro que le envíe otra.</p>
+          </div>
+        )}
+
+        {invitacion && (
+          <form onSubmit={handleSubmit}>
+            <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>
+              Le han invitado a <strong>{invitacion.centro_nombre}</strong> como <strong>{rolTexto}</strong>. Su usuario será <strong>{invitacion.email}</strong>.
+            </p>
+            {error && (
+              <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
+            )}
+            <div className="form-group">
+              <label className="form-label">Su nombre</label>
+              <input type="text" className="form-control" autoComplete="name" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="form-label">Contraseña (mínimo 8 caracteres)</label>
+              <input type="password" className="form-control" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Crear mi cuenta</button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// SQLite guarda las fechas en UTC sin zona ("2026-10-29 10:00:00")
+const parseFecha = (valor: string) => {
+  if (!valor) return new Date(NaN);
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(valor) ? new Date(valor.replace(' ', 'T') + 'Z') : new Date(valor);
+};
+
+const formatFechaHora = (valor: string) => {
+  const d = parseFecha(valor);
+  if (isNaN(d.getTime())) return '';
+  return `${d.toLocaleDateString('es-ES')} ${d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+// "hace 5 min", "hace 3 h", "hace 2 días"...
+const haceCuanto = (valor: string) => {
+  const d = parseFecha(valor);
+  if (isNaN(d.getTime())) return '';
+  const min = Math.max(1, Math.round((Date.now() - d.getTime()) / 60000));
+  if (min < 60) return `hace ${min} min`;
+  const horas = Math.round(min / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.round(horas / 24);
+  if (dias < 30) return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
+  return `el ${d.toLocaleDateString('es-ES')}`;
+};
+
+// Ventana para copiar un enlace (invitaciones, contraseña nueva)
+function EnlaceModal({ titulo, texto, enlace, onClose }: { titulo: string; texto: string; enlace: string; onClose: () => void }) {
+  const [copiado, setCopiado] = useState(false);
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(enlace);
+      setCopiado(true);
+    } catch (err) {
+      setCopiado(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10001, padding: '1rem' }}>
+      <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '520px', border: '1px solid var(--lines)', padding: '1.75rem', textAlign: 'left' }}>
+        <h3 style={{ margin: '0 0 0.5rem', color: 'var(--primary)' }}>{titulo}</h3>
+        <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{texto}</p>
+        <input className="form-control" readOnly value={enlace} onFocus={(e) => e.target.select()} style={{ fontSize: '0.8125rem' }} />
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>Cerrar</button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={copiar}>{copiado ? 'Copiado' : 'Copiar enlace'}</button>
+        </div>
       </div>
     </div>
   );
@@ -2519,8 +2893,11 @@ const getAvatarBg = (nombre: string) => {
 };
 
 function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void }) {
-  const [tab, setTab] = useState<'inicio' | 'academias' | 'cursos' | 'solicitudes'>('inicio');
+  const [tab, setTab] = useState<'inicio' | 'academias' | 'cursos' | 'solicitudes' | 'demos' | 'recuperaciones'>('inicio');
   const [academias, setAcademias] = useState<any[]>([]);
+  const [demos, setDemos] = useState<any[]>([]);
+  const [recuperaciones, setRecuperaciones] = useState<any[]>([]);
+  const [enlaceGenerado, setEnlaceGenerado] = useState<{ para: string; enlace: string } | null>(null);
   const [cursos, setCursos] = useState<any[]>([]);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2573,6 +2950,12 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
       const dataS = await resS.json();
       if (resS.ok) setSolicitudes(dataS);
 
+      // Peticiones de demo y de recuperar contraseña
+      const resD = await fetch(`${API_BASE}/admin/demos`);
+      if (resD.ok) setDemos(await resD.json());
+      const resR = await fetch(`${API_BASE}/admin/recuperaciones`);
+      if (resR.ok) setRecuperaciones(await resR.json());
+
     } catch (err) {
       console.error(err);
       setError('Error al cargar datos del panel de administrador.');
@@ -2584,6 +2967,31 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleEstadoDemo = async (id: number, estado: string) => {
+    const res = await fetch(`${API_BASE}/admin/demos/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado })
+    });
+    if (res.ok) setDemos(demos.map(d => d.id === id ? { ...d, estado } : d));
+  };
+
+  const handleEnlaceRecuperacion = async (url: string, para: string, peticionId?: number) => {
+    const res = await fetch(url, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'No se pudo crear el enlace');
+      return;
+    }
+    setEnlaceGenerado({ para, enlace: data.enlace });
+    if (peticionId) setRecuperaciones(recuperaciones.map(r => r.id === peticionId ? { ...r, atendida: 1 } : r));
+  };
+
+  const handleDescartarRecuperacion = async (id: number) => {
+    const res = await fetch(`${API_BASE}/admin/recuperaciones/${id}/descartar`, { method: 'POST' });
+    if (res.ok) setRecuperaciones(recuperaciones.map(r => r.id === id ? { ...r, atendida: 1 } : r));
+  };
 
   const handleLogout = async () => {
     try {
@@ -2760,9 +3168,10 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
   const totalFacturadoEst = academias
     .filter(a => a.rol !== 'admin')
     .reduce((sum, a) => {
-      if (a.plan === 'pro') return sum + 79;
-      if (a.plan === 'custom') return sum + 299;
-      return sum + 0;
+      // Custom es a medida, no se suma
+      if (a.plan === 'pro') return sum + 149;
+      if (a.plan === 'starter') return sum + 79;
+      return sum;
     }, 0);
 
   return (
@@ -2770,7 +3179,7 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
       {/* Sidebar Admin */}
       <aside className="dashboard-sidebar" style={{ width: '260px', backgroundColor: 'var(--primary-dark)', color: 'var(--white)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
         <div className="dashboard-sidebar-header" style={{ padding: '2rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Logo />
+          <Logo light={true} />
           <span style={{ fontSize: '0.625rem', backgroundColor: 'var(--accent)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase' }}>Admin</span>
         </div>
         
@@ -2811,6 +3220,22 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
             <MessageSquare size={16} />
             <span>Solicitudes / Leads</span>
           </button>
+          {([
+            ['demos', 'Demos pedidas', <Calendar size={16} />, demos.filter(d => d.estado === 'nueva').length],
+            ['recuperaciones', 'Recuperar contraseña', <Shield size={16} />, recuperaciones.filter(r => !r.atendida).length]
+          ] as const).map(([id, texto, icono, pendientes]) => (
+            <button
+              key={id}
+              type="button"
+              className={`dashboard-nav-item ${tab === id ? 'active' : ''}`}
+              onClick={() => setTab(id)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === id ? 'rgba(255,255,255,0.08)' : 'none', color: tab === id ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
+            >
+              {icono}
+              <span style={{ flex: 1 }}>{texto}</span>
+              {pendientes > 0 && <span className="nav-badge">{pendientes}</span>}
+            </button>
+          ))}
         </nav>
 
         <div className="dashboard-sidebar-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '1.25rem' }}>
@@ -2831,7 +3256,7 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
             type="button" 
             onClick={handleLogout} 
             className="btn btn-secondary btn-sm"
-            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', borderColor: 'rgba(255,255,255,0.1)', color: 'var(--white)' }}
+            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.2)', color: 'var(--white)' }}
           >
             Cerrar Sesión
           </button>
@@ -2965,6 +3390,15 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
                                 style={{ padding: '4px 8px', fontSize: '0.75rem' }}
                               >
                                 Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/centros/${ac.id}/enlace-recuperacion`, ac.email)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                title="Crear un enlace para que ponga contraseña nueva"
+                              >
+                                Contraseña
                               </button>
                               <button 
                                 type="button" 
@@ -3109,9 +3543,113 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
                 </div>
               </div>
             )}
+
+            {/* TAB: DEMOS PEDIDAS */}
+            {tab === 'demos' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Demos pedidas</h3>
+                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Centros que han rellenado el formulario de la página para centros.</p>
+                </div>
+                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflowX: 'auto' }}>
+                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Centro</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Contacto</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {demos.map((d) => (
+                        <tr key={d.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
+                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{d.nombre_centro}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
+                            <div>{d.nombre_contacto}</div>
+                            <div style={{ fontSize: '0.8125rem' }}><a href={`mailto:${d.email}`}>{d.email}</a></div>
+                            <div style={{ fontSize: '0.8125rem' }}><a href={`tel:${d.telefono}`}>{d.telefono}</a></div>
+                          </td>
+                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{formatFechaHora(d.fecha_creacion)}</td>
+                          <td style={{ padding: '1rem' }}>
+                            <select className="form-control" style={{ minWidth: '140px' }} value={d.estado} onChange={(e) => handleEstadoDemo(d.id, e.target.value)}>
+                              <option value="nueva">Nueva</option>
+                              <option value="contactada">Contactada</option>
+                              <option value="descartada">Descartada</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                      {demos.length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Todavía no ha pedido nadie una demo.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: RECUPERAR CONTRASEÑA */}
+            {tab === 'recuperaciones' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Recuperar contraseña</h3>
+                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Genera el enlace y envíaselo por email o WhatsApp. Caduca en 24 horas y solo sirve una vez.</p>
+                </div>
+                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflowX: 'auto' }}>
+                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Correo</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Cuenta</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recuperaciones.map((r) => (
+                        <tr key={r.id} style={{ borderBottom: '1px solid var(--lines-light)', opacity: r.atendida ? 0.55 : 1 }}>
+                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{r.email}</td>
+                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                            {r.centro_nombre ? r.centro_nombre : r.miembro_de ? `Equipo de ${r.miembro_de}` : 'No existe ninguna cuenta'}
+                          </td>
+                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{formatFechaHora(r.fecha_creacion)}</td>
+                          <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {r.atendida ? 'Atendida' : (
+                              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                {(r.centro_nombre || r.miembro_de) && (
+                                  <button type="button" className="btn btn-primary btn-sm" onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/recuperaciones/${r.id}/enlace`, r.email, r.id)}>Crear enlace</button>
+                                )}
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDescartarRecuperacion(r.id)}>Descartar</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {recuperaciones.length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay peticiones.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
+
+      {enlaceGenerado && (
+        <EnlaceModal
+          titulo="Enlace para contraseña nueva"
+          texto={`Envíale este enlace a ${enlaceGenerado.para}. Caduca en 24 horas y solo sirve una vez.`}
+          enlace={enlaceGenerado.enlace}
+          onClose={() => setEnlaceGenerado(null)}
+        />
+      )}
 
       {/* Modal: Nueva / Editar Academia */}
       {showAcademiaModal && (
@@ -3183,9 +3721,9 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
                   value={formAcademiaPlan}
                   onChange={(e) => setFormAcademiaPlan(e.target.value)}
                 >
-                  <option value="starter">Starter (Gratis)</option>
-                  <option value="pro">Pro (79€/mes)</option>
-                  <option value="custom">Custom (299€/mes)</option>
+                  <option value="starter">Starter (79€/mes)</option>
+                  <option value="pro">Pro (149€/mes)</option>
+                  <option value="custom">Custom (a medida)</option>
                 </select>
               </div>
 
@@ -3347,27 +3885,25 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
   // Configuración del Centro
   const [confRazonSocial, setConfRazonSocial] = useState(user?.nombre || '');
-  const [confCif, setConfCif] = useState('B87654321');
+  const [confCif, setConfCif] = useState(user?.cif || '');
   const [confTelefono, setConfTelefono] = useState(user?.telefono || '');
-  const [confDireccion, setConfDireccion] = useState('Calle Gran Vía 45, Planta 3, 28013 Madrid');
-  const [confWeb, setConfWeb] = useState('https://www.tecnomadrid.es');
-  const [confEmail, setConfEmail] = useState(user?.email || '');
+  const [confDireccion, setConfDireccion] = useState(user?.direccion || '');
+  const [confWeb, setConfWeb] = useState(user?.web || '');
+  const [confError, setConfError] = useState('');
+  const confEmail = user?.email || '';
   const [confSaveSuccess, setConfSaveSuccess] = useState(false);
 
-  // Plantillas de Mensajes
-  const initialTemplates = [
-    { id: 1, titulo: 'Primer Contacto (WhatsApp)', canal: 'WhatsApp', contenido: 'Hola [Nombre], te escribimos de [Centro] referente a tu solicitud de plaza gratuita para el curso "[Curso]". ¿Te viene bien una llamada breve hoy para confirmar tus datos?' },
-    { id: 2, titulo: 'Requisitos SEPE (Email)', canal: 'Email', contenido: 'Estimado/a [Nombre],\n\nPara tramitar su matrícula gratuita en el curso "[Curso]", necesitamos que nos facilite una copia de su DNI y su documento de demanda de empleo (DARDE) actualizado.\n\nAtentamente,\n[Centro]' },
-    { id: 3, titulo: 'Convocatoria de Inicio (WhatsApp)', canal: 'WhatsApp', contenido: '¡Buenas noticias [Nombre]! Tu plaza para el curso "[Curso]" ha sido confirmada. Iniciamos el próximo [Fecha] a las 09:00. Por favor, confirma asistencia respondiendo a este mensaje.' }
-  ];
-  const [templates, setTemplates] = useState<any[]>(() => {
-    const saved = localStorage.getItem('cursenda_templates');
-    return saved ? JSON.parse(saved) : initialTemplates;
-  });
+  // Quién ha entrado y qué puede hacer
+  const rolUsuario: 'propietario' | 'gestor' | 'colaborador' = user?.usuario?.rol || 'propietario';
+  const esPropietario = rolUsuario === 'propietario';
+  const puedeEditar = rolUsuario !== 'colaborador';
+  const tabsPermitidas = esPropietario
+    ? ['cursos', 'solicitudes', 'plantillas', 'stats', 'plan', 'personal', 'integraciones', 'configuracion']
+    : ['cursos', 'solicitudes', 'plantillas', 'stats'];
 
-  useEffect(() => {
-    localStorage.setItem('cursenda_templates', JSON.stringify(templates));
-  }, [templates]);
+  // Plantillas de mensajes (guardadas en el servidor)
+  const [templates, setTemplates] = useState<any[]>([]);
+  const plantillaDesdeApi = (p: any) => ({ id: p.id, titulo: p.titulo, canal: p.tipo === 'email' ? 'Email' : 'WhatsApp', contenido: p.texto });
 
   // Estados para gestión de plantillas
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -3382,16 +3918,12 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   const [copiedApiToken, setCopiedApiToken] = useState(false);
   const [apiRegenSuccess, setApiRegenSuccess] = useState(false);
 
-  // Gestión de Personal
-  const initialTeam = [
-    { id: 1, nombre: 'Brian Barnicoat', email: 'brian@gbarnicoat.uk', rol: 'Propietario / Superadmin', estado: 'Activo' },
-    { id: 2, nombre: 'Carlos Soler', email: 'carlos@gbarnicoat.uk', rol: 'Gestor de Solicitudes', estado: 'Activo' },
-    { id: 3, nombre: 'Ana Gómez', email: 'ana@gbarnicoat.uk', rol: 'Profesor Colaborador', estado: 'Invitación Pendiente' }
-  ];
-  const [team, setTeam] = useState(initialTeam);
+  // Gestión de Personal (equipo del centro)
+  const [team, setTeam] = useState<any[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRol, setInviteRol] = useState('Gestor de Solicitudes');
-  const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [inviteRol, setInviteRol] = useState('gestor');
+  const [inviteError, setInviteError] = useState('');
+  const [enlaceEquipo, setEnlaceEquipo] = useState<{ titulo: string; texto: string; enlace: string } | null>(null);
 
   // Estados modales
   const [showCursoModal, setShowCursoModal] = useState(false);
@@ -3515,6 +4047,36 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     }
   };
 
+  const loadPlantillas = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/plantillas`);
+      if (res.ok) setTemplates((await res.json()).map(plantillaDesdeApi));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const ROL_TEXTO: Record<string, string> = {
+    propietario: 'Propietario',
+    gestor: 'Gestor (cursos y solicitudes)',
+    colaborador: 'Colaborador (solo solicitudes)'
+  };
+  const ESTADO_TEXTO: Record<string, string> = { activo: 'Activo', pendiente: 'Invitación pendiente', desactivado: 'Desactivado' };
+
+  const loadEquipo = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/equipo`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setTeam([
+        { id: 0, nombre: data.propietario.nombre, email: data.propietario.email, rol: 'propietario', estado: 'activo', esPropietario: true },
+        ...data.miembros.map((m: any) => ({ ...m, nombre: m.nombre || '—' }))
+      ]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     if (!user) {
       navigate('/centros/login');
@@ -3523,8 +4085,12 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     loadCursos();
     loadSolicitudes();
     loadStats();
-    loadFacturas();
-    loadApiSettings();
+    loadPlantillas();
+    if (esPropietario) {
+      loadFacturas();
+      loadApiSettings();
+      loadEquipo();
+    }
   }, [user]);
 
   // Manejar cursos
@@ -3626,7 +4192,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     setShowTemplateModal(true);
   };
 
-  const handleSaveTemplate = (e: React.FormEvent) => {
+  const handleSaveTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormTemplateError('');
 
@@ -3635,41 +4201,92 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       return;
     }
 
-    if (selectedTemplate) {
-      setTemplates(templates.map(t => t.id === selectedTemplate.id ? { 
-        ...t, 
-        titulo: formTemplateTitulo, 
-        canal: formTemplateCanal, 
-        contenido: formTemplateContenido 
-      } : t));
-    } else {
-      const nextId = templates.length > 0 ? Math.max(...templates.map(t => t.id)) + 1 : 1;
-      setTemplates([...templates, { 
-        id: nextId, 
-        titulo: formTemplateTitulo, 
-        canal: formTemplateCanal, 
-        contenido: formTemplateContenido 
-      }]);
-    }
-    setShowTemplateModal(false);
-  };
-
-  const handleDeleteTemplate = (id: number) => {
-    if (window.confirm('¿Está seguro de que desea eliminar esta plantilla?')) {
-      setTemplates(templates.filter(t => t.id !== id));
+    try {
+      const res = await fetch(selectedTemplate ? `${API_BASE}/plantillas/${selectedTemplate.id}` : `${API_BASE}/plantillas`, {
+        method: selectedTemplate ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titulo: formTemplateTitulo,
+          tipo: formTemplateCanal === 'Email' ? 'email' : 'whatsapp',
+          texto: formTemplateContenido
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFormTemplateError(data.error || 'No se pudo guardar la plantilla.');
+        return;
+      }
+      const guardada = plantillaDesdeApi(data);
+      setTemplates(selectedTemplate ? templates.map(t => t.id === guardada.id ? guardada : t) : [...templates, guardada]);
+      setShowTemplateModal(false);
+    } catch (err) {
+      setFormTemplateError('Error de red. Inténtelo de nuevo.');
     }
   };
 
-  const handleRemoveTeamMember = (id: number) => {
+  const handleDeleteTemplate = async (id: number) => {
+    if (!window.confirm('¿Está seguro de que desea eliminar esta plantilla?')) return;
+    const res = await fetch(`${API_BASE}/plantillas/${id}`, { method: 'DELETE' });
+    if (res.ok) setTemplates(templates.filter(t => t.id !== id));
+  };
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteError('');
+    if (!inviteEmail) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/equipo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, rol: inviteRol })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setInviteError(data.error || 'No se pudo crear la invitación.');
+        return;
+      }
+      setEnlaceEquipo({
+        titulo: 'Invitación creada',
+        texto: `Envíale este enlace a ${inviteEmail} para que cree su cuenta. Caduca en 7 días.`,
+        enlace: data.enlace
+      });
+      setInviteEmail('');
+      loadEquipo();
+    } catch (err) {
+      setInviteError('Error de red. Inténtelo de nuevo.');
+    }
+  };
+
+  const handleRemoveTeamMember = async (id: number) => {
     const member = team.find(t => t.id === id);
-    if (!member) return;
-    if (member.rol === 'Propietario / Superadmin') {
-      alert('No se puede eliminar al propietario principal del centro.');
+    if (!member || member.esPropietario) return;
+    if (!window.confirm(`¿Está seguro de que desea eliminar a ${member.nombre !== '—' ? member.nombre : member.email}?`)) return;
+    const res = await fetch(`${API_BASE}/equipo/${id}`, { method: 'DELETE' });
+    if (res.ok) loadEquipo();
+  };
+
+  const handleToggleMiembro = async (member: any) => {
+    const res = await fetch(`${API_BASE}/equipo/${member.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activo: member.estado === 'desactivado' })
+    });
+    if (res.ok) loadEquipo();
+  };
+
+  const handleEnlaceMiembro = async (member: any) => {
+    const res = await fetch(`${API_BASE}/equipo/${member.id}/enlace-recuperacion`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'No se pudo crear el enlace');
       return;
     }
-    if (window.confirm(`¿Está seguro de que desea eliminar a ${member.nombre || member.email}?`)) {
-      setTeam(team.filter(t => t.id !== id));
-    }
+    setEnlaceEquipo({
+      titulo: 'Enlace para contraseña nueva',
+      texto: `Envíale este enlace a ${member.email}. Caduca en 24 horas y solo sirve una vez.`,
+      enlace: data.enlace
+    });
   };
 
   const handleToggleCursoEstado = async (id: number) => {
@@ -3797,7 +4414,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       activity.push({
         id: `sol-${s.id}`,
         text: `${s.nombre} solicitó plaza en "${s.curso_titulo}"`,
-        time: `hace ${Math.max(1, Math.round((Date.now() - new Date(s.fecha_creacion).getTime()) / 60000))} min`
+        time: haceCuanto(s.fecha_creacion)
       });
     });
 
@@ -3849,37 +4466,49 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <span>Estadísticas</span>
               </button>
             </li>
+            {tabsPermitidas.includes('plan') && (
             <li className={`nav-item ${tab === 'plan' ? 'active' : ''}`}>
               <button onClick={() => setTab('plan')}>
                 <Calendar size={18} />
                 <span>Plan y facturas</span>
               </button>
             </li>
+            )}
+            {tabsPermitidas.includes('personal') && (
             <li className={`nav-item ${tab === 'personal' ? 'active' : ''}`}>
               <button onClick={() => setTab('personal')}>
                 <Shield size={18} />
                 <span>Gestión Personal</span>
               </button>
             </li>
+            )}
+            {tabsPermitidas.includes('integraciones') && (
             <li className={`nav-item ${tab === 'integraciones' ? 'active' : ''}`}>
               <button onClick={() => setTab('integraciones')}>
                 <Code size={18} />
                 <span>Integraciones y API</span>
               </button>
             </li>
+            )}
+            {tabsPermitidas.includes('configuracion') && (
             <li className={`nav-item ${tab === 'configuracion' ? 'active' : ''}`}>
               <button onClick={() => setTab('configuracion')}>
                 <Settings size={18} />
                 <span>Configuración</span>
               </button>
             </li>
+            )}
           </ul>
         </div>
 
         <div className="sidebar-bottom">
           <div className="center-profile-summary">
             <div className="center-profile-name">{user?.nombre || 'Mi Centro'}</div>
-            <div className="center-profile-plan">Suscripción: {user?.plan || 'Starter'}</div>
+            {esPropietario ? (
+              <div className="center-profile-plan">Suscripción: {user?.plan || 'Starter'}</div>
+            ) : (
+              <div className="center-profile-plan">{user?.usuario?.nombre} · {ROL_TEXTO[rolUsuario]}</div>
+            )}
           </div>
           <button onClick={handleLogoutClick} className="btn-logout">
             <X size={16} />
@@ -3898,10 +4527,12 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Mis cursos</h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Administre y publique los cursos ofrecidos por su centro</p>
               </div>
-              <button onClick={() => handleOpenCursoModal()} className="btn btn-primary">
-                <Plus size={18} />
-                <span>Publicar curso</span>
-              </button>
+              {puedeEditar && (
+                <button onClick={() => handleOpenCursoModal()} className="btn btn-primary">
+                  <Plus size={18} />
+                  <span>Publicar curso</span>
+                </button>
+              )}
             </div>
 
             {/* Tarjetas de Métricas */}
@@ -3966,7 +4597,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                             </span>
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <div style={{ display: puedeEditar ? 'flex' : 'none', gap: '0.5rem' }}>
                               <button 
                                 onClick={() => handleToggleCursoEstado(c.id)} 
                                 className="btn btn-secondary btn-sm"
@@ -4297,7 +4928,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--lines-light)' }}>
                   <span>Precio de suscripción:</span>
-                  <strong>{user?.plan === 'custom' ? '299,00 €' : user?.plan === 'pro' ? '79,00 €' : '0,00 € (Starter)'} / mes</strong>
+                  <strong>{user?.plan === 'custom' ? 'A medida' : user?.plan === 'pro' ? '149,00 € / mes' : '79,00 € / mes'}</strong>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', marginBottom: '2rem' }}>
@@ -4310,16 +4941,16 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
                   <div style={{ border: '1px solid var(--lines)', padding: '1rem', borderRadius: '8px', backgroundColor: user?.plan === 'starter' ? 'rgba(12,59,51,0.04)' : 'transparent' }}>
                     <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan Starter</h5>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Soporte básico, hasta 3 cursos activos.</p>
-                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>Gratis</div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Hasta 5 cursos activos, gestión de leads y exportación CSV.</p>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>79,00 € / mes</div>
                     {user?.plan !== 'starter' && (
                       <button type="button" onClick={() => handlePlanChange('starter')} className="btn btn-secondary btn-sm" style={{ width: '100%' }}>Seleccionar Starter</button>
                     )}
                   </div>
                   <div style={{ border: '1px solid var(--accent)', padding: '1rem', borderRadius: '8px', backgroundColor: user?.plan === 'pro' ? 'rgba(201,150,46,0.04)' : 'transparent' }}>
                     <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan Pro</h5>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Cursos ilimitados, API y Webhooks activos.</p>
-                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>79,00 € / mes</div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>Cursos ilimitados y estadísticas detalladas de visitas.</p>
+                    <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>149,00 € / mes</div>
                     {user?.plan !== 'pro' && (
                       <button type="button" onClick={() => handlePlanChange('pro')} className="btn btn-primary btn-sm" style={{ width: '100%' }}>Seleccionar Pro</button>
                     )}
@@ -4367,10 +4998,12 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Plantillas de Contacto</h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Personalice respuestas automáticas rápidas para contactar a los alumnos</p>
               </div>
-              <button onClick={() => handleOpenTemplateModal()} className="btn btn-primary">
-                <Plus size={18} />
-                <span>Nueva plantilla</span>
-              </button>
+              {puedeEditar && (
+                <button onClick={() => handleOpenTemplateModal()} className="btn btn-primary">
+                  <Plus size={18} />
+                  <span>Nueva plantilla</span>
+                </button>
+              )}
             </div>
             
             <div className="alert-box alert-info">
@@ -4378,7 +5011,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               <span>Personalice las respuestas automáticas para contactar a los alumnos con un solo clic. Copie el contenido del portapapeles y péguelo en su cliente de WhatsApp o correo electrónico.</span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
               {templates.map((t) => (
                 <div key={t.id} className="table-container" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '280px' }}>
                   <div>
@@ -4388,14 +5021,14 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                         <span className="badge badge-published" style={{ textTransform: 'uppercase', fontSize: '0.6875rem' }}>{t.canal}</span>
                         <button 
                           onClick={() => handleOpenTemplateModal(t)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: '2px', display: 'flex', alignItems: 'center' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: '2px', display: puedeEditar ? 'flex' : 'none', alignItems: 'center' }}
                           title="Editar plantilla"
                         >
                           <Edit size={13} />
                         </button>
                         <button 
                           onClick={() => handleDeleteTemplate(t.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error-text)', padding: '2px', display: 'flex', alignItems: 'center' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error-text)', padding: '2px', display: puedeEditar ? 'flex' : 'none', alignItems: 'center' }}
                           title="Eliminar plantilla"
                         >
                           <X size={13} />
@@ -4438,11 +5071,11 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', gap: '2rem' }}>
               {/* Tabla de Gestores */}
               <div className="table-container">
                 <div className="table-header">
-                  <h3 className="table-title">Gestores de {confRazonSocial || user?.nombre || 'Mi Centro'}</h3>
+                  <h3 className="table-title">Equipo de {confRazonSocial || user?.nombre || 'Mi Centro'}</h3>
                 </div>
                 <table>
                   <thead>
@@ -4456,24 +5089,36 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   </thead>
                   <tbody>
                     {team.map((t) => (
-                      <tr key={t.id}>
+                      <tr key={t.esPropietario ? 'propietario' : t.id}>
                         <td style={{ fontWeight: '600' }}>{t.nombre}</td>
                         <td>{t.email}</td>
-                        <td style={{ color: 'var(--primary)', fontWeight: '500' }}>{t.rol}</td>
+                        <td style={{ color: 'var(--primary)', fontWeight: '500' }}>{ROL_TEXTO[t.rol] || t.rol}</td>
                         <td>
-                          <span className={`badge ${t.estado === 'Activo' ? 'badge-published' : 'badge-paused'}`}>
-                            {t.estado}
+                          <span className={`badge ${t.estado === 'activo' ? 'badge-published' : 'badge-paused'}`}>
+                            {ESTADO_TEXTO[t.estado] || t.estado}
                           </span>
                         </td>
                         <td>
-                          {t.rol !== 'Propietario / Superadmin' ? (
-                            <button 
-                              onClick={() => handleRemoveTeamMember(t.id)} 
-                              className="btn btn-secondary btn-sm"
-                              style={{ color: 'var(--error-text)', padding: '2px 8px', fontSize: '0.75rem' }}
-                            >
-                              Eliminar
-                            </button>
+                          {!t.esPropietario ? (
+                            <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+                              {t.estado !== 'pendiente' && (
+                                <button onClick={() => handleEnlaceMiembro(t)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
+                                  Contraseña
+                                </button>
+                              )}
+                              {t.estado !== 'pendiente' && (
+                                <button onClick={() => handleToggleMiembro(t)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
+                                  {t.estado === 'desactivado' ? 'Activar' : 'Desactivar'}
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => handleRemoveTeamMember(t.id)} 
+                                className="btn btn-secondary btn-sm"
+                                style={{ color: 'var(--error-text)', padding: '2px 8px', fontSize: '0.75rem' }}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
                           ) : (
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>-</span>
                           )}
@@ -4486,20 +5131,14 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
               {/* Formulario Invitación */}
               <div className="table-container" style={{ padding: '2rem' }}>
-                <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Invitar nuevo gestor</h3>
-                {inviteSuccess && (
-                  <div className="alert-box alert-info" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
-                    Invitación enviada por correo electrónico.
+                <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Invitar a alguien</h3>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Se crea un enlace para que esa persona ponga su contraseña. Envíaselo por email o WhatsApp.</p>
+                {inviteError && (
+                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+                    {inviteError}
                   </div>
                 )}
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!inviteEmail) return;
-                  setTeam([...team, { id: team.length + 1, nombre: 'Pendiente de aceptar', email: inviteEmail, rol: inviteRol, estado: 'Invitación Pendiente' }]);
-                  setInviteEmail('');
-                  setInviteSuccess(true);
-                  setTimeout(() => setInviteSuccess(false), 3000);
-                }}>
+                <form onSubmit={handleInvite}>
                   <div className="form-group">
                     <label className="form-label">Correo electrónico</label>
                     <input 
@@ -4514,16 +5153,19 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   <div className="form-group" style={{ marginBottom: '1.5rem' }}>
                     <label className="form-label">Rol del usuario</label>
                     <select className="form-control" value={inviteRol} onChange={(e) => setInviteRol(e.target.value)}>
-                      <option value="Gestor de Solicitudes">Gestor de Solicitudes</option>
-                      <option value="Administrador de Cursos">Administrador de Cursos</option>
-                      <option value="Profesor Colaborador">Profesor Colaborador</option>
+                      <option value="gestor">Gestor: cursos, solicitudes y plantillas</option>
+                      <option value="colaborador">Colaborador: solo solicitudes</option>
                     </select>
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Enviar invitación</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Crear invitación</button>
                 </form>
               </div>
             </div>
           </div>
+        )}
+
+        {enlaceEquipo && (
+          <EnlaceModal titulo={enlaceEquipo.titulo} texto={enlaceEquipo.texto} enlace={enlaceEquipo.enlace} onClose={() => setEnlaceEquipo(null)} />
         )}
 
         {/* TAB: INTEGRACIONES */}
@@ -4630,10 +5272,28 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 </div>
               )}
 
-              <form onSubmit={(e) => {
+              {confError && (
+                <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{confError}</div>
+              )}
+              <form onSubmit={async (e) => {
                 e.preventDefault();
-                setConfSaveSuccess(true);
-                setTimeout(() => setConfSaveSuccess(false), 3000);
+                setConfError('');
+                try {
+                  const res = await fetch(`${API_BASE}/centro/perfil`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nombre: confRazonSocial, cif: confCif, telefono: confTelefono, direccion: confDireccion, web: confWeb })
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    setConfError(data.error || 'No se pudieron guardar los cambios.');
+                    return;
+                  }
+                  setConfSaveSuccess(true);
+                  setTimeout(() => setConfSaveSuccess(false), 3000);
+                } catch (err) {
+                  setConfError('Error de red. Inténtelo de nuevo.');
+                }
               }}>
                 <div className="form-group">
                   <label className="form-label">Nombre Comercial del Centro</label>
@@ -4697,8 +5357,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                       type="email" 
                       className="form-control" 
                       value={confEmail}
-                      onChange={(e) => setConfEmail(e.target.value)}
-                      required
+                      readOnly
+                      title="Es el usuario para entrar. Para cambiarlo, escribe a soporte."
+                      style={{ backgroundColor: 'var(--bg)' }}
                     />
                   </div>
                 </div>
@@ -5028,6 +5689,13 @@ function App() {
         <Route path="/centros" element={<LandingCentros />} />
         <Route path="/centros/login" element={<LoginCentros onLogin={handleLogin} />} />
         <Route path="/centros/recuperar" element={<RecuperarCentros />} />
+        <Route path="/centros/restablecer" element={<RestablecerCentros />} />
+
+        {/* Legal */}
+        <Route path="/legal/aviso-legal" element={<LegalPage tipo="aviso-legal" />} />
+        <Route path="/legal/privacidad" element={<LegalPage tipo="privacidad" />} />
+        <Route path="/legal/cookies" element={<LegalPage tipo="cookies" />} />
+        <Route path="/centros/unirse" element={<UnirseCentros onLogin={handleLogin} />} />
         <Route 
           path="/centros/dashboard" 
           element={<DashboardCentros user={currentUser} onLogout={handleLogout} />} 

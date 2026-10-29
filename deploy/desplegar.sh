@@ -69,4 +69,21 @@ if [[ $ok -ne 1 ]]; then
   exit 1
 fi
 
+echo "==> Actualizando nginx"
+NGINX_SITE="/etc/nginx/sites-available/gbarnicoat.uk"
+NGINX_LIMITS="/etc/nginx/conf.d/cursenda-limits.conf"
+cp -p "$NGINX_SITE" "$NGINX_SITE.prev" 2>/dev/null || true
+cp -p "$NGINX_LIMITS" "$NGINX_LIMITS.prev" 2>/dev/null || true
+install -m 644 "$APP_DIR/deploy/nginx/gbarnicoat.uk.conf" "$NGINX_SITE"
+install -m 644 "$APP_DIR/deploy/nginx/cursenda-limits.conf" "$NGINX_LIMITS"
+if nginx -t 2>/dev/null; then
+  systemctl reload nginx
+else
+  echo "La configuración de nginx falla: dejo la anterior" >&2
+  [[ -f "$NGINX_SITE.prev" ]] && cp -p "$NGINX_SITE.prev" "$NGINX_SITE"
+  [[ -f "$NGINX_LIMITS.prev" ]] && cp -p "$NGINX_LIMITS.prev" "$NGINX_LIMITS"
+  exit 1
+fi
+rm -f "$NGINX_SITE.prev" "$NGINX_LIMITS.prev"
+
 echo "==> Despliegue correcto"

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
-import { getDatabase, verifyPassword } from './db.js';
+import { getDatabase, verifyPassword, hashPassword } from './db.js';
 import crypto from 'crypto';
 import path from 'path';
 import net from 'net';
@@ -48,8 +48,8 @@ app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
     "script-src 'self'",
-    "style-src 'self' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self'",
+    "font-src 'self'",
     "img-src 'self' data: https://images.unsplash.com",
     "frame-src https://maps.google.com https://www.google.com",
     "connect-src 'self'",
@@ -127,29 +127,93 @@ function csvSafe(value: string): string {
   return /^[=+\-@\t\r]/.test(clean) ? `'${clean}` : clean;
 }
 
-// Middleware de autenticación
+const SESSION_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_MIN = 8;
+
+// Guarda en el navegador la cookie de sesión
+function setSessionCookie(res: any, payload: { id: number; tipo: 'centro' | 'miembro' }) {
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: 'lax',
+    maxAge: SESSION_MS
+  });
+}
+
+// Tokens de un solo uso (invitaciones y recuperar contraseña): se guarda solo el hash
+function nuevoToken() {
+  const token = crypto.randomBytes(32).toString('base64url');
+  return { token, hash: hashToken(token) };
+}
+
+function hashToken(token: string) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+function baseUrl(req: any) {
+  return IS_PRODUCTION ? ALLOWED_ORIGINS[0] : `${req.protocol}://${req.get('host')}`;
+}
+
+// Middleware de autenticación: deja en req.centro el centro y en req.usuario quién es
 async function authenticateToken(req: any, res: any, next: any) {
   const token = req.cookies.token;
-  
+
   if (!token) {
     return res.status(401).json({ error: 'Sesión no iniciada' });
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; email: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; tipo?: 'centro' | 'miembro' };
     const db = await getDatabase();
-    const centro = await db.get('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [decoded.id]);
-    
+    const camposCentro = 'id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol, cif, direccion, web';
+
+    let centro: any;
+    let usuario: any;
+
+    if (decoded.tipo === 'miembro') {
+      const miembro = await db.get('SELECT id, centro_id, nombre, email, rol FROM miembros WHERE id = ? AND activo = 1 AND password_hash IS NOT NULL', [decoded.id]);
+      if (!miembro) {
+        res.clearCookie('token');
+        return res.status(401).json({ error: 'Usuario no encontrado' });
+      }
+      centro = await db.get(`SELECT ${camposCentro} FROM centros WHERE id = ?`, [miembro.centro_id]);
+      usuario = { tipo: 'miembro', id: miembro.id, nombre: miembro.nombre, email: miembro.email, rol: miembro.rol };
+    } else {
+      centro = await db.get(`SELECT ${camposCentro} FROM centros WHERE id = ?`, [decoded.id]);
+      if (centro) {
+        usuario = { tipo: 'centro', id: centro.id, nombre: centro.nombre_contacto || centro.nombre, email: centro.email, rol: 'propietario' };
+      }
+    }
+
     if (!centro) {
+      res.clearCookie('token');
       return res.status(401).json({ error: 'Centro no encontrado' });
     }
 
     req.centro = centro;
+    req.usuario = usuario;
     next();
   } catch (err) {
     res.clearCookie('token');
     return res.status(403).json({ error: 'Sesión inválida o expirada' });
   }
+}
+
+// Permisos por rol dentro del centro
+function requireRol(...roles: string[]) {
+  return (req: any, res: any, next: any) => {
+    if (!roles.includes(req.usuario?.rol)) {
+      return res.status(403).json({ error: 'No tiene permisos para esta acción' });
+    }
+    next();
+  };
+}
+const soloPropietario = requireRol('propietario');
+const puedeEditar = requireRol('propietario', 'gestor');
+
+function datosSesion(centro: any, usuario: any) {
+  return { ...centro, usuario };
 }
 
 // --- Endpoints de Autenticación ---
@@ -161,37 +225,26 @@ app.post('/api/auth/login', loginRateLimit, async (req, res) => {
     return res.status(400).json({ error: 'Email y contraseña obligatorios' });
   }
 
+  const error = () => res.status(401).json({ error: 'Las credenciales introducidas no son correctas' });
+
   try {
     const db = await getDatabase();
-    const centro = await db.get('SELECT * FROM centros WHERE email = ?', [email]);
+    const emailLimpio = String(email).trim().toLowerCase();
+    const centro = await db.get('SELECT * FROM centros WHERE lower(email) = ?', [emailLimpio]);
 
-    if (!centro) {
-      return res.status(401).json({ error: 'Las credenciales introducidas no son correctas' });
+    if (centro) {
+      if (!verifyPassword(password, centro.salt, centro.password_hash)) return error();
+      setSessionCookie(res, { id: centro.id, tipo: 'centro' });
+      const { password_hash, salt, api_token, webhook_url, ...publico } = centro;
+      return res.json(datosSesion(publico, { tipo: 'centro', id: centro.id, nombre: centro.nombre_contacto || centro.nombre, email: centro.email, rol: 'propietario' }));
     }
 
-    const isValid = verifyPassword(password, centro.salt, centro.password_hash);
-    if (!isValid) {
-      return res.status(401).json({ error: 'Las credenciales introducidas no son correctas' });
-    }
+    const miembro = await db.get('SELECT * FROM miembros WHERE lower(email) = ? AND activo = 1 AND password_hash IS NOT NULL', [emailLimpio]);
+    if (!miembro || !verifyPassword(password, miembro.salt, miembro.password_hash)) return error();
 
-    const token = jwt.sign({ id: centro.id, email: centro.email }, JWT_SECRET, { expiresIn: '1d' });
-    
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 1 día
-    });
-
-    res.json({
-      id: centro.id,
-      nombre: centro.nombre,
-      email: centro.email,
-      plan: centro.plan,
-      plan_pendiente: centro.plan_pendiente,
-      fecha_renovacion: centro.fecha_renovacion,
-      rol: centro.rol
-    });
+    const centroMiembro = await db.get('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [miembro.centro_id]);
+    setSessionCookie(res, { id: miembro.id, tipo: 'miembro' });
+    res.json(datosSesion(centroMiembro, { tipo: 'miembro', id: miembro.id, nombre: miembro.nombre, email: miembro.email, rol: miembro.rol }));
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -203,7 +256,137 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.get('/api/auth/me', authenticateToken, (req: any, res) => {
-  res.json(req.centro);
+  res.json(datosSesion(req.centro, req.usuario));
+});
+
+// Pedir recuperar la contraseña: queda apuntado para el admin (todavía no hay envío de emails)
+app.post('/api/auth/recuperar', async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!email || email.length > 200 || !email.includes('@')) {
+    return res.status(400).json({ error: 'Indique un correo electrónico válido' });
+  }
+
+  try {
+    const db = await getDatabase();
+    const pendiente = await db.get('SELECT id FROM peticiones_recuperacion WHERE email = ? AND atendida = 0', [email]);
+    if (!pendiente) {
+      await db.run('INSERT INTO peticiones_recuperacion (email) VALUES (?)', [email]);
+    }
+    // La misma respuesta exista o no la cuenta
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al registrar la petición' });
+  }
+});
+
+// Ver si un enlace de recuperación sigue valiendo
+app.get('/api/auth/restablecer/:token', async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const fila = await db.get("SELECT id FROM tokens_recuperacion WHERE token_hash = ? AND usado = 0 AND expira > datetime('now')", [hashToken(req.params.token)]);
+    res.json({ valido: !!fila });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al comprobar el enlace' });
+  }
+});
+
+// Poner contraseña nueva con el enlace
+app.post('/api/auth/restablecer', async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password || String(password).length < PASSWORD_MIN) {
+    return res.status(400).json({ error: `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres` });
+  }
+
+  try {
+    const db = await getDatabase();
+    const fila = await db.get("SELECT * FROM tokens_recuperacion WHERE token_hash = ? AND usado = 0 AND expira > datetime('now')", [hashToken(token)]);
+    if (!fila) {
+      return res.status(400).json({ error: 'El enlace no es válido o ha caducado' });
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const tabla = fila.tipo === 'miembro' ? 'miembros' : 'centros';
+    await db.run('BEGIN TRANSACTION');
+    await db.run(`UPDATE ${tabla} SET password_hash = ?, salt = ? WHERE id = ?`, [hashPassword(password, salt), salt, fila.usuario_id]);
+    await db.run('UPDATE tokens_recuperacion SET usado = 1 WHERE tipo = ? AND usuario_id = ?', [fila.tipo, fila.usuario_id]);
+    await db.run('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    try { await (await getDatabase()).run('ROLLBACK'); } catch (_) {}
+    res.status(500).json({ error: 'Error al cambiar la contraseña' });
+  }
+});
+
+// Crea un enlace de recuperación válido 24 horas
+async function crearEnlaceRecuperacion(req: any, tipo: 'centro' | 'miembro', usuarioId: number) {
+  const db = await getDatabase();
+  const { token, hash } = nuevoToken();
+  await db.run('UPDATE tokens_recuperacion SET usado = 1 WHERE tipo = ? AND usuario_id = ? AND usado = 0', [tipo, usuarioId]);
+  await db.run("INSERT INTO tokens_recuperacion (tipo, usuario_id, token_hash, expira) VALUES (?, ?, ?, datetime('now', '+1 day'))", [tipo, usuarioId, hash]);
+  return `${baseUrl(req)}/centros/restablecer?token=${token}`;
+}
+
+// Activar la cuenta de un miembro invitado
+app.get('/api/auth/invitacion-miembro/:token', async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const miembro = await db.get(`
+      SELECT miembros.email, miembros.rol, centros.nombre as centro_nombre
+      FROM miembros JOIN centros ON miembros.centro_id = centros.id
+      WHERE miembros.invitacion_hash = ? AND miembros.invitacion_expira > datetime('now') AND miembros.activo = 1
+    `, [hashToken(req.params.token)]);
+    if (!miembro) return res.status(404).json({ error: 'La invitación no es válida o ha caducado' });
+    res.json(miembro);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al comprobar la invitación' });
+  }
+});
+
+app.post('/api/auth/activar-miembro', async (req, res) => {
+  const { token, nombre, password } = req.body || {};
+  if (!token || !nombre || !String(nombre).trim()) {
+    return res.status(400).json({ error: 'Indique su nombre' });
+  }
+  if (!password || String(password).length < PASSWORD_MIN) {
+    return res.status(400).json({ error: `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres` });
+  }
+
+  try {
+    const db = await getDatabase();
+    const miembro = await db.get("SELECT * FROM miembros WHERE invitacion_hash = ? AND invitacion_expira > datetime('now') AND activo = 1", [hashToken(token)]);
+    if (!miembro) return res.status(400).json({ error: 'La invitación no es válida o ha caducado' });
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    await db.run('UPDATE miembros SET nombre = ?, password_hash = ?, salt = ?, invitacion_hash = NULL, invitacion_expira = NULL WHERE id = ?',
+      [String(nombre).trim().slice(0, 120), hashPassword(password, salt), salt, miembro.id]);
+
+    const centro = await db.get('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [miembro.centro_id]);
+    setSessionCookie(res, { id: miembro.id, tipo: 'miembro' });
+    res.json(datosSesion(centro, { tipo: 'miembro', id: miembro.id, nombre: String(nombre).trim(), email: miembro.email, rol: miembro.rol }));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al activar la cuenta' });
+  }
+});
+
+// Solicitud de demo desde la página para centros
+app.post('/api/public/demo', async (req, res) => {
+  const { nombre_centro, nombre_contacto, email, telefono, rgpd } = req.body || {};
+  const campos = [nombre_centro, nombre_contacto, email, telefono].map(v => String(v || '').trim());
+
+  if (campos.some(v => !v) || campos.some(v => v.length > 200) || !campos[2].includes('@')) {
+    return res.status(400).json({ error: 'Por favor, rellene todos los campos obligatorios.' });
+  }
+  if (!rgpd) {
+    return res.status(400).json({ error: 'Debe aceptar la política de privacidad y protección de datos.' });
+  }
+
+  try {
+    const db = await getDatabase();
+    await db.run('INSERT INTO solicitudes_demo (nombre_centro, nombre_contacto, email, telefono) VALUES (?, ?, ?, ?)', campos);
+    res.status(201).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo enviar la solicitud. Inténtelo de nuevo.' });
+  }
 });
 
 // Registrar centro desde invitación
@@ -223,7 +406,7 @@ app.post('/api/auth/register-invitation', async (req, res) => {
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
-    const pwdHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    const pwdHash = hashPassword(password, salt);
     const apiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
     
     const fechaRenovacion = new Date();
@@ -339,10 +522,12 @@ app.get('/api/cursos', authenticateToken, async (req: any, res) => {
     
     // Obtener solicitudes por curso para sumarlas en la respuesta
     const counts = await db.all(`
-      SELECT curso_id, COUNT(*) as count 
-      FROM solicitudes 
-      GROUP BY curso_id
-    `);
+      SELECT solicitudes.curso_id, COUNT(*) as count
+      FROM solicitudes
+      JOIN cursos ON solicitudes.curso_id = cursos.id
+      WHERE cursos.centro_id = ?
+      GROUP BY solicitudes.curso_id
+    `, [req.centro.id]);
 
     const countMap: Record<number, number> = {};
     counts.forEach((item: any) => {
@@ -361,7 +546,7 @@ app.get('/api/cursos', authenticateToken, async (req: any, res) => {
 });
 
 // Crear curso
-app.post('/api/cursos', authenticateToken, async (req: any, res) => {
+app.post('/api/cursos', authenticateToken, puedeEditar, async (req: any, res) => {
   const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion } = req.body;
 
   if (!titulo || !categoria || !modalidad || !localidad || !duracion_horas || !plazas || !fecha_inicio || !dirigido_a || !descripcion) {
@@ -403,7 +588,7 @@ app.post('/api/cursos', authenticateToken, async (req: any, res) => {
 });
 
 // Editar curso
-app.put('/api/cursos/:id', authenticateToken, async (req: any, res) => {
+app.put('/api/cursos/:id', authenticateToken, puedeEditar, async (req: any, res) => {
   const { id } = req.params;
   const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion } = req.body;
 
@@ -452,7 +637,7 @@ app.put('/api/cursos/:id', authenticateToken, async (req: any, res) => {
 });
 
 // Pausar/Reanudar curso
-app.post('/api/cursos/:id/toggle-estado', authenticateToken, async (req: any, res) => {
+app.post('/api/cursos/:id/toggle-estado', authenticateToken, puedeEditar, async (req: any, res) => {
   const { id } = req.params;
 
   try {
@@ -672,7 +857,7 @@ app.post('/api/solicitudes/:id/notas', authenticateToken, async (req: any, res) 
 });
 
 // Exportar solicitudes a CSV con formato español (; y UTF-8 BOM)
-app.get('/api/solicitudes/export', authenticateToken, async (req: any, res) => {
+app.get('/api/solicitudes/export', authenticateToken, puedeEditar, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const list = await db.all(`
@@ -762,7 +947,7 @@ app.get('/api/estadisticas', authenticateToken, async (req: any, res) => {
 // --- Endpoints de Plan y Facturas ---
 
 // Solicitar cambio de plan (se aplica en la siguiente renovación)
-app.post('/api/plan/cambio', authenticateToken, async (req: any, res) => {
+app.post('/api/plan/cambio', authenticateToken, soloPropietario, async (req: any, res) => {
   const { plan } = req.body;
 
   if (!plan || !['starter', 'pro', 'custom'].includes(plan)) {
@@ -779,7 +964,7 @@ app.post('/api/plan/cambio', authenticateToken, async (req: any, res) => {
 });
 
 // Cancelar cambio de plan pendiente
-app.post('/api/plan/cancelar-cambio', authenticateToken, async (req: any, res) => {
+app.post('/api/plan/cancelar-cambio', authenticateToken, soloPropietario, async (req: any, res) => {
   try {
     const db = await getDatabase();
     await db.run('UPDATE centros SET plan_pendiente = NULL WHERE id = ?', [req.centro.id]);
@@ -790,7 +975,7 @@ app.post('/api/plan/cancelar-cambio', authenticateToken, async (req: any, res) =
 });
 
 // Obtener facturas
-app.get('/api/facturas', authenticateToken, async (req: any, res) => {
+app.get('/api/facturas', authenticateToken, soloPropietario, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const list = await db.all('SELECT * FROM facturas WHERE centro_id = ? ORDER BY id DESC', [req.centro.id]);
@@ -803,7 +988,7 @@ app.get('/api/facturas', authenticateToken, async (req: any, res) => {
 // --- Endpoints de Configuración de API y Webhooks ---
 
 // Obtener configuración de API y Webhook
-app.get('/api/centro/api-settings', authenticateToken, async (req: any, res) => {
+app.get('/api/centro/api-settings', authenticateToken, soloPropietario, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const row = await db.get('SELECT api_token, webhook_url FROM centros WHERE id = ?', [req.centro.id]);
@@ -817,7 +1002,7 @@ app.get('/api/centro/api-settings', authenticateToken, async (req: any, res) => 
 });
 
 // Regenerar clave API
-app.post('/api/centro/api-settings/regenerate', authenticateToken, async (req: any, res) => {
+app.post('/api/centro/api-settings/regenerate', authenticateToken, soloPropietario, async (req: any, res) => {
   const nuevoToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
   try {
     const db = await getDatabase();
@@ -829,7 +1014,7 @@ app.post('/api/centro/api-settings/regenerate', authenticateToken, async (req: a
 });
 
 // Guardar webhook
-app.post('/api/centro/api-settings/webhook', authenticateToken, async (req: any, res) => {
+app.post('/api/centro/api-settings/webhook', authenticateToken, soloPropietario, async (req: any, res) => {
   const { webhook_url } = req.body;
   if (webhook_url && !(await isSafeWebhookUrl(webhook_url))) {
     return res.status(400).json({ error: 'La URL del webhook debe ser HTTPS y apuntar a un servidor público' });
@@ -843,6 +1028,194 @@ app.post('/api/centro/api-settings/webhook', authenticateToken, async (req: any,
   }
 });
 
+// Datos del centro (pestaña Configuración)
+app.put('/api/centro/perfil', authenticateToken, soloPropietario, async (req: any, res) => {
+  const limpio = (v: any, max = 200) => String(v ?? '').trim().slice(0, max);
+  const nombre = limpio(req.body?.nombre);
+  if (!nombre) return res.status(400).json({ error: 'El nombre del centro es obligatorio' });
+
+  const web = limpio(req.body?.web);
+  if (web && !/^https?:\/\//i.test(web)) {
+    return res.status(400).json({ error: 'La web tiene que empezar por http:// o https://' });
+  }
+
+  try {
+    const db = await getDatabase();
+    await db.run('UPDATE centros SET nombre = ?, telefono = ?, cif = ?, direccion = ?, web = ? WHERE id = ?', [
+      nombre, limpio(req.body?.telefono, 30), limpio(req.body?.cif, 20), limpio(req.body?.direccion), web, req.centro.id
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar los datos' });
+  }
+});
+
+// --- Equipo del centro ---
+
+const ROLES_MIEMBRO = ['gestor', 'colaborador'];
+
+app.get('/api/equipo', authenticateToken, soloPropietario, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const miembros = await db.all(`
+      SELECT id, nombre, email, rol, activo, fecha_creacion,
+        CASE WHEN password_hash IS NULL THEN 'pendiente' WHEN activo = 0 THEN 'desactivado' ELSE 'activo' END as estado
+      FROM miembros WHERE centro_id = ? ORDER BY id
+    `, [req.centro.id]);
+    res.json({
+      propietario: { nombre: req.centro.nombre_contacto || req.centro.nombre, email: req.centro.email },
+      miembros
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar el equipo' });
+  }
+});
+
+// Invitar a alguien: devuelve el enlace para pasárselo (válido 7 días)
+app.post('/api/equipo', authenticateToken, soloPropietario, async (req: any, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const rol = req.body?.rol;
+
+  if (!email.includes('@') || email.length > 200) {
+    return res.status(400).json({ error: 'Indique un correo electrónico válido' });
+  }
+  if (!ROLES_MIEMBRO.includes(rol)) {
+    return res.status(400).json({ error: 'Rol no válido' });
+  }
+
+  try {
+    const db = await getDatabase();
+    const ocupado = await db.get('SELECT id FROM centros WHERE lower(email) = ?', [email])
+      || await db.get('SELECT id FROM miembros WHERE lower(email) = ?', [email]);
+    if (ocupado) {
+      return res.status(400).json({ error: 'Ese correo ya tiene una cuenta en Cursenda' });
+    }
+
+    const { token, hash } = nuevoToken();
+    await db.run("INSERT INTO miembros (centro_id, email, rol, invitacion_hash, invitacion_expira) VALUES (?, ?, ?, ?, datetime('now', '+7 days'))",
+      [req.centro.id, email, rol, hash]);
+    res.status(201).json({ success: true, enlace: `${baseUrl(req)}/centros/unirse?token=${token}` });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear la invitación' });
+  }
+});
+
+// Cambiar rol o activar/desactivar
+app.put('/api/equipo/:id', authenticateToken, soloPropietario, async (req: any, res) => {
+  const { rol, activo } = req.body || {};
+  if (rol !== undefined && !ROLES_MIEMBRO.includes(rol)) {
+    return res.status(400).json({ error: 'Rol no válido' });
+  }
+
+  try {
+    const db = await getDatabase();
+    const miembro = await db.get('SELECT * FROM miembros WHERE id = ? AND centro_id = ?', [req.params.id, req.centro.id]);
+    if (!miembro) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    await db.run('UPDATE miembros SET rol = ?, activo = ? WHERE id = ?', [
+      rol ?? miembro.rol,
+      activo === undefined ? miembro.activo : (activo ? 1 : 0),
+      miembro.id
+    ]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar el usuario' });
+  }
+});
+
+app.delete('/api/equipo/:id', authenticateToken, soloPropietario, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const result = await db.run('DELETE FROM miembros WHERE id = ? AND centro_id = ?', [req.params.id, req.centro.id]);
+    if (!result.changes) return res.status(404).json({ error: 'Usuario no encontrado' });
+    await db.run("DELETE FROM tokens_recuperacion WHERE tipo = 'miembro' AND usuario_id = ?", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar el usuario' });
+  }
+});
+
+// Enlace para que un miembro ponga contraseña nueva
+app.post('/api/equipo/:id/enlace-recuperacion', authenticateToken, soloPropietario, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const miembro = await db.get('SELECT id FROM miembros WHERE id = ? AND centro_id = ? AND password_hash IS NOT NULL', [req.params.id, req.centro.id]);
+    if (!miembro) return res.status(404).json({ error: 'Usuario no encontrado o sin activar' });
+    res.json({ enlace: await crearEnlaceRecuperacion(req, 'miembro', miembro.id) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear el enlace' });
+  }
+});
+
+// --- Plantillas de contacto ---
+
+const PLANTILLAS_INICIALES = [
+  { titulo: 'Primer contacto (WhatsApp)', tipo: 'whatsapp', texto: 'Hola [Nombre], te escribimos de [Centro] por tu solicitud de plaza gratuita en el curso "[Curso]". ¿Te viene bien una llamada breve hoy para confirmar tus datos?' },
+  { titulo: 'Requisitos SEPE (Email)', tipo: 'email', texto: 'Estimado/a [Nombre],\n\nPara tramitar su matrícula gratuita en el curso "[Curso]", necesitamos que nos facilite una copia de su DNI y su documento de demanda de empleo (DARDE) o su última nómina.\n\nUn saludo,\n[Centro]' },
+  { titulo: 'Convocatoria de inicio (WhatsApp)', tipo: 'whatsapp', texto: '¡Buenas noticias [Nombre]! Tu plaza para el curso "[Curso]" ha sido confirmada. Empezamos el próximo [Fecha] a las 09:00. Por favor, confirma tu asistencia respondiendo a este mensaje.' }
+];
+
+app.get('/api/plantillas', authenticateToken, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    let lista = await db.all('SELECT * FROM plantillas WHERE centro_id = ? ORDER BY id', [req.centro.id]);
+    // La primera vez se crean las de ejemplo
+    if (lista.length === 0) {
+      for (const p of PLANTILLAS_INICIALES) {
+        await db.run('INSERT INTO plantillas (centro_id, titulo, tipo, texto) VALUES (?, ?, ?, ?)', [req.centro.id, p.titulo, p.tipo, p.texto]);
+      }
+      lista = await db.all('SELECT * FROM plantillas WHERE centro_id = ? ORDER BY id', [req.centro.id]);
+    }
+    res.json(lista);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar las plantillas' });
+  }
+});
+
+function validarPlantilla(body: any) {
+  const titulo = String(body?.titulo || '').trim();
+  const texto = String(body?.texto || '').trim();
+  const tipo = body?.tipo === 'email' ? 'email' : 'whatsapp';
+  if (!titulo || !texto || titulo.length > 120 || texto.length > 4000) return null;
+  return { titulo, texto, tipo };
+}
+
+app.post('/api/plantillas', authenticateToken, puedeEditar, async (req: any, res) => {
+  const p = validarPlantilla(req.body);
+  if (!p) return res.status(400).json({ error: 'El título y el texto son obligatorios' });
+  try {
+    const db = await getDatabase();
+    const result = await db.run('INSERT INTO plantillas (centro_id, titulo, tipo, texto) VALUES (?, ?, ?, ?)', [req.centro.id, p.titulo, p.tipo, p.texto]);
+    res.status(201).json(await db.get('SELECT * FROM plantillas WHERE id = ?', [result.lastID]));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar la plantilla' });
+  }
+});
+
+app.put('/api/plantillas/:id', authenticateToken, puedeEditar, async (req: any, res) => {
+  const p = validarPlantilla(req.body);
+  if (!p) return res.status(400).json({ error: 'El título y el texto son obligatorios' });
+  try {
+    const db = await getDatabase();
+    const result = await db.run('UPDATE plantillas SET titulo = ?, tipo = ?, texto = ? WHERE id = ? AND centro_id = ?', [p.titulo, p.tipo, p.texto, req.params.id, req.centro.id]);
+    if (!result.changes) return res.status(404).json({ error: 'Plantilla no encontrada' });
+    res.json(await db.get('SELECT * FROM plantillas WHERE id = ?', [req.params.id]));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar la plantilla' });
+  }
+});
+
+app.delete('/api/plantillas/:id', authenticateToken, puedeEditar, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const result = await db.run('DELETE FROM plantillas WHERE id = ? AND centro_id = ?', [req.params.id, req.centro.id]);
+    if (!result.changes) return res.status(404).json({ error: 'Plantilla no encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al borrar la plantilla' });
+  }
+});
+
 // Middleware para verificar que el usuario autenticado es administrador
 async function authenticateAdmin(req: any, res: any, next: any) {
   const token = req.cookies.token;
@@ -851,7 +1224,11 @@ async function authenticateAdmin(req: any, res: any, next: any) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; email: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; tipo?: string };
+    // Los miembros de un centro nunca son admin
+    if (decoded.tipo === 'miembro') {
+      return res.status(403).json({ error: 'Acceso denegado: se requieren permisos de administrador' });
+    }
     const db = await getDatabase();
     const admin = await db.get('SELECT id, nombre, email, rol FROM centros WHERE id = ? AND rol = "admin"', [decoded.id]);
     
@@ -891,13 +1268,14 @@ app.post('/api/admin/centros', authenticateAdmin, async (req, res) => {
   try {
     const db = await getDatabase();
     
-    const exists = await db.get('SELECT id FROM centros WHERE email = ?', [email]);
+    const exists = await db.get('SELECT id FROM centros WHERE lower(email) = lower(?)', [email])
+      || await db.get('SELECT id FROM miembros WHERE lower(email) = lower(?)', [email]);
     if (exists) {
       return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
-    const pwdHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    const pwdHash = hashPassword(password, salt);
     const apiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
     
     const fechaRenovacion = new Date();
@@ -1057,6 +1435,89 @@ app.get('/api/admin/solicitudes', authenticateAdmin, async (req, res) => {
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener las solicitudes' });
+  }
+});
+
+// Solicitudes de demo de la página para centros
+app.get('/api/admin/demos', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    res.json(await db.all('SELECT * FROM solicitudes_demo ORDER BY id DESC'));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar las solicitudes de demo' });
+  }
+});
+
+app.put('/api/admin/demos/:id', authenticateAdmin, async (req, res) => {
+  const estado = req.body?.estado;
+  if (!['nueva', 'contactada', 'descartada'].includes(estado)) {
+    return res.status(400).json({ error: 'Estado no válido' });
+  }
+  try {
+    const db = await getDatabase();
+    await db.run('UPDATE solicitudes_demo SET estado = ? WHERE id = ?', [estado, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar la solicitud' });
+  }
+});
+
+// Peticiones de "he olvidado mi contraseña"
+app.get('/api/admin/recuperaciones', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const lista = await db.all(`
+      SELECT p.*,
+        (SELECT nombre FROM centros WHERE lower(email) = p.email) as centro_nombre,
+        (SELECT c.nombre FROM miembros m JOIN centros c ON m.centro_id = c.id WHERE lower(m.email) = p.email) as miembro_de
+      FROM peticiones_recuperacion p ORDER BY p.atendida, p.id DESC LIMIT 200
+    `);
+    res.json(lista);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar las peticiones' });
+  }
+});
+
+// Genera el enlace para la cuenta de esa petición y la marca como atendida
+app.post('/api/admin/recuperaciones/:id/enlace', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const peticion = await db.get('SELECT * FROM peticiones_recuperacion WHERE id = ?', [req.params.id]);
+    if (!peticion) return res.status(404).json({ error: 'Petición no encontrada' });
+
+    const centro = await db.get('SELECT id FROM centros WHERE lower(email) = ?', [peticion.email]);
+    const miembro = centro ? null : await db.get('SELECT id FROM miembros WHERE lower(email) = ? AND password_hash IS NOT NULL', [peticion.email]);
+    if (!centro && !miembro) {
+      return res.status(404).json({ error: 'No hay ninguna cuenta con ese correo' });
+    }
+
+    const enlace = await crearEnlaceRecuperacion(req, centro ? 'centro' : 'miembro', (centro || miembro).id);
+    await db.run('UPDATE peticiones_recuperacion SET atendida = 1 WHERE id = ?', [peticion.id]);
+    res.json({ enlace });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear el enlace' });
+  }
+});
+
+app.post('/api/admin/recuperaciones/:id/descartar', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    await db.run('UPDATE peticiones_recuperacion SET atendida = 1 WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar la petición' });
+  }
+});
+
+// Enlace de recuperación para un centro concreto
+app.post('/api/admin/centros/:id/enlace-recuperacion', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const centro = await db.get('SELECT id FROM centros WHERE id = ?', [req.params.id]);
+    if (!centro) return res.status(404).json({ error: 'Academia no encontrada' });
+    res.json({ enlace: await crearEnlaceRecuperacion(req, 'centro', centro.id) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear el enlace' });
   }
 });
 

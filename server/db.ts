@@ -5,7 +5,7 @@ import crypto from 'crypto';
 
 let dbInstance: Database | null = null;
 
-function hashPassword(password: string, salt: string): string {
+export function hashPassword(password: string, salt: string): string {
   const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512');
   return hash.toString('hex');
 }
@@ -105,6 +105,66 @@ export async function getDatabase(): Promise<Database> {
     await db.run("ALTER TABLE solicitudes ADD COLUMN estado_detalle TEXT CHECK(estado_detalle IN ('Nuevo', 'Llamado', 'Interesado', 'Matriculado', 'Descartado')) DEFAULT 'Nuevo'");
   } catch (_) {}
 
+  for (const col of ['cif', 'direccion', 'web']) {
+    try {
+      await db.run(`ALTER TABLE centros ADD COLUMN ${col} TEXT`);
+    } catch (_) {}
+  }
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS solicitudes_demo (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre_centro TEXT NOT NULL,
+      nombre_contacto TEXT NOT NULL,
+      email TEXT NOT NULL,
+      telefono TEXT NOT NULL,
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+      estado TEXT CHECK(estado IN ('nueva', 'contactada', 'descartada')) DEFAULT 'nueva'
+    );
+
+    CREATE TABLE IF NOT EXISTS miembros (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      centro_id INTEGER NOT NULL REFERENCES centros(id) ON DELETE CASCADE,
+      nombre TEXT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT,
+      salt TEXT,
+      rol TEXT CHECK(rol IN ('gestor', 'colaborador')) NOT NULL DEFAULT 'gestor',
+      activo INTEGER CHECK(activo IN (0, 1)) DEFAULT 1,
+      invitacion_hash TEXT,
+      invitacion_expira DATETIME,
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS peticiones_recuperacion (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+      atendida INTEGER CHECK(atendida IN (0, 1)) DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS tokens_recuperacion (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tipo TEXT CHECK(tipo IN ('centro', 'miembro')) NOT NULL,
+      usuario_id INTEGER NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      expira DATETIME NOT NULL,
+      usado INTEGER CHECK(usado IN (0, 1)) DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS plantillas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      centro_id INTEGER NOT NULL REFERENCES centros(id) ON DELETE CASCADE,
+      titulo TEXT NOT NULL,
+      tipo TEXT CHECK(tipo IN ('whatsapp', 'email')) NOT NULL DEFAULT 'whatsapp',
+      texto TEXT NOT NULL
+    );
+  `);
+
+  // Ver si la base de datos está vacía antes de crear el admin
+  const totalCentros = await db.get('SELECT COUNT(*) as count FROM centros');
+  const esNueva = (totalCentros as any).count === 0;
+
   // Semilla de administrador si no existe
   try {
     const adminEmail = 'admin@cursenda.es';
@@ -139,10 +199,10 @@ export async function getDatabase(): Promise<Database> {
   }
 
   // Semilla de datos si la base de datos está vacía
-  const countCentros = await db.get('SELECT COUNT(*) as count FROM centros');
-  if (countCentros && (countCentros as any).count === 0) {
+  if (esNueva && process.env.NODE_ENV !== 'production') {
     const salt = crypto.randomBytes(16).toString('hex');
-    const pwdHash = hashPassword(crypto.randomBytes(12).toString('base64url'), salt);
+    // En local la demo entra con demo123
+    const pwdHash = hashPassword('demo123', salt);
     const demoApiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
     
     const fechaRenovacion = new Date();
