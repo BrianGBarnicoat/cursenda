@@ -3123,6 +3123,18 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
     if (peticionId) setRecuperaciones(recuperaciones.map(r => r.id === peticionId ? { ...r, atendida: 1 } : r));
   };
 
+  const handleReiniciarDemo = async () => {
+    if (!window.confirm('¿Dejar la cuenta demo como nueva? Se borra lo que se haya cambiado en ella y se cargan los datos de ejemplo.')) return;
+    const res = await fetch(`${API_BASE}/admin/reiniciar-demo`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'No se pudo reiniciar la demo');
+      return;
+    }
+    alert('Demo reiniciada. Ya puede enseñarla.');
+    loadData();
+  };
+
   const handleAmpliarPrueba = async (ac: any) => {
     if (!window.confirm(`¿Dar 30 días más de prueba gratis a ${ac.nombre}?`)) return;
     const res = await fetch(`${API_BASE}/admin/centros/${ac.id}/ampliar-prueba`, {
@@ -3476,6 +3488,7 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
                   <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                     <button type="button" onClick={() => setTab('academias')} className="btn btn-primary btn-sm">Ver Academias</button>
                     <button type="button" onClick={() => setTab('cursos')} className="btn btn-secondary btn-sm">Moderar Cursos</button>
+                    <button type="button" onClick={handleReiniciarDemo} className="btn btn-secondary btn-sm" title="Vuelve a poner la cuenta demo con sus datos de ejemplo">Reiniciar demo</button>
                   </div>
                 </div>
               </div>
@@ -4475,6 +4488,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     setSelectedLead(lead);
     setShowLeadModal(true);
     setNewNoteText('');
+    // Por defecto, la primera plantilla de WhatsApp
+    setPlantillaContacto(templates.find(t => t.canal === 'WhatsApp')?.id ?? '');
     
     try {
       const res = await fetch(`${API_BASE}/solicitudes/${lead.id}/notas`);
@@ -4485,6 +4500,47 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     } catch (err) {
       console.error(err);
     }
+  };
+
+  // Contactar desde la ficha: plantilla rellenada con los datos del alumno
+  const [plantillaContacto, setPlantillaContacto] = useState<number | ''>('');
+
+  const rellenarPlantilla = (texto: string, lead: any) => texto
+    .replace(/\[Nombre\]/g, (lead.nombre || '').split(' ')[0])
+    .replace(/\[Curso\]/g, lead.curso_titulo || '')
+    .replace(/\[Centro\]/g, user?.nombre || '');
+
+  // wa.me necesita el número con prefijo de país y sin espacios
+  const telefonoWhatsApp = (tel: string) => {
+    const digitos = String(tel || '').replace(/\D/g, '').replace(/^00/, '');
+    return /^[6789]\d{8}$/.test(digitos) ? '34' + digitos : digitos;
+  };
+
+  const guardarNota = async (texto: string) => {
+    const res = await fetch(`${API_BASE}/solicitudes/${selectedLead.id}/notas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto })
+    });
+    if (res.ok) {
+      const nueva = await res.json();
+      setLeadNotes(prev => [nueva, ...prev]);
+      loadSolicitudes();
+    }
+  };
+
+  const handleContactar = (canal: 'whatsapp' | 'email') => {
+    const lead = selectedLead;
+    const plantilla = templates.find(t => t.id === plantillaContacto);
+    const texto = plantilla ? rellenarPlantilla(plantilla.contenido, lead) : '';
+
+    if (canal === 'whatsapp') {
+      window.open(`https://wa.me/${telefonoWhatsApp(lead.telefono)}${texto ? `?text=${encodeURIComponent(texto)}` : ''}`, '_blank', 'noopener');
+    } else {
+      const asunto = `Su solicitud de plaza: ${lead.curso_titulo}`;
+      window.location.href = `mailto:${lead.email}?subject=${encodeURIComponent(asunto)}${texto ? `&body=${encodeURIComponent(texto)}` : ''}`;
+    }
+    guardarNota(`Contactado por ${canal === 'whatsapp' ? 'WhatsApp' : 'email'}${plantilla ? ` con la plantilla "${plantilla.titulo}"` : ''}.`);
   };
 
   const handleAddNote = async (e: React.FormEvent) => {
@@ -4530,6 +4586,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       console.error(err);
     }
   };
+
+  // Código del widget para la web del centro
+  const [widgetCopiado, setWidgetCopiado] = useState(false);
+  const codigoWidget = `<div id="cursenda-cursos"></div>\n<script src="${window.location.origin}/widget.js" data-centro="${user?.id}" async></script>`;
 
   // Pagos con Stripe
   const [pagos, setPagos] = useState<any>(null);
@@ -5405,6 +5465,29 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         {tab === 'integraciones' && (
           <div>
             <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Integraciones y API</h1>
+
+            {/* Widget para la web del centro */}
+            <div className="table-container" style={{ padding: '2rem', marginBottom: '2rem' }}>
+              <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Sus cursos en su propia web</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem', maxWidth: '60ch' }}>
+                Pegue este código en la página de su web donde quiera mostrar sus cursos. Se actualiza solo cuando publica o pausa un curso, y las solicitudes le llegan a este panel.
+              </p>
+              <textarea
+                className="form-control"
+                readOnly
+                rows={3}
+                style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}
+                value={codigoWidget}
+                onFocus={(e) => e.target.select()}
+              />
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => { navigator.clipboard.writeText(codigoWidget).then(() => { setWidgetCopiado(true); setTimeout(() => setWidgetCopiado(false), 2000); }).catch(() => {}); }}>
+                  {widgetCopiado ? 'Copiado' : 'Copiar código'}
+                </button>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', alignSelf: 'center' }}>Si su web la lleva otra persona, envíele este código.</span>
+              </div>
+            </div>
+
             <div className="alert-box alert-info">
               <Code size={20} />
               <span>Conecte Cursenda con sus herramientas internas (Moodle, HubSpot, Salesforce) para exportar automáticamente sus leads.</span>
@@ -5758,13 +5841,43 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Alumno</span>
                   <div style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--primary)' }}>{selectedLead.nombre}</div>
-                  <div style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>Teléfono: <strong>{selectedLead.telefono}</strong></div>
-                  <div style={{ fontSize: '0.875rem' }}>Email: <strong>{selectedLead.email}</strong></div>
+                  <div style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>Teléfono: <a href={`tel:${selectedLead.telefono}`}><strong>{selectedLead.telefono}</strong></a></div>
+                  <div style={{ fontSize: '0.875rem' }}>Email: <a href={`mailto:${selectedLead.email}`}><strong>{selectedLead.email}</strong></a></div>
                 </div>
                 <div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Curso solicitado</span>
                   <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{selectedLead.curso_titulo}</div>
-                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Recibida el: {new Date(selectedLead.fecha_creacion).toLocaleString('es-ES')}</div>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Recibida el {formatFechaHora(selectedLead.fecha_creacion)}</div>
+                </div>
+              </div>
+
+              {/* Contactar en un clic */}
+              <div className="contactar-alumno">
+                <label className="form-label" htmlFor="plantilla-contacto">Contactar con una plantilla</label>
+                <select
+                  id="plantilla-contacto"
+                  className="form-control"
+                  value={plantillaContacto}
+                  onChange={(e) => setPlantillaContacto(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">Sin plantilla (mensaje en blanco)</option>
+                  {templates.map(t => <option key={t.id} value={t.id}>{t.titulo}</option>)}
+                </select>
+                {plantillaContacto !== '' && (
+                  <p className="contactar-vista-previa">
+                    {rellenarPlantilla(templates.find(t => t.id === plantillaContacto)?.contenido || '', selectedLead)}
+                  </p>
+                )}
+                <div className="contactar-botones">
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => handleContactar('whatsapp')}>
+                    <MessageSquare size={16} /> WhatsApp
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleContactar('email')}>
+                    <Mail size={16} /> Email
+                  </button>
+                  <a href={`tel:${selectedLead.telefono}`} className="btn btn-secondary btn-sm">
+                    <Phone size={16} /> Llamar
+                  </a>
                 </div>
               </div>
 
@@ -5794,7 +5907,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     leadNotes.map((note) => (
                       <div key={note.id} className="note-item">
                         <div className="note-header">
-                          <span>Anotado el: {new Date(note.fecha_creacion).toLocaleString('es-ES')}</span>
+                          <span>{formatFechaHora(note.fecha_creacion)}</span>
                         </div>
                         <div className="note-text">{note.texto}</div>
                       </div>

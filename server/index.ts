@@ -3,7 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import { getDatabase, verifyPassword, hashPassword } from './db.js';
-import { ACCESO_SQL, PLANES_DE_PAGO, pagosConfigurados, modoPruebaStripe, crearCheckout, crearPortal, handleWebhook } from './pagos.js';
+import { reiniciarDemo, programarReinicioDemo } from './demo.js';
+import { ACCESO_SQL, VISIBLE_SQL, PLANES_DE_PAGO, pagosConfigurados, modoPruebaStripe, crearCheckout, crearPortal, handleWebhook } from './pagos.js';
 import crypto from 'crypto';
 import path from 'path';
 import net from 'net';
@@ -477,7 +478,7 @@ app.get('/api/public/cursos', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    let query = `SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${ACCESO_SQL}`;
+    let query = `SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`;
     const params: any[] = [];
 
     if (search) {
@@ -509,7 +510,7 @@ app.get('/api/public/cursos/:id', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    const curso = await db.get(`SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${ACCESO_SQL}`, [id]);
+    const curso = await db.get(`SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}`, [id]);
 
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado' });
@@ -518,6 +519,24 @@ app.get('/api/public/cursos/:id', async (req, res) => {
     res.json(curso);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener el curso' });
+  }
+});
+
+// Cursos de un centro para el widget que pegan en su propia web (abierto a cualquier web, sin cookies)
+app.get('/api/public/centros/:id/cursos', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Cache-Control', 'public, max-age=300');
+  try {
+    const db = await getDatabase();
+    const centro = await db.get(`SELECT id, nombre FROM centros WHERE id = ? AND ${ACCESO_SQL} AND (rol IS NULL OR rol != 'admin')`, [req.params.id]);
+    if (!centro) return res.status(404).json({ error: 'Centro no encontrado' });
+    const cursos = await db.all(`
+      SELECT id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio
+      FROM cursos WHERE centro_id = ? AND estado = 'publicado' ORDER BY id DESC
+    `, [centro.id]);
+    res.json({ centro: centro.nombre, web: ALLOWED_ORIGINS[0], cursos });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar los cursos' });
   }
 });
 
@@ -697,7 +716,7 @@ app.post('/api/public/solicitudes', async (req, res) => {
       SELECT cursos.id, cursos.titulo, centros.webhook_url, centros.nombre as centro_nombre
       FROM cursos
       JOIN centros ON cursos.centro_id = centros.id
-      WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${ACCESO_SQL}
+      WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}
     `, [curso_id]);
     
     if (!curso) {
@@ -1531,6 +1550,17 @@ app.post('/api/admin/centros/:id/ampliar-prueba', authenticateAdmin, async (req,
   }
 });
 
+// Dejar la cuenta demo como nueva (antes de enseñarla en un colegio)
+app.post('/api/admin/reiniciar-demo', authenticateAdmin, async (req, res) => {
+  try {
+    const ok = await reiniciarDemo(await getDatabase());
+    if (!ok) return res.status(404).json({ error: 'No hay ninguna cuenta demo' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'No se pudo reiniciar la demo' });
+  }
+});
+
 // Solicitudes de demo de la página para centros
 app.get('/api/admin/demos', authenticateAdmin, async (req, res) => {
   try {
@@ -1699,7 +1729,7 @@ async function metaDe(ruta: string): Promise<Meta> {
     const db = await getDatabase();
     const c = await db.get(`
       SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id
-      WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${ACCESO_SQL}
+      WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}
     `, [curso[1]]);
     if (c) {
       const modos: Record<string, string> = { Online: 'Online', Presencial: 'Onsite', Mixta: 'Blended' };
@@ -1739,7 +1769,7 @@ app.get('/robots.txt', (req, res) => {
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const db = await getDatabase();
-    const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${ACCESO_SQL}`);
+    const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`);
     const rutas = ['/', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
     const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
@@ -1760,6 +1790,9 @@ app.use(async (req, res, next) => {
     res.sendFile(path.join(distPath, 'index.html'));
   }
 });
+
+// La cuenta demo se reinicia cada noche
+programarReinicioDemo(getDatabase);
 
 // Iniciar servidor
 if (LISTEN_SOCKET) {

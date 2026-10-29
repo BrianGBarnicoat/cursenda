@@ -2,6 +2,7 @@ import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
 import crypto from 'crypto';
+import { insertarDatosDemo } from './demo.js';
 
 let dbInstance: Database | null = null;
 
@@ -118,7 +119,8 @@ export async function getDatabase(): Promise<Database> {
     "ALTER TABLE centros ADD COLUMN suscripcion_estado TEXT DEFAULT 'prueba'",
     'ALTER TABLE centros ADD COLUMN prueba_hasta DATETIME',
     'ALTER TABLE facturas ADD COLUMN stripe_invoice_id TEXT',
-    'ALTER TABLE facturas ADD COLUMN url TEXT'
+    'ALTER TABLE facturas ADD COLUMN url TEXT',
+    'ALTER TABLE centros ADD COLUMN es_demo INTEGER DEFAULT 0'
   ];
   for (const sql of columnasPago) {
     try {
@@ -126,6 +128,8 @@ export async function getDatabase(): Promise<Database> {
     } catch (_) {}
   }
   await db.run('CREATE UNIQUE INDEX IF NOT EXISTS facturas_stripe ON facturas(stripe_invoice_id)');
+  // La cuenta demo de siempre
+  await db.run("UPDATE centros SET es_demo = 1 WHERE email = 'demo@cursenda.es' AND es_demo IS NOT 1");
   // Los centros que ya existían empiezan con su mes de prueba
   await db.run("UPDATE centros SET suscripcion_estado = 'prueba', prueba_hasta = datetime('now', '+30 days') WHERE prueba_hasta IS NULL AND (rol IS NULL OR rol != 'admin')");
 
@@ -216,181 +220,23 @@ export async function getDatabase(): Promise<Database> {
     console.error("Error al sembrar administrador:", err);
   }
 
-  // Semilla de datos si la base de datos está vacía
+  // Centro demo para enseñar la plataforma (en local entra con demo123)
   if (esNueva && process.env.NODE_ENV !== 'production') {
     const salt = crypto.randomBytes(16).toString('hex');
-    // En local la demo entra con demo123
-    const pwdHash = hashPassword('demo123', salt);
-    const demoApiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
-    
-    const fechaRenovacion = new Date();
-    fechaRenovacion.setMonth(fechaRenovacion.getMonth() + 1);
-
-    // Insertar Centro Demo
     const resultCentro = await db.run(`
-      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, prueba_hasta)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+30 days'))
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, prueba_hasta, es_demo)
+      VALUES (?, ?, ?, ?, 'pro', ?, ?, ?, ?, datetime('now', '+30 days'), 1)
     `, [
       'Centro de Formación Tecnológica de Madrid',
       'demo@cursenda.es',
-      pwdHash,
+      hashPassword('demo123', salt),
       salt,
-      'starter',
-      fechaRenovacion.toISOString(),
+      new Date(Date.now() + 30 * 86400000).toISOString(),
       'Brian Barnicoat',
-      '600112233',
-      demoApiToken
+      '910000000',
+      'cursenda_live_' + crypto.randomBytes(16).toString('hex')
     ]);
-
-    const centroId = resultCentro.lastID;
-
-    // Insertar Cursos Demo (Certificados Oficiales del SEPE)
-    const resultCurso1 = await db.run(`
-      INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, visitas, estado)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      centroId,
-      'IFCD0210 - Desarrollo de Aplicaciones con Tecnologías Web',
-      'Informática',
-      'Online',
-      'Madrid / Remoto',
-      510,
-      25,
-      12,
-      '15 Septiembre 2026',
-      'Desempleados',
-      'Aprenda a desarrollar aplicaciones web modernas desde el frontend con React y JavaScript hasta el backend con Node.js y bases de datos relacionales. Curso oficial subvencionado con titulación oficial.',
-      184,
-      'publicado'
-    ]);
-
-    const resultCurso2 = await db.run(`
-      INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, visitas, estado)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      centroId,
-      'ADGD0210 - Creación y Gestión de Microempresas',
-      'Administración',
-      'Mixta',
-      'Móstoles',
-      520,
-      20,
-      19,
-      '1 Octubre 2026',
-      'Todos',
-      'Capacitación oficial para planificar, dirigir y gestionar pequeñas y medianas empresas o proyectos de autoempleo. Incluye contabilidad, fiscalidad, recursos humanos y marketing.',
-      98,
-      'publicado'
-    ]);
-
-    const resultCurso3 = await db.run(`
-      INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, visitas, estado)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      centroId,
-      'COML0309 - Organización y Gestión de Almacenes',
-      'Logística',
-      'Presencial',
-      'Alcalá de Henares',
-      390,
-      15,
-      5,
-      'Inmediata',
-      'Ocupados',
-      'Formación técnica avanzada en la optimización de flujos de almacén, control de existencias, gestión de stock, prevención de riesgos y manejo de herramientas informáticas SGA.',
-      45,
-      'pausado'
-    ]);
-
-    const resultCurso4 = await db.run(`
-      INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, visitas, estado)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      centroId,
-      'HOTR0608 - Servicios de Restaurante y Sumillería',
-      'Hostelería',
-      'Presencial',
-      'Madrid Centro',
-      580,
-      18,
-      8,
-      '10 Noviembre 2026',
-      'Todos',
-      'Capacitación práctica para profesionales de sala. Módulos de coctelería avanzada, cata de vinos, maridaje, protocolo de servicio internacional y gestión de eventos de restauración.',
-      62,
-      'publicado'
-    ]);
-
-    const resultCurso5 = await db.run(`
-      INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, visitas, estado)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      centroId,
-      'SANT0208 - Atención Sociosanitaria a Personas Dependientes en Instituciones Sociales',
-      'Sanidad',
-      'Presencial',
-      'Fuenlabrada',
-      450,
-      20,
-      15,
-      '15 Octubre 2026',
-      'Todos',
-      'Certificado de profesionalidad obligatorio para trabajar en residencias y centros de día. Cuidados físicos, higiene, alimentación, atención psicosocial y primeros auxilios en instituciones sociales.',
-      112,
-      'publicado'
-    ]);
-
-    const curso1Id = resultCurso1.lastID;
-    const curso2Id = resultCurso2.lastID;
-
-    // Insertar Solicitudes Demo
-    const resSol1 = await db.run(`
-      INSERT INTO solicitudes (curso_id, nombre, email, telefono, fecha_creacion, gestionado)
-      VALUES (?, ?, ?, ?, datetime('now', '-1 day'), 1)
-    `, [curso1Id, 'Sofía Martínez', 'sofia.mtz@gmail.com', '612345678']);
-
-    const resSol2 = await db.run(`
-      INSERT INTO solicitudes (curso_id, nombre, email, telefono, fecha_creacion, gestionado)
-      VALUES (?, ?, ?, ?, datetime('now', '-2 hours'), 0)
-    `, [curso1Id, 'Alejandro Ruiz', 'alexruiz@yahoo.es', '654321098']);
-
-    const resSol3 = await db.run(`
-      INSERT INTO solicitudes (curso_id, nombre, email, telefono, fecha_creacion, gestionado)
-      VALUES (?, ?, ?, ?, datetime('now', '-1 hour'), 0)
-    `, [curso1Id, 'Laura Fernández', 'laura.fdz@outlook.com', '678901234']);
-
-    const resSol4 = await db.run(`
-      INSERT INTO solicitudes (curso_id, nombre, email, telefono, fecha_creacion, gestionado)
-      VALUES (?, ?, ?, ?, datetime('now', '-2 days'), 1)
-    `, [curso2Id, 'Javier López', 'javi.lopez@hotmail.com', '699887766']);
-
-    // Notas de contacto demo
-    await db.run(`
-      INSERT INTO notas_contacto (solicitud_id, texto, fecha_creacion)
-      VALUES (?, ?, datetime('now', '-18 hours'))
-    `, [resSol1.lastID, 'Llamada realizada. Confirmó interés, pero está pendiente de recibir el justificante de desempleo para finalizar la inscripción. Volver a llamar el lunes.']);
-
-    await db.run(`
-      INSERT INTO notas_contacto (solicitud_id, texto, fecha_creacion)
-      VALUES (?, ?, datetime('now', '-1 day'))
-    `, [resSol4.lastID, 'Contactado por email. Le hemos enviado el formulario de matrícula oficial y la documentación del curso.']);
-
-    // Facturas demo
-    await db.run(`
-      INSERT INTO facturas (centro_id, numero, fecha, importe, estado)
-      VALUES (?, ?, ?, ?, ?)
-    `, [centroId, 'FAC-2026-001', '01/06/2026', 79.00, 'pagada']);
-
-    await db.run(`
-      INSERT INTO facturas (centro_id, numero, fecha, importe, estado)
-      VALUES (?, ?, ?, ?, ?)
-    `, [centroId, 'FAC-2026-002', '01/07/2026', 79.00, 'pagada']);
-
-    // Invitación demo
-    await db.run(`
-      INSERT INTO invitaciones (email, token, usada)
-      VALUES (?, ?, ?)
-    `, ['centro-nuevo@cursenda.es', crypto.randomBytes(24).toString('hex'), 0]);
+    await insertarDatosDemo(db, resultCentro.lastID as number);
   }
 
   dbInstance = db;
