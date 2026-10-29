@@ -44,10 +44,11 @@ function guardarEnv(cambios) {
 // Pide la clave sin que se vea al escribir
 function pedirClave(pregunta) {
   return new Promise(resolve => {
-    process.stdout.write(pregunta);
     const stdin = process.stdin;
+    // Primero se oculta lo que se escribe y luego se pregunta
     stdin.setRawMode?.(true);
     stdin.resume();
+    process.stdout.write(pregunta);
     let valor = '';
     stdin.on('data', d => {
       for (const c of d.toString()) {
@@ -55,7 +56,8 @@ function pedirClave(pregunta) {
           stdin.setRawMode?.(false);
           stdin.pause();
           process.stdout.write('\n');
-          return resolve(valor.trim());
+          // Quitar los códigos que mete el terminal al pegar y cualquier carácter invisible
+          return resolve(valor.replace(/\x1b\[[0-9;]*[~A-Za-z]/g, '').replace(/[^\x21-\x7e]/g, ''));
         }
         if (c === '\u0003') process.exit(1);
         if (c === '\u007f') valor = valor.slice(0, -1);
@@ -73,11 +75,32 @@ if (!clave) {
   clave = await pedirClave('Clave secreta: ');
 }
 if (!/^(sk|rk)_(test|live)_/.test(clave)) {
-  console.error('Esa clave no parece de Stripe (tiene que empezar por sk_test_ o sk_live_).');
+  const inicio = clave ? `"${clave.slice(0, 8)}..." (${clave.length} caracteres)` : 'nada';
+  console.error(`Esa clave no parece de Stripe. He recibido: ${inicio}`);
+  if (clave.startsWith('pk_')) {
+    console.error('Esa es la clave publicable. Hace falta la SECRETA, la que empieza por sk_test_ (pulsa "Revelar" en Stripe).');
+  } else {
+    console.error('Tiene que empezar por sk_test_ (pruebas) o sk_live_ (real).');
+  }
   process.exit(1);
 }
 
 const stripe = new Stripe(clave);
+
+// Errores de Stripe explicados sin tecnicismos
+function errorStripe(err) {
+  if (err?.type === 'StripeAuthenticationError') {
+    console.error('\nStripe dice que esa clave no es válida. Cópiala otra vez desde Stripe (Desarrolladores → Claves de API → Revelar).');
+  } else if (err?.type === 'StripePermissionError') {
+    console.error('\nEsa clave no tiene permisos suficientes. Usa la clave secreta normal (sk_test_...), no una restringida.');
+  } else {
+    console.error('\nNo se pudo terminar la configuración:', err?.message || err);
+  }
+  console.error('No se ha guardado nada.');
+  process.exit(1);
+}
+process.on('unhandledRejection', errorStripe);
+process.on('uncaughtException', errorStripe);
 const web = (env.ALLOWED_ORIGINS || 'https://gbarnicoat.uk').split(',')[0].trim();
 const modo = clave.includes('_test_') ? 'PRUEBAS' : 'REAL';
 console.log(`\n==> Stripe en modo ${modo}, web ${web}`);
