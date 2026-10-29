@@ -15,7 +15,7 @@ export async function getDatabase(): Promise<Database> {
     return dbInstance;
   }
 
-  const dbPath = path.resolve(process.cwd(), 'cursenda.db');
+  const dbPath = process.env.CURSENDA_DB_PATH || path.resolve(process.cwd(), 'cursenda.db');
   
   const db = await open({
     filename: dbPath,

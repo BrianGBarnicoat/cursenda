@@ -1,0 +1,70 @@
+# Servicio de Cursenda, separado del resto del servidor.
+# Para ver lo aislado que está: systemd-analyze security cursenda.service
+[Unit]
+Description=Cursenda SaaS Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cursenda
+Group=cursenda
+WorkingDirectory=/srv/cursenda/app
+EnvironmentFile=/etc/cursenda/cursenda.env
+Environment=NODE_ENV=production
+Environment=LISTEN_SOCKET=/run/cursenda/cursenda.sock
+Environment=CURSENDA_DB_PATH=/srv/cursenda/data/cursenda.db
+ExecStart=/usr/bin/node dist-server/index.js
+Restart=on-failure
+RestartSec=3
+
+# nginx entra por un socket, sin abrir puertos
+RuntimeDirectory=cursenda
+RuntimeDirectoryMode=0750
+UMask=0077
+
+# Solo puede escribir en su carpeta de datos y no ve /home
+ProtectSystem=strict
+ReadWritePaths=/srv/cursenda/data
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProcSubset=pid
+# DNS de fuera para los webhooks, porque el local está bloqueado
+BindReadOnlyPaths=/srv/cursenda/app/deploy/resolv.conf:/etc/resolv.conf
+
+# No puede conectarse a nada del propio servidor (correo, MySQL, Redis...)
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=localhost link-local multicast 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 fc00::/7 51.255.198.144 2001:41d0:305:2100::1:450
+
+# Sin permisos especiales
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RemoveIPC=yes
+PrivateUsers=yes
+KeyringMode=private
+DevicePolicy=closed
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @mount @obsolete @debug @cpu-emulation
+SystemCallErrorNumber=EPERM
+
+# Límites de memoria y procesos
+MemoryMax=512M
+TasksMax=64
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

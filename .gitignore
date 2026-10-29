@@ -27,3 +27,6 @@ dist-server
 # Copias de la base de datos
 backups
 cursenda.db
+
+# Carpeta temporal de despliegue
+.deploy

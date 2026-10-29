@@ -1,0 +1,35 @@
+[Unit]
+Description=Copia de seguridad cifrada de Cursenda
+
+[Service]
+Type=oneshot
+User=cursenda
+Group=cursenda
+ExecStart=/bin/bash /srv/cursenda/app/deploy/backup.sh
+LoadCredential=backup.key:/etc/cursenda/backup.key
+Environment=CURSENDA_DB_PATH=/srv/cursenda/data/cursenda.db
+Environment=BACKUP_DIR=/srv/cursenda/backups
+UMask=0077
+
+ProtectSystem=strict
+ReadOnlyPaths=/srv/cursenda/data
+ReadWritePaths=/srv/cursenda/backups
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

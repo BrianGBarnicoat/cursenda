@@ -7,10 +7,13 @@ import crypto from 'crypto';
 import path from 'path';
 import net from 'net';
 import dns from 'dns/promises';
+import fs from 'fs';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
+// En el servidor se usa un socket en vez de un puerto
+const LISTEN_SOCKET = process.env.LISTEN_SOCKET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 if (IS_PRODUCTION && !process.env.JWT_SECRET) {
@@ -18,13 +21,15 @@ if (IS_PRODUCTION && !process.env.JWT_SECRET) {
 }
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 
-// Orígenes permitidos para CORS (separados por comas)
+// Webs que pueden llamar a la API
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://gbarnicoat.uk,http://localhost:5173')
   .split(',')
   .map(o => o.trim());
 
 app.disable('x-powered-by');
-app.set('trust proxy', 'loopback');
+// Solo me fío de la IP que pasa nginx
+app.set('trust proxy', (ip: string | undefined, hop: number) =>
+  hop === 0 && (!ip || ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1'));
 
 app.use(cors({
   origin: (origin, callback) => callback(null, !origin || ALLOWED_ORIGINS.includes(origin)),
@@ -39,13 +44,27 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https://images.unsplash.com",
+    "frame-src https://maps.google.com https://www.google.com",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'"
+  ].join('; '));
   if (IS_PRODUCTION) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
   next();
 });
 
-// Limitador de intentos de login por IP (en memoria)
+// Máximo de intentos de login por IP
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_LOGIN_ATTEMPTS = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
@@ -67,7 +86,7 @@ function loginRateLimit(req: any, res: any, next: any) {
   next();
 }
 
-// Comprueba que una IP no sea local, privada o reservada
+// Dice si una IP es de una red interna
 function isPrivateAddress(ip: string): boolean {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
@@ -81,7 +100,7 @@ function isPrivateAddress(ip: string): boolean {
     lower.startsWith('fd') || lower.startsWith('fe80');
 }
 
-// Valida que la URL del webhook sea HTTPS y apunte a una dirección pública (evita SSRF)
+// El webhook tiene que ser HTTPS y no apuntar a nada interno
 async function isSafeWebhookUrl(rawUrl: string): Promise<boolean> {
   let url: URL;
   try {
@@ -102,7 +121,7 @@ async function isSafeWebhookUrl(rawUrl: string): Promise<boolean> {
   }
 }
 
-// Evita la inyección de fórmulas al abrir el CSV en Excel
+// Que Excel no ejecute fórmulas metidas en los datos
 function csvSafe(value: string): string {
   const clean = String(value ?? '').replace(/;/g, ',').replace(/"/g, '""');
   return /^[=+\-@\t\r]/.test(clean) ? `'${clean}` : clean;
@@ -671,7 +690,7 @@ app.get('/api/solicitudes/export', authenticateToken, async (req: any, res) => {
       const gestionadoTexto = sol.gestionado ? 'Sí' : 'No';
       const fecha = new Date(sol.fecha_creacion).toLocaleString('es-ES');
       
-      // Limpiar texto para evitar romper CSV o inyectar fórmulas
+      // Limpiar los datos para el CSV
       const nombre = csvSafe(sol.nombre);
       const email = csvSafe(sol.email);
       const telefono = csvSafe(sol.telefono);
@@ -1055,6 +1074,16 @@ app.use((req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, HOST, () => {
-  console.log(`Servidor de Cursenda corriendo en http://${HOST}:${PORT}`);
-});
+if (LISTEN_SOCKET) {
+  // Borrar el socket si se quedó de antes
+  if (fs.existsSync(LISTEN_SOCKET)) fs.unlinkSync(LISTEN_SOCKET);
+  app.listen(LISTEN_SOCKET, () => {
+    // Para que nginx pueda entrar
+    fs.chmodSync(LISTEN_SOCKET, 0o660);
+    console.log(`Servidor de Cursenda escuchando en el socket ${LISTEN_SOCKET}`);
+  });
+} else {
+  app.listen(PORT, HOST, () => {
+    console.log(`Servidor de Cursenda corriendo en http://${HOST}:${PORT}`);
+  });
+}

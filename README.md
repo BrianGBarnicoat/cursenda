@@ -1,32 +1,32 @@
-# React + TypeScript + Vite
+# Cursenda
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Portal de cursos subvencionados. Los alumnos buscan cursos y piden plaza, y las academias
+gestionan sus cursos y solicitudes desde su panel.
 
-Currently, two official plugins are available:
+Está en [gbarnicoat.uk](https://gbarnicoat.uk).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Qué tiene
 
-## React Compiler
+- **Alumnos:** buscador de cursos, ficha de cada curso y formulario para pedir plaza.
+- **Centros:** panel con sus cursos, solicitudes, notas de contacto, estadísticas, plan y facturas.
+- **Admin:** gestión de todas las academias, cursos y solicitudes.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Cómo está hecho
 
-## Expanding the Oxlint configuration
+- Web: React + Vite
+- Servidor: Node con Express
+- Base de datos: SQLite
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Para trabajar en local
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev:server   # servidor en http://localhost:3000
+npm run dev          # web en http://localhost:5173
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+En local se crea una base de datos de prueba (`cursenda.db`) que no se sube al repo.
+
+## Subirlo al servidor
+
+Todo lo del servidor está en [`deploy/`](deploy/README.md).
