@@ -2327,24 +2327,6 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
         <div className="auth-links">
           <Link to="/centros/recuperar" className="auth-link">¿Olvidó su contraseña?</Link>
         </div>
-
-        <div style={{
-          marginTop: '1.5rem',
-          padding: '1rem',
-          backgroundColor: '#e6f3f0',
-          border: '1px solid #cce7e1',
-          borderRadius: '8px',
-          fontSize: '0.75rem',
-          textAlign: 'left'
-        }}>
-          <strong style={{ color: 'var(--primary)', display: 'block', marginBottom: '0.5rem' }}>🔑 Credenciales de Prueba:</strong>
-          <div style={{ marginBottom: '0.35rem' }}>
-            <strong>Academia Demo:</strong> <code>demo@cursenda.es</code> / <code>demo123</code>
-          </div>
-          <div>
-            <strong>Administrador:</strong> <code>admin@cursenda.es</code> / <code>admin123</code>
-          </div>
-        </div>
       </div>
     </div>
   );

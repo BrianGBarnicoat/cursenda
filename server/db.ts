@@ -110,8 +110,12 @@ export async function getDatabase(): Promise<Database> {
     const adminEmail = 'admin@cursenda.es';
     const adminExists = await db.get('SELECT * FROM centros WHERE email = ?', [adminEmail]);
     if (!adminExists) {
+      const adminPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url');
+      if (!process.env.ADMIN_PASSWORD) {
+        console.log(`Administrador creado con contraseña aleatoria: ${adminPassword}`);
+      }
       const salt = crypto.randomBytes(16).toString('hex');
-      const pwdHash = hashPassword('admin123', salt);
+      const pwdHash = hashPassword(adminPassword, salt);
       const fechaRenovacion = new Date();
       fechaRenovacion.setFullYear(fechaRenovacion.getFullYear() + 10);
       
@@ -138,7 +142,7 @@ export async function getDatabase(): Promise<Database> {
   const countCentros = await db.get('SELECT COUNT(*) as count FROM centros');
   if (countCentros && (countCentros as any).count === 0) {
     const salt = crypto.randomBytes(16).toString('hex');
-    const pwdHash = hashPassword('demo123', salt);
+    const pwdHash = hashPassword(crypto.randomBytes(12).toString('base64url'), salt);
     const demoApiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
     
     const fechaRenovacion = new Date();
@@ -308,7 +312,7 @@ export async function getDatabase(): Promise<Database> {
     await db.run(`
       INSERT INTO invitaciones (email, token, usada)
       VALUES (?, ?, ?)
-    `, ['centro-nuevo@cursenda.es', 'token_invitacion_123', 0]);
+    `, ['centro-nuevo@cursenda.es', crypto.randomBytes(24).toString('hex'), 0]);
   }
 
   dbInstance = db;
@@ -316,6 +320,7 @@ export async function getDatabase(): Promise<Database> {
 }
 
 export function verifyPassword(password: string, salt: string, hash: string): boolean {
-  const testHash = hashPassword(password, salt);
-  return testHash === hash;
+  const testHash = Buffer.from(hashPassword(password, salt), 'hex');
+  const storedHash = Buffer.from(hash, 'hex');
+  return testHash.length === storedHash.length && crypto.timingSafeEqual(testHash, storedHash);
 }

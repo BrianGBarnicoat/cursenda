@@ -5,17 +5,108 @@ import jwt from 'jsonwebtoken';
 import { getDatabase, verifyPassword } from './db.js';
 import crypto from 'crypto';
 import path from 'path';
+import net from 'net';
+import dns from 'dns/promises';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'cursenda_secret_key_2026_jwt_auth';
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+if (IS_PRODUCTION && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET es obligatorio en producción');
+}
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+
+// Orígenes permitidos para CORS (separados por comas)
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://gbarnicoat.uk,http://localhost:5173')
+  .split(',')
+  .map(o => o.trim());
+
+app.disable('x-powered-by');
+app.set('trust proxy', 'loopback');
 
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => callback(null, !origin || ALLOWED_ORIGINS.includes(origin)),
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+
+// Cabeceras de seguridad
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (IS_PRODUCTION) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+// Limitador de intentos de login por IP (en memoria)
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const MAX_LOGIN_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+function loginRateLimit(req: any, res: any, next: any) {
+  const now = Date.now();
+  const key = req.ip || 'unknown';
+  const entry = loginAttempts.get(key);
+
+  if (!entry || entry.resetAt < now) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return next();
+  }
+
+  entry.count++;
+  if (entry.count > MAX_LOGIN_ATTEMPTS) {
+    return res.status(429).json({ error: 'Demasiados intentos. Inténtelo de nuevo en unos minutos' });
+  }
+  next();
+}
+
+// Comprueba que una IP no sea local, privada o reservada
+function isPrivateAddress(ip: string): boolean {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) || a >= 224;
+  }
+  const lower = ip.toLowerCase();
+  if (lower.startsWith('::ffff:')) return isPrivateAddress(lower.slice(7));
+  return lower === '::' || lower === '::1' || lower.startsWith('fc') ||
+    lower.startsWith('fd') || lower.startsWith('fe80');
+}
+
+// Valida que la URL del webhook sea HTTPS y apunte a una dirección pública (evita SSRF)
+async function isSafeWebhookUrl(rawUrl: string): Promise<boolean> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:') return false;
+
+  const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  try {
+    const addresses = net.isIP(hostname)
+      ? [hostname]
+      : (await dns.lookup(hostname, { all: true })).map(a => a.address);
+    return addresses.length > 0 && !addresses.some(isPrivateAddress);
+  } catch {
+    return false;
+  }
+}
+
+// Evita la inyección de fórmulas al abrir el CSV en Excel
+function csvSafe(value: string): string {
+  const clean = String(value ?? '').replace(/;/g, ',').replace(/"/g, '""');
+  return /^[=+\-@\t\r]/.test(clean) ? `'${clean}` : clean;
+}
 
 // Middleware de autenticación
 async function authenticateToken(req: any, res: any, next: any) {
@@ -28,7 +119,7 @@ async function authenticateToken(req: any, res: any, next: any) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: number; email: string };
     const db = await getDatabase();
-    const centro = await db.get('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono FROM centros WHERE id = ?', [decoded.id]);
+    const centro = await db.get('SELECT id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [decoded.id]);
     
     if (!centro) {
       return res.status(401).json({ error: 'Centro no encontrado' });
@@ -44,7 +135,7 @@ async function authenticateToken(req: any, res: any, next: any) {
 
 // --- Endpoints de Autenticación ---
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -395,7 +486,7 @@ app.post('/api/public/solicitudes', async (req, res) => {
     `, [curso_id, nombre, email, telefono]);
 
     // Despachar Webhook si está configurado en el centro
-    if (curso.webhook_url) {
+    if (curso.webhook_url && await isSafeWebhookUrl(curso.webhook_url)) {
       fetch(curso.webhook_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -580,11 +671,11 @@ app.get('/api/solicitudes/export', authenticateToken, async (req: any, res) => {
       const gestionadoTexto = sol.gestionado ? 'Sí' : 'No';
       const fecha = new Date(sol.fecha_creacion).toLocaleString('es-ES');
       
-      // Limpiar texto para evitar romper CSV
-      const nombre = sol.nombre.replace(/;/g, ',');
-      const email = sol.email.replace(/;/g, ',');
-      const telefono = sol.telefono.replace(/;/g, ',');
-      const curso = sol.curso_titulo.replace(/;/g, ',');
+      // Limpiar texto para evitar romper CSV o inyectar fórmulas
+      const nombre = csvSafe(sol.nombre);
+      const email = csvSafe(sol.email);
+      const telefono = csvSafe(sol.telefono);
+      const curso = csvSafe(sol.curso_titulo);
 
       csvContent += `"${nombre}";"${email}";"${telefono}";"${curso}";"${fecha}";"${gestionadoTexto}"\r\n`;
     });
@@ -721,6 +812,9 @@ app.post('/api/centro/api-settings/regenerate', authenticateToken, async (req: a
 // Guardar webhook
 app.post('/api/centro/api-settings/webhook', authenticateToken, async (req: any, res) => {
   const { webhook_url } = req.body;
+  if (webhook_url && !(await isSafeWebhookUrl(webhook_url))) {
+    return res.status(400).json({ error: 'La URL del webhook debe ser HTTPS y apuntar a un servidor público' });
+  }
   try {
     const db = await getDatabase();
     await db.run('UPDATE centros SET webhook_url = ? WHERE id = ?', [webhook_url || null, req.centro.id]);
@@ -961,6 +1055,6 @@ app.use((req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`Servidor de Cursenda corriendo en http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Servidor de Cursenda corriendo en http://${HOST}:${PORT}`);
 });

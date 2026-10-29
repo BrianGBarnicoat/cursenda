@@ -23,3 +23,7 @@ dist-server
 *.njsproj
 *.sln
 *.sw?
+
+# Copias de la base de datos
+backups
+cursenda.db
