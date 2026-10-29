@@ -1750,7 +1750,7 @@ app.get('/sitemap.xml', async (req, res) => {
 
 // Cualquier otra ruta devuelve la aplicación React con sus metaetiquetas
 app.use(async (req, res, next) => {
-  if (req.path.startsWith('/api/') || req.method !== 'GET') {
+  if (req.path.startsWith('/api/') || (req.method !== 'GET' && req.method !== 'HEAD')) {
     return next();
   }
   try {
