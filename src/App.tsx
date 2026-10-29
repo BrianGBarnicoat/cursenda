@@ -78,19 +78,28 @@ function MapaGoogle({ titulo, src }: { titulo: string; src: string }) {
   );
 }
 
+// Fotos de Unsplash guardadas en public/images/cursos (licencia Unsplash)
 export const getCourseImage = (categoria: string) => {
   const mapping: { [key: string]: string } = {
-    'Informática': 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=800&h=450&q=80',
-    'Sanidad': 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=800&h=450&q=80',
-    'Logística': 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=800&h=450&q=80',
-    'Hostelería': 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=800&h=450&q=80',
-    'Administración': 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=800&h=450&q=80'
+    'Informática': '/images/cursos/informatica.webp',
+    'Sanidad': '/images/cursos/sanidad.webp',
+    'Logística': '/images/cursos/logistica.webp',
+    'Hostelería': '/images/cursos/hosteleria.webp',
+    'Administración': '/images/cursos/administracion.webp'
   };
-  return mapping[categoria] || 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&h=450&q=80';
+  return mapping[categoria] || '/images/cursos/generica.webp';
+};
+
+// Título de la pestaña del navegador
+const useTitulo = (titulo?: string | null) => {
+  useEffect(() => {
+    if (titulo) document.title = titulo;
+  }, [titulo]);
 };
 
 // --- PORTAL ALUMNOS: LISTADO ---
 function AlumnosHome() {
+  useTitulo('Cursenda · Cursos 100% subvencionados cerca de usted');
   const [cursos, setCursos] = useState<any[]>([]);
   const [unfilteredCursos, setUnfilteredCursos] = useState<any[]>([]);
   const [mapSearch, setMapSearch] = useState('');
@@ -1410,6 +1419,7 @@ function AlumnosHome() {
 function AlumnosDetalle() {
   const { id } = useParams();
   const [curso, setCurso] = useState<any>(null);
+  useTitulo(curso ? `${curso.titulo} · Cursenda` : null);
   const [loading, setLoading] = useState(true);
   
   // Formulario de solicitud
@@ -1493,7 +1503,7 @@ function AlumnosDetalle() {
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '5rem' }}>Cargando detalles del curso...</div>;
-  if (!curso) return <div style={{ textAlign: 'center', padding: '5rem' }}>Curso no encontrado. <Link to="/">Volver al buscador</Link></div>;
+  if (!curso) return <NoEncontrada />;
 
   const plazasPct = Math.min(100, Math.round((curso.plazas_cubiertas / curso.plazas) * 100));
 
@@ -1722,6 +1732,7 @@ function AlumnosDetalle() {
 
 // --- PORTAL COMERCIAL (Landing Centros) ---
 function LandingCentros() {
+  useTitulo('Cursenda para centros · Llene las plazas de sus cursos subvencionados');
   const [nombreCentro, setNombreCentro] = useState('');
   const [contacto, setContacto] = useState('');
   const [email, setEmail] = useState('');
@@ -1822,14 +1833,31 @@ function LandingCentros() {
         <Link to="/centros/login" className="btn btn-primary btn-sm">Acceso Centros</Link>
       </nav>
 
-      <div className="landing-hero hero-gradient reveal">
-        <h1>Capte alumnos para sus cursos subvencionados de forma rápida y sin esfuerzo</h1>
-        <p>Publicamos sus cursos en nuestra red, recopilamos solicitudes validadas de alumnos y se las entregamos directamente en su panel de control privado.</p>
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-          <a href="#demo" className="btn btn-accent">Solicitar demo gratuita</a>
-          <a href="#planes" className="btn btn-secondary">Ver planes de suscripción</a>
+      <header className="centros-hero">
+        <div className="centros-hero-texto">
+          <h1>Llene las plazas vacías de sus cursos subvencionados</h1>
+          <p>Publique sus cursos en Cursenda y reciba en su panel a los alumnos interesados, con su teléfono y su email, en cuanto piden plaza.</p>
+          <div className="centros-hero-acciones">
+            <a href="#demo" className="btn btn-accent">Probar 30 días gratis</a>
+            <a href="#planes" className="btn btn-secondary">Ver precios</a>
+          </div>
+          <ul className="centros-hero-garantias">
+            <li><Check size={16} /> Sin tarjeta para probar</li>
+            <li><Check size={16} /> Sin permanencia</li>
+            <li><Shield size={16} /> Datos en servidores de la UE</li>
+          </ul>
         </div>
-      </div>
+        <div className="centros-hero-panel" aria-hidden="true">
+          <img src="/images/panel-solicitudes.webp" alt="" width="1600" height="1000" />
+          <div className="centros-hero-aviso">
+            <span className="centros-hero-aviso-punto"></span>
+            <div>
+              <strong>Nueva solicitud de plaza</strong>
+              <span>Laura Fernández · IFCD0210 Desarrollo Web</span>
+            </div>
+          </div>
+        </div>
+      </header>
 
       <div id="como-funciona" className="landing-section">
         <h2 className="landing-section-title">Cómo funciona Cursenda</h2>
@@ -1841,8 +1869,8 @@ function LandingCentros() {
           </div>
           <div className="feature-card">
             <div className="feature-icon-container"><Users size={32} /></div>
-            <h3>2. Reciba leads cualificados</h3>
-            <p>Los alumnos interesados completan la solicitud en nuestra ficha. Se validan el email y el teléfono.</p>
+            <h3>2. Reciba las solicitudes</h3>
+            <p>Los alumnos interesados piden plaza en la ficha del curso y a usted le llegan al momento su nombre, teléfono y email.</p>
           </div>
           <div className="feature-card">
             <div className="feature-icon-container"><CheckCircle size={32} /></div>
@@ -2137,7 +2165,7 @@ function LandingCentros() {
               <span className={`faq-icon ${activeFaq === 0 ? 'open' : ''}`}>+</span>
             </button>
             <div className={`faq-body ${activeFaq === 0 ? 'open' : ''}`}>
-              <p className="faq-answer">No. Su suscripción es mensual y puede cancelarla o modificar su plan en cualquier momento desde su panel privado sin penalización.</p>
+              <p className="faq-answer">No. La suscripción es mensual y puede cambiar de plan o darse de baja cuando quiera desde su panel, sin penalización.</p>
             </div>
           </div>
 
@@ -2151,7 +2179,7 @@ function LandingCentros() {
               <span className={`faq-icon ${activeFaq === 1 ? 'open' : ''}`}>+</span>
             </button>
             <div className={`faq-body ${activeFaq === 1 ? 'open' : ''}`}>
-              <p className="faq-answer">Los alumnos ven la ficha del curso en nuestra plataforma pública. Cuando solicitan la plaza, sus datos se graban encriptados y se le notifican en su panel de administración al instante.</p>
+              <p className="faq-answer">Los alumnos ven la ficha del curso en Cursenda y piden plaza con un formulario. La solicitud aparece al momento en su panel privado, al que solo entra usted y su equipo con su contraseña.</p>
             </div>
           </div>
 
@@ -2165,20 +2193,35 @@ function LandingCentros() {
               <span className={`faq-icon ${activeFaq === 2 ? 'open' : ''}`}>+</span>
             </button>
             <div className={`faq-body ${activeFaq === 2 ? 'open' : ''}`}>
-              <p className="faq-answer">Hemos comprobado que contactar a los alumnos interesados en menos de 24 horas duplica la probabilidad de que finalicen con éxito el proceso de matrícula oficial.</p>
+              <p className="faq-answer">Un alumno que pide plaza suele estar mirando varios cursos a la vez. Cuanto antes le llame, más fácil es que se matricule con usted. Las plantillas de WhatsApp y email del panel le ayudan a hacerlo en segundos.</p>
+            </div>
+          </div>
+
+          <div className="faq-item" style={{ padding: 0, overflow: 'hidden' }}>
+            <button
+              type="button"
+              className="faq-toggle"
+              onClick={() => toggleFaq(3)}
+            >
+              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Qué pasa cuando terminan los 30 días gratis?</span>
+              <span className={`faq-icon ${activeFaq === 3 ? 'open' : ''}`}>+</span>
+            </button>
+            <div className={`faq-body ${activeFaq === 3 ? 'open' : ''}`}>
+              <p className="faq-answer">Elige un plan desde su panel y todo sigue igual. Si no lo hace, sus cursos dejan de mostrarse, pero sus datos se guardan por si decide volver.</p>
             </div>
           </div>
         </div>
       </div>
 
       <div id="demo" className="landing-section">
-        <h2 className="landing-section-title">Solicite una Demo Personalizada</h2>
+        <h2 className="landing-section-title">Empiece sus 30 días gratis</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', maxWidth: '560px', margin: '-1.5rem auto 2rem' }}>Déjenos sus datos y le preparamos la cuenta de su centro. Le enseñamos el panel en una llamada de 15 minutos.</p>
         <div className="demo-form-container">
           {success ? (
             <div style={{ textAlign: 'center', padding: '2rem 0' }}>
               <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
-              <h3>¡Solicitud de Demo Recibida!</h3>
-              <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>Le contactaremos por correo para programar una llamada de 15 minutos en el horario que mejor le venga.</p>
+              <h3>Solicitud recibida</h3>
+              <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>Le escribiremos en menos de 24 horas laborables para preparar su cuenta y enseñarle el panel.</p>
             </div>
           ) : (
             <form onSubmit={handleDemoSubmit}>
@@ -2242,7 +2285,7 @@ function LandingCentros() {
                 </label>
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Solicitar demo gratuita</button>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Quiero probarlo gratis</button>
             </form>
           )}
         </div>
@@ -2274,6 +2317,7 @@ function LandingCentros() {
 
 // --- PORTAL COMERCIAL: LOGIN ---
 function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
+  useTitulo('Acceso centros · Cursenda');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -2656,13 +2700,33 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
 
             <h2>Servicios de terceros</h2>
             <p>En las fichas de los cursos puede ver la ubicación en Google Maps. El mapa no se carga hasta que pulsa "Ver mapa"; si lo hace, Google puede usar sus propias cookies según su política de privacidad.</p>
-            <p>Las fotografías de los cursos se cargan desde Unsplash, que no instala cookies.</p>
+            <p>Las fuentes y las fotografías se sirven desde nuestro propio servidor, sin servicios de terceros.</p>
 
             <h2>Cómo borrarlas</h2>
             <p>Puede borrar las cookies desde la configuración de su navegador o cerrando sesión en el panel.</p>
           </>
         )}
       </article>
+    </div>
+  );
+}
+
+// --- PÁGINA NO ENCONTRADA ---
+function NoEncontrada() {
+  useTitulo('Página no encontrada · Cursenda');
+  return (
+    <div className="auth-container">
+      <div className="auth-card" style={{ textAlign: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+          <Logo />
+        </div>
+        <h2 className="auth-title">No encontramos esta página</h2>
+        <p className="auth-subtitle">Puede que el enlace esté mal o que el curso ya no esté disponible.</p>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.5rem', flexWrap: 'wrap' }}>
+          <Link to="/" className="btn btn-primary btn-sm">Buscar cursos</Link>
+          <Link to="/centros" className="btn btn-secondary btn-sm">Soy un centro</Link>
+        </div>
+      </div>
     </div>
   );
 }
@@ -5844,7 +5908,12 @@ function App() {
   };
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '10rem' }}>Cargando aplicación Cursenda...</div>;
+    return (
+      <div className="pantalla-carga" role="status">
+        <span className="logo-text">cursenda<span className="logo-dot">.</span></span>
+        <span className="pantalla-carga-texto">Cargando…</span>
+      </div>
+    );
   }
 
   return (
@@ -5864,6 +5933,8 @@ function App() {
         <Route path="/legal/aviso-legal" element={<LegalPage tipo="aviso-legal" />} />
         <Route path="/legal/privacidad" element={<LegalPage tipo="privacidad" />} />
         <Route path="/legal/cookies" element={<LegalPage tipo="cookies" />} />
+
+        <Route path="*" element={<NoEncontrada />} />
         <Route path="/centros/unirse" element={<UnirseCentros onLogin={handleLogin} />} />
         <Route 
           path="/centros/dashboard" 

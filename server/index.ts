@@ -54,7 +54,7 @@ app.use((req, res, next) => {
     "script-src 'self'",
     "style-src 'self'",
     "font-src 'self'",
-    "img-src 'self' data: https://images.unsplash.com",
+    "img-src 'self' data:",
     "frame-src https://maps.google.com https://www.google.com",
     "connect-src 'self'",
     "object-src 'none'",
@@ -1616,15 +1616,149 @@ app.post('/api/admin/centros/:id/enlace-recuperacion', authenticateAdmin, async 
 
 // --- Servir archivos estáticos del Frontend en Producción ---
 const distPath = path.resolve(process.cwd(), 'dist');
-app.use(express.static(distPath));
+// index: false para que "/" pase por las metaetiquetas de abajo
+app.use(express.static(distPath, { index: false }));
 
-// Cualquier otra ruta en producción devolverá la aplicación React
-app.use((req, res, next) => {
-  // Ignorar peticiones API
-  if (req.path.startsWith('/api/')) {
+// --- Títulos, descripciones y vistas previas (WhatsApp, LinkedIn, Google) ---
+
+const escapeHtml = (texto: string) => String(texto ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const recortar = (texto: string, max = 160) => {
+  const limpio = String(texto ?? '').replace(/\s+/g, ' ').trim();
+  return limpio.length > max ? limpio.slice(0, max - 1).trimEnd() + '…' : limpio;
+};
+
+const IMAGENES_CATEGORIA: Record<string, string> = {
+  'Informática': 'informatica', 'Sanidad': 'sanidad', 'Logística': 'logistica',
+  'Hostelería': 'hosteleria', 'Administración': 'administracion'
+};
+
+let plantillaHtml: string | null = null;
+function leerPlantilla() {
+  if (!plantillaHtml || !IS_PRODUCTION) {
+    plantillaHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf8');
+  }
+  return plantillaHtml;
+}
+
+type Meta = { titulo: string; descripcion: string; ruta: string; imagen?: string; tipo?: string; jsonld?: any; noindex?: boolean; estado?: number };
+
+function paginaHtml(meta: Meta) {
+  const web = ALLOWED_ORIGINS[0];
+  const url = web + meta.ruta;
+  const imagen = web + (meta.imagen || '/images/og-cursenda.jpg');
+  const etiquetas = [
+    `<link rel="canonical" href="${escapeHtml(url)}" />`,
+    `<meta property="og:type" content="${meta.tipo || 'website'}" />`,
+    `<meta property="og:site_name" content="Cursenda" />`,
+    `<meta property="og:locale" content="es_ES" />`,
+    `<meta property="og:title" content="${escapeHtml(meta.titulo)}" />`,
+    `<meta property="og:description" content="${escapeHtml(meta.descripcion)}" />`,
+    `<meta property="og:url" content="${escapeHtml(url)}" />`,
+    `<meta property="og:image" content="${escapeHtml(imagen)}" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    meta.noindex ? '<meta name="robots" content="noindex" />' : '',
+    // El JSON va escapado para que no pueda cerrar la etiqueta <script>
+    meta.jsonld ? `<script type="application/ld+json">${JSON.stringify(meta.jsonld).replace(/</g, '\\u003c')}</script>` : ''
+  ].filter(Boolean).join('\n    ');
+
+  return leerPlantilla()
+    .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(meta.titulo)}</title>`)
+    .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${escapeHtml(meta.descripcion)}" />`)
+    .replace('</head>', `    ${etiquetas}\n  </head>`);
+}
+
+const META_PORTADA: Meta = {
+  titulo: 'Cursenda · Cursos 100% subvencionados cerca de usted',
+  descripcion: 'Encuentre cursos gratuitos financiados por el SEPE y las comunidades autónomas para desempleados y trabajadores, y pida su plaza en un minuto.',
+  ruta: '/'
+};
+
+async function metaDe(ruta: string): Promise<Meta> {
+  if (ruta === '/centros') {
+    return {
+      titulo: 'Cursenda para centros · Llene las plazas de sus cursos subvencionados',
+      descripcion: 'Publique sus cursos subvencionados y reciba en su panel las solicitudes de alumnos interesados. Pruébelo 30 días gratis, sin tarjeta.',
+      ruta,
+      imagen: '/images/og-centros.jpg'
+    };
+  }
+
+  const legal: Record<string, string> = { '/legal/aviso-legal': 'Aviso legal', '/legal/privacidad': 'Política de privacidad', '/legal/cookies': 'Política de cookies' };
+  if (legal[ruta]) {
+    return { titulo: `${legal[ruta]} · Cursenda`, descripcion: `${legal[ruta]} de Cursenda.`, ruta };
+  }
+
+  if (ruta.startsWith('/centros/')) {
+    return { titulo: 'Acceso centros · Cursenda', descripcion: 'Panel de gestión de cursos y solicitudes para centros de formación.', ruta, noindex: true };
+  }
+
+  const curso = ruta.match(/^\/curso\/(\d+)$/);
+  if (curso) {
+    const db = await getDatabase();
+    const c = await db.get(`
+      SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id
+      WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${ACCESO_SQL}
+    `, [curso[1]]);
+    if (c) {
+      const modos: Record<string, string> = { Online: 'Online', Presencial: 'Onsite', Mixta: 'Blended' };
+      return {
+        titulo: `${c.titulo} · Curso gratis en ${c.localidad} · Cursenda`,
+        descripcion: recortar(`Curso 100% subvencionado de ${c.duracion_horas} horas (${c.modalidad.toLowerCase()}) impartido por ${c.centro_nombre}. ${c.descripcion}`),
+        ruta,
+        tipo: 'article',
+        imagen: `/images/og/${IMAGENES_CATEGORIA[c.categoria] || 'generica'}.jpg`,
+        jsonld: {
+          '@context': 'https://schema.org',
+          '@type': 'Course',
+          name: c.titulo,
+          description: recortar(c.descripcion, 500),
+          provider: { '@type': 'Organization', name: c.centro_nombre },
+          offers: { '@type': 'Offer', price: 0, priceCurrency: 'EUR', category: 'Free' },
+          hasCourseInstance: {
+            '@type': 'CourseInstance',
+            courseMode: modos[c.modalidad] || c.modalidad,
+            location: c.localidad,
+            courseWorkload: `PT${c.duracion_horas}H`
+          }
+        }
+      };
+    }
+    return { titulo: 'Curso no disponible · Cursenda', descripcion: 'Este curso ya no está disponible.', ruta, noindex: true, estado: 404 };
+  }
+
+  if (ruta === '/') return META_PORTADA;
+  return { titulo: 'Página no encontrada · Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
+}
+
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(`User-agent: *\nDisallow: /centros/\nDisallow: /api/\n\nSitemap: ${ALLOWED_ORIGINS[0]}/sitemap.xml\n`);
+});
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${ACCESO_SQL}`);
+    const rutas = ['/', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
+    const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
+    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+  } catch (err) {
+    res.status(500).send('');
+  }
+});
+
+// Cualquier otra ruta devuelve la aplicación React con sus metaetiquetas
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api/') || req.method !== 'GET') {
     return next();
   }
-  res.sendFile(path.join(distPath, 'index.html'));
+  try {
+    const meta = await metaDe(req.path);
+    res.status(meta.estado || 200).type('html').send(paginaHtml(meta));
+  } catch (err) {
+    res.sendFile(path.join(distPath, 'index.html'));
+  }
 });
 
 // Iniciar servidor
