@@ -2553,12 +2553,13 @@ function RecuperarCentros() {
 }
 
 // --- PÁGINAS LEGALES ---
-// Datos del titular de la web (rellenar antes de publicar)
+// Datos del titular de la web. Lo que esté vacío no se muestra.
+// Hay que rellenarlos antes de empezar a cobrar.
 const DATOS_LEGALES = {
-  titular: '[Nombre y apellidos o razón social]',
-  nif: '[NIF]',
-  domicilio: '[Dirección completa]',
-  email: '[Email de contacto]',
+  titular: '',
+  nif: '',
+  domicilio: '',
+  email: 'info@cursenda.es',
   dominio: 'gbarnicoat.uk',
   actualizado: '29 de octubre de 2026'
 };
@@ -2585,13 +2586,19 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
         {tipo === 'aviso-legal' && (
           <>
             <h2>Titular de la web</h2>
-            <p>En cumplimiento de la Ley 34/2002 de Servicios de la Sociedad de la Información (LSSI-CE), estos son los datos del titular de {d.dominio}:</p>
-            <ul>
-              <li><strong>Titular:</strong> {d.titular}</li>
-              <li><strong>NIF:</strong> {d.nif}</li>
-              <li><strong>Domicilio:</strong> {d.domicilio}</li>
-              <li><strong>Email:</strong> {d.email}</li>
-            </ul>
+            {d.titular ? (
+              <>
+                <p>En cumplimiento de la Ley 34/2002 de Servicios de la Sociedad de la Información (LSSI-CE), estos son los datos del titular de {d.dominio}:</p>
+                <ul>
+                  <li><strong>Titular:</strong> {d.titular}</li>
+                  {d.nif && <li><strong>NIF:</strong> {d.nif}</li>}
+                  {d.domicilio && <li><strong>Domicilio:</strong> {d.domicilio}</li>}
+                  <li><strong>Email:</strong> {d.email}</li>
+                </ul>
+              </>
+            ) : (
+              <p>Cursenda es un proyecto en fase de pruebas. Los datos completos del titular se publicarán aquí antes de empezar a ofrecer servicios de pago. Mientras tanto, puede escribirnos a <strong>{d.email}</strong>.</p>
+            )}
             <h2>Qué es Cursenda</h2>
             <p>Cursenda es un buscador independiente de cursos subvencionados. No imparte formación ni concede las subvenciones: los cursos los publican y gestionan los centros de formación, que son los responsables de su contenido, de los requisitos de acceso y de la matrícula.</p>
             <p>Cursenda no es un organismo público ni está vinculado al SEPE ni a las comunidades autónomas.</p>
@@ -2609,7 +2616,10 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
         {tipo === 'privacidad' && (
           <>
             <h2>Quién trata sus datos</h2>
-            <p><strong>{d.titular}</strong>, con NIF {d.nif} y domicilio en {d.domicilio}. Puede escribirnos a <strong>{d.email}</strong>.</p>
+            <p>
+              {d.titular ? <><strong>{d.titular}</strong>{d.nif && `, con NIF ${d.nif}`}{d.domicilio && ` y domicilio en ${d.domicilio}`}.</> : 'El responsable del proyecto Cursenda.'}
+              {' '}Puede escribirnos a <strong>{d.email}</strong>.
+            </p>
 
             <h2>Qué datos recogemos y para qué</h2>
             <ul>
