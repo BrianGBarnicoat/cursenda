@@ -1,0 +1,26 @@
+[Unit]
+Description=Envía los avisos por correo de Cursenda
+
+[Service]
+Type=oneshot
+User=cursenda
+Group=cursenda
+ExecStart=/usr/bin/node /srv/cursenda/app/deploy/enviar-correo.mjs
+UMask=0077
+
+# sendmail necesita cambiar de grupo para dejar el correo a Postfix.
+# Por eso aquí no va NoNewPrivileges, pero este servicio no tiene red y solo escribe en su carpeta.
+ProtectSystem=strict
+ReadWritePaths=/srv/cursenda/data/correo /var/spool/postfix/maildrop
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryMax=256M
+TasksMax=32

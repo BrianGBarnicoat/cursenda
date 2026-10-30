@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import { getDatabase, verifyPassword, hashPassword } from './db.js';
 import { reiniciarDemo, programarReinicioDemo } from './demo.js';
+import { avisoContrasena, avisoPeticionAcceso, avisoPrueba, avisoSolicitud } from './correo.js';
 import { ACCESO_SQL, VISIBLE_SQL, PLANES_DE_PAGO, pagosConfigurados, modoPruebaStripe, crearCheckout, crearPortal, handleWebhook } from './pagos.js';
 import crypto from 'crypto';
 import path from 'path';
@@ -292,6 +293,7 @@ app.post('/api/auth/recuperar', async (req, res) => {
     const pendiente = await db.get('SELECT id FROM peticiones_recuperacion WHERE email = ? AND atendida = 0', [email]);
     if (!pendiente) {
       await db.run('INSERT INTO peticiones_recuperacion (email) VALUES (?)', [email]);
+      avisoContrasena(email);
     }
     // La misma respuesta exista o no la cuenta
     res.json({ success: true });
@@ -404,6 +406,7 @@ app.post('/api/public/demo', async (req, res) => {
   try {
     const db = await getDatabase();
     await db.run('INSERT INTO solicitudes_demo (nombre_centro, nombre_contacto, email, telefono) VALUES (?, ?, ?, ?)', campos);
+    avisoPeticionAcceso({ nombre_centro: campos[0], nombre_contacto: campos[1], email: campos[2], telefono: campos[3] });
     res.status(201).json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'No se pudo enviar la solicitud. Inténtelo de nuevo.' });
@@ -490,7 +493,7 @@ app.get('/api/public/cursos', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    let query = `SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`;
+    let query = `SELECT cursos.*, centros.nombre as centro_nombre, centros.es_demo FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`;
     const params: any[] = [];
 
     if (search) {
@@ -522,7 +525,7 @@ app.get('/api/public/cursos/:id', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    const curso = await db.get(`SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}`, [id]);
+    const curso = await db.get(`SELECT cursos.*, centros.nombre as centro_nombre, centros.es_demo FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}`, [id]);
 
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado' });
@@ -597,6 +600,9 @@ app.get('/api/cursos', authenticateToken, requiereAcceso, async (req: any, res) 
 });
 
 // Crear curso
+// Datos del curso que la academia puede dejar en blanco
+const textoOpcional = (v: any) => String(v ?? '').trim().slice(0, 2000) || null;
+
 // El plan Starter permite 5 cursos activos a la vez. Pausar siempre se puede.
 const LIMITE_CURSOS_STARTER = 5;
 const AVISO_LIMITE_CURSOS = `El plan Starter permite ${LIMITE_CURSOS_STARTER} cursos activos a la vez. Pausa uno o cambia al plan Pro.`;
@@ -608,7 +614,7 @@ async function superaLimiteCursos(db: any, centro: any) {
 }
 
 app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
-  const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion } = req.body;
+  const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, aprenderas, requisitos, salidas, horario } = req.body;
 
   if (!titulo || !categoria || !modalidad || !localidad || !duracion_horas || !plazas || !fecha_inicio || !dirigido_a || !descripcion) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
@@ -629,8 +635,8 @@ app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (r
     }
 
     const result = await db.run(`
-      INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, aprenderas, requisitos, salidas, horario)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       req.centro.id,
       titulo,
@@ -642,7 +648,11 @@ app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (r
       parseInt(plazas_cubiertas || 0),
       fecha_inicio,
       dirigido_a,
-      descripcion
+      descripcion,
+      textoOpcional(aprenderas),
+      textoOpcional(requisitos),
+      textoOpcional(salidas),
+      textoOpcional(horario)
     ]);
 
     const newCurso = await db.get('SELECT * FROM cursos WHERE id = ?', [result.lastID]);
@@ -655,7 +665,7 @@ app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (r
 // Editar curso
 app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
-  const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion } = req.body;
+  const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion, aprenderas, requisitos, salidas, horario } = req.body;
 
   try {
     const db = await getDatabase();
@@ -678,7 +688,7 @@ app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async
 
     await db.run(`
       UPDATE cursos 
-      SET titulo = ?, categoria = ?, modalidad = ?, localidad = ?, duracion_horas = ?, plazas = ?, plazas_cubiertas = ?, fecha_inicio = ?, dirigido_a = ?, descripcion = ?
+      SET titulo = ?, categoria = ?, modalidad = ?, localidad = ?, duracion_horas = ?, plazas = ?, plazas_cubiertas = ?, fecha_inicio = ?, dirigido_a = ?, descripcion = ?, aprenderas = ?, requisitos = ?, salidas = ?, horario = ?
       WHERE id = ?
     `, [
       titulo || curso.titulo,
@@ -691,6 +701,10 @@ app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async
       fecha_inicio || curso.fecha_inicio,
       dirigido_a || curso.dirigido_a,
       descripcion || curso.descripcion,
+      aprenderas !== undefined ? textoOpcional(aprenderas) : curso.aprenderas,
+      requisitos !== undefined ? textoOpcional(requisitos) : curso.requisitos,
+      salidas !== undefined ? textoOpcional(salidas) : curso.salidas,
+      horario !== undefined ? textoOpcional(horario) : curso.horario,
       id
     ]);
 
@@ -759,7 +773,7 @@ app.post('/api/public/solicitudes', async (req, res) => {
   try {
     const db = await getDatabase();
     const curso = await db.get(`
-      SELECT cursos.id, cursos.titulo, centros.webhook_url, centros.nombre as centro_nombre
+      SELECT cursos.id, cursos.titulo, centros.id as centro_id, centros.email as centro_email, centros.es_demo, centros.webhook_url, centros.nombre as centro_nombre
       FROM cursos
       JOIN centros ON cursos.centro_id = centros.id
       WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}
@@ -773,6 +787,8 @@ app.post('/api/public/solicitudes', async (req, res) => {
       INSERT INTO solicitudes (curso_id, nombre, email, telefono, gestionado)
       VALUES (?, ?, ?, ?, 0)
     `, [curso_id, nombre, email, telefono]);
+
+    if (!curso.es_demo) avisoSolicitud({ id: curso.centro_id, email: curso.centro_email }, curso.titulo);
 
     // Despachar Webhook si está configurado en el centro
     if (curso.webhook_url && await isSafeWebhookUrl(curso.webhook_url)) {
@@ -1656,7 +1672,7 @@ app.post('/api/admin/centros/:id/ampliar-prueba', authenticateAdmin, async (req,
       return res.status(400).json({ error: 'Esta academia ya paga con Stripe; la prueba se cambia desde Stripe.' });
     }
     await db.run(`
-      UPDATE centros SET suscripcion_estado = 'prueba',
+      UPDATE centros SET suscripcion_estado = 'prueba', aviso_prueba = 0,
         prueba_hasta = datetime(MAX(COALESCE(prueba_hasta, datetime('now')), datetime('now')), '+' || ? || ' days')
       WHERE id = ?
     `, [dias, centro.id]);
@@ -1945,18 +1961,29 @@ app.use(async (req, res, next) => {
 programarReinicioDemo(getDatabase);
 
 // Cumple los plazos de la política de privacidad: solicitudes 2 años, peticiones de acceso 1 año
-async function borrarDatosCaducados() {
+async function tareasDiarias() {
   try {
     const db = await getDatabase();
     await db.run("DELETE FROM notas_contacto WHERE solicitud_id IN (SELECT id FROM solicitudes WHERE fecha_creacion < datetime('now', '-2 years'))");
     await db.run("DELETE FROM solicitudes WHERE fecha_creacion < datetime('now', '-2 years')");
     await db.run("DELETE FROM solicitudes_demo WHERE fecha_creacion < datetime('now', '-1 year')");
+
+    // Aviso a la academia cuando le quedan 7 días de prueba y el último día
+    const enPrueba = await db.all(`SELECT id, email, aviso_prueba, CAST(julianday(prueba_hasta) - julianday('now') + 0.999 AS INTEGER) as dias FROM centros
+      WHERE suscripcion_estado = 'prueba' AND es_demo IS NOT 1 AND (rol IS NULL OR rol != 'admin') AND stripe_subscription_id IS NULL
+      AND prueba_hasta > datetime('now') AND prueba_hasta <= datetime('now', '+7 days')`);
+    for (const c of enPrueba) {
+      const tramo = c.dias <= 1 ? 1 : 7;
+      if (c.aviso_prueba === tramo || (c.aviso_prueba === 1 && tramo === 7)) continue;
+      avisoPrueba(c.email, c.dias);
+      await db.run('UPDATE centros SET aviso_prueba = ? WHERE id = ?', [tramo, c.id]);
+    }
   } catch (err: any) {
     console.error('Error borrando datos caducados:', err.message);
   }
 }
-borrarDatosCaducados();
-setInterval(borrarDatosCaducados, 24 * 60 * 60 * 1000);
+tareasDiarias();
+setInterval(tareasDiarias, 6 * 60 * 60 * 1000);
 
 // Iniciar servidor
 if (LISTEN_SOCKET) {

@@ -210,7 +210,7 @@ function FilaCurso({ curso }: { curso: any }) {
         <img src={getCourseImage(curso.categoria)} alt="" loading="lazy" style={{ objectPosition: FOCO_CATEGORIA[curso.categoria] }} />
       </Link>
       <div>
-        <p className="pub-curso-inicio">{curso.fecha_inicio}</p>
+        <p className="pub-curso-inicio">{curso.fecha_inicio}{curso.es_demo ? <span className="pub-ejemplo">Curso de ejemplo</span> : null}</p>
         <h3><Link to={`/curso/${curso.id}`}>{tituloSinCodigo(curso.titulo)}</Link></h3>
         <p className="pub-curso-datos">{textoModalidad(curso)}, {curso.duracion_horas} horas.{codigo ? ` Certificado ${codigo}.` : ''}</p>
       </div>
@@ -399,6 +399,15 @@ function AlumnosHome() {
         )}
       </div>
 
+      <section className="pub-ancho pub-situacion" aria-label="Elige tu situación">
+        <h2>¿En qué situación estás?</h2>
+        <div>
+          <Link to="/cursos?situacion=Desempleados"><strong>Estoy en paro</strong><span>Cursos para personas desempleadas</span></Link>
+          <Link to="/cursos?situacion=Ocupados"><strong>Estoy trabajando</strong><span>Cursos para personas con empleo</span></Link>
+          <Link to="/como-funciona"><strong>No sé por dónde empezar</strong><span>Quién puede apuntarse y qué certificados hay</span></Link>
+        </div>
+      </section>
+
       <main className="pub-ancho pub-seccion">
         <h2 className="pub-titulo">Próximos cursos</h2>
         {proximos.length === 0 ? <AvisoCursos estado={estado} /> : proximos.map(curso => <FilaCurso key={curso.id} curso={curso} />)}
@@ -406,6 +415,15 @@ function AlumnosHome() {
           <p className="pub-ver-todos"><Link to="/cursos" className="pub-boton">Ver los {cursos.length} cursos</Link></p>
         )}
       </main>
+
+      <section className="pub-ancho pub-preguntas-portada">
+        <h2 className="pub-titulo">Preguntas frecuentes</h2>
+        <details className="pub-pregunta"><summary>¿Tengo que pagar algo?</summary><p>Son cursos subvencionados: el SEPE describe los de su formación con Fundae como "100% gratuitos, financiados con fondos públicos". Confirma con la academia las condiciones del tuyo antes de matricularte.</p></details>
+        <details className="pub-pregunta"><summary>¿Puedo apuntarme si estoy trabajando?</summary><p>Depende de la convocatoria de cada curso. En cada ficha verás a quién va dirigido, y la academia te confirma si cumples los requisitos.</p></details>
+        <details className="pub-pregunta"><summary>¿Qué pasa cuando pido plaza?</summary><p>La academia recibe tus datos y te llama. Pedir plaza no te compromete a nada.</p></details>
+        <details className="pub-pregunta"><summary>¿Cursenda pertenece al SEPE?</summary><p>No. Es un portal independiente donde las academias publican sus cursos.</p></details>
+        <p className="pub-ver-todos"><Link to="/como-funciona">Toda la información, con fuentes oficiales</Link></p>
+      </section>
 
       <section className="pub-academias">
         <div className="pub-ancho">
@@ -437,7 +455,12 @@ function AlumnosLista() {
   const { cursos, estado } = useCursosPublicos();
   const [params, setParams] = useSearchParams();
   const [modalidades, setModalidades] = useState<string[]>([]);
-  const [situaciones, setSituaciones] = useState<string[]>([]);
+  const [situaciones, setSituaciones] = useState<string[]>(() => {
+    const inicial = new URLSearchParams(window.location.search).get('situacion');
+    return OPCIONES_SITUACION.some(o => o.valor === inicial) ? [inicial as string] : [];
+  });
+  const [duracion, setDuracion] = useState('');
+  const [zona, setZona] = useState('');
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const busqueda = params.get('q') || '';
   const categoria = params.get('categoria') || '';
@@ -453,6 +476,13 @@ function AlumnosLista() {
   const categorias = [...new Set(cursos.map(c => c.categoria))].sort();
   const modalidadesDisponibles = ['Presencial', 'Online', 'Mixta'].filter(m => cursos.some(c => c.modalidad === m));
   const hayCursosPorSituacion = cursos.some(c => c.dirigido_a !== 'Todos');
+  const zonas = [...new Set(cursos.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)))].sort();
+  const dentroDeDuracion = (horas: number) => duracion === 'corto' ? horas < 300 : duracion === 'medio' ? horas >= 300 && horas <= 500 : duracion === 'largo' ? horas > 500 : true;
+  const tramosDuracion = [
+    { valor: 'corto', texto: 'Menos de 300 horas' },
+    { valor: 'medio', texto: 'De 300 a 500 horas' },
+    { valor: 'largo', texto: 'Más de 500 horas' }
+  ].filter(o => { const h = o.valor; return cursos.some(c => (h === 'corto' ? c.duracion_horas < 300 : h === 'medio' ? c.duracion_horas >= 300 && c.duracion_horas <= 500 : c.duracion_horas > 500)); });
 
   // Busca igual con tilde o sin ella
   const normalizar = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -461,6 +491,8 @@ function AlumnosLista() {
     (!categoria || c.categoria === categoria) &&
     (!modalidades.length || modalidades.includes(c.modalidad)) &&
     (!situaciones.length || c.dirigido_a === 'Todos' || situaciones.includes(c.dirigido_a)) &&
+    dentroDeDuracion(c.duracion_horas) &&
+    (!zona || (c.modalidad !== 'Online' && cleanLocalidad(c.localidad) === zona)) &&
     (!texto || [c.titulo, c.localidad, c.categoria, c.centro_nombre, c.descripcion].some(v => normalizar(v).includes(texto)))
   );
 
@@ -471,8 +503,8 @@ function AlumnosLista() {
     if (grupo) grupo.cursos.push(curso); else grupos.push({ titulo, cursos: [curso] });
   });
 
-  const hayFiltros = !!(texto || categoria || modalidades.length || situaciones.length);
-  const quitarFiltros = () => { setParams({}, { replace: true }); setModalidades([]); setSituaciones([]); };
+  const hayFiltros = !!(texto || categoria || modalidades.length || situaciones.length || duracion || zona);
+  const quitarFiltros = () => { setParams({}, { replace: true }); setModalidades([]); setSituaciones([]); setDuracion(''); setZona(''); };
 
   return (
     <div className="pub">
@@ -501,7 +533,7 @@ function AlumnosLista() {
         <div className="pub-lista">
           <aside className="pub-filtros">
             <button type="button" className="pub-filtros-boton" aria-expanded={filtrosAbiertos} onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}>
-              {filtrosAbiertos ? 'Ocultar filtros' : 'Filtrar por modalidad y situación'}
+              {filtrosAbiertos ? 'Ocultar filtros' : 'Filtrar los cursos'}
             </button>
             <div className={filtrosAbiertos ? 'abiertos' : ''}>
               {modalidadesDisponibles.length > 1 && (
@@ -510,6 +542,24 @@ function AlumnosLista() {
                   {modalidadesDisponibles.map(m => (
                     <label key={m}><input type="checkbox" checked={modalidades.includes(m)} onChange={() => setModalidades(alternar(modalidades, m))} />{m === 'Mixta' ? 'Mixto' : m}</label>
                   ))}
+                </fieldset>
+              )}
+              {zonas.length > 1 && (
+                <fieldset>
+                  <legend>Dónde</legend>
+                  <select className="pub-select" aria-label="Localidad" value={zona} onChange={(e) => setZona(e.target.value)}>
+                    <option value="">Todas las localidades</option>
+                    {zonas.map(z => <option key={z}>{z}</option>)}
+                  </select>
+                </fieldset>
+              )}
+              {tramosDuracion.length > 1 && (
+                <fieldset>
+                  <legend>Duración</legend>
+                  {tramosDuracion.map(o => (
+                    <label key={o.valor}><input type="radio" name="duracion" checked={duracion === o.valor} onChange={() => setDuracion(o.valor)} />{o.texto}</label>
+                  ))}
+                  {duracion && <button type="button" className="pub-enlace" onClick={() => setDuracion('')}>Cualquier duración</button>}
                 </fieldset>
               )}
               {hayCursosPorSituacion && (
@@ -561,8 +611,11 @@ function AlumnosDetalle() {
   const [submitError, setSubmitError] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const { cursos: todos } = useCursosPublicos();
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+    setSubmitSuccess(false);
     setLoading(true);
     fetch(`${API_BASE}/public/cursos/${id}`)
       .then(res => res.ok ? res.json() : null)
@@ -600,6 +653,9 @@ function AlumnosDetalle() {
 
   const codigo = codigoCertificado(curso.titulo);
   const libres = plazasLibres(curso);
+  const lineasDe = (texto: string) => [...new Set(String(texto).split('\n').map(l => l.trim()).filter(Boolean))];
+  const parecidos = ordenarPorInicio(todos.filter(c => c.id !== curso.id && c.categoria === curso.categoria)).slice(0, 3);
+  const enlaceCompartir = `https://wa.me/?text=${encodeURIComponent(`${tituloSinCodigo(curso.titulo)}: ${window.location.origin}/curso/${curso.id}`)}`;
   const localidadMapa = cleanLocalidad(curso.localidad);
   const dirigidoA: Record<string, string> = { Desempleados: 'Personas en paro', Ocupados: 'Personas que trabajan', Todos: 'Personas en paro o que trabajan' };
 
@@ -612,9 +668,11 @@ function AlumnosDetalle() {
           <Link to="/cursos" className="pub-volver">Volver a los cursos</Link>
           <h1>{tituloSinCodigo(curso.titulo)}</h1>
           <p>{codigo ? `Certificado de profesionalidad ${codigo}. ` : ''}Lo imparte {curso.centro_nombre}.</p>
+          <p><a href={enlaceCompartir} target="_blank" rel="noopener noreferrer" className="pub-compartir">Compartir por WhatsApp</a></p>
         </div>
       </section>
 
+      {!!curso.es_demo && <p className="pub-aviso-ejemplo pub-ancho">Este es un curso de ejemplo para enseñar cómo funciona Cursenda. No es un curso real.</p>}
       <div className="pub-ancho">
         <dl className="pub-datos">
           <div><dt>Empieza</dt><dd>{curso.fecha_inicio}</dd></div>
@@ -630,6 +688,30 @@ function AlumnosDetalle() {
               <h2>De qué trata</h2>
               <p>{curso.descripcion}</p>
             </section>
+            {curso.aprenderas && (
+              <section>
+                <h2>Qué vas a aprender</h2>
+                <ul className="pub-lista-curso">{lineasDe(curso.aprenderas).map(l => <li key={l}>{l}</li>)}</ul>
+              </section>
+            )}
+            {curso.requisitos && (
+              <section>
+                <h2>Requisitos</h2>
+                <ul className="pub-lista-curso">{lineasDe(curso.requisitos).map(l => <li key={l}>{l}</li>)}</ul>
+              </section>
+            )}
+            {curso.horario && (
+              <section>
+                <h2>Horario</h2>
+                <p>{curso.horario}</p>
+              </section>
+            )}
+            {curso.salidas && (
+              <section>
+                <h2>En qué puedes trabajar</h2>
+                <ul className="pub-lista-curso">{lineasDe(curso.salidas).map(l => <li key={l}>{l}</li>)}</ul>
+              </section>
+            )}
             <section>
               <h2>Qué pasa cuando pides plaza</h2>
               <p>{curso.centro_nombre} recibe tus datos y te llama. Con esa llamada te confirma si cumples los requisitos del curso y qué documentos necesitas.</p>
@@ -675,6 +757,13 @@ function AlumnosDetalle() {
           </aside>
         </div>
       </div>
+
+      {parecidos.length > 0 && (
+        <section className="pub-ancho pub-parecidos">
+          <h2 className="pub-titulo">Cursos parecidos</h2>
+          {parecidos.map(c => <FilaCurso key={c.id} curso={c} />)}
+        </section>
+      )}
 
       {!submitSuccess && libres > 0 && (
         <div className="pub-barra-movil"><span>{textoPlazas(curso)}</span><a href="#pedir" className="pub-boton pub-boton-pedir">Pedir plaza</a></div>
@@ -2360,6 +2449,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   const [formFechaInicio, setFormFechaInicio] = useState('');
   const [formDirigidoA, setFormDirigidoA] = useState('Todos');
   const [formDescripcion, setFormDescripcion] = useState('');
+  const [formAprenderas, setFormAprenderas] = useState('');
+  const [formRequisitos, setFormRequisitos] = useState('');
+  const [formSalidas, setFormSalidas] = useState('');
+  const [formHorario, setFormHorario] = useState('');
   const [formError, setFormError] = useState('');
 
   const navigate = useNavigate();
@@ -2509,6 +2602,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       setFormFechaInicio(curso.fecha_inicio);
       setFormDirigidoA(curso.dirigido_a);
       setFormDescripcion(curso.descripcion);
+      setFormAprenderas(curso.aprenderas || '');
+      setFormRequisitos(curso.requisitos || '');
+      setFormSalidas(curso.salidas || '');
+      setFormHorario(curso.horario || '');
     } else {
       setFormTitulo('');
       setFormCategoria('Informática');
@@ -2520,6 +2617,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       setFormFechaInicio('');
       setFormDirigidoA('Todos');
       setFormDescripcion('');
+      setFormAprenderas('');
+      setFormRequisitos('');
+      setFormSalidas('');
+      setFormHorario('');
     }
     setFormError('');
     setShowCursoModal(true);
@@ -2553,7 +2654,11 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       plazas_cubiertas: parseInt(formPlazasCubiertas || '0'),
       fecha_inicio: formFechaInicio,
       dirigido_a: formDirigidoA,
-      descripcion: formDescripcion
+      descripcion: formDescripcion,
+      aprenderas: formAprenderas,
+      requisitos: formRequisitos,
+      salidas: formSalidas,
+      horario: formHorario
     };
 
     try {
@@ -3907,6 +4012,24 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     value={formDescripcion}
                     onChange={(e) => setFormDescripcion(e.target.value)}
                   ></textarea>
+                </div>
+
+                <p className="admin-dato" style={{ marginBottom: '0.75rem' }}>Lo siguiente es opcional. Solo se ve en la ficha si lo rellenas. Pon una cosa por línea.</p>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="cu-aprende">Qué van a aprender</label>
+                  <textarea id="cu-aprende" className="form-control" rows={3} value={formAprenderas} onChange={(e) => setFormAprenderas(e.target.value)}></textarea>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="cu-requ">Requisitos</label>
+                  <textarea id="cu-requ" className="form-control" rows={3} value={formRequisitos} onChange={(e) => setFormRequisitos(e.target.value)}></textarea>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="cu-horario">Horario</label>
+                  <input id="cu-horario" className="form-control" placeholder="Ej: De lunes a viernes, de 9:00 a 14:00" value={formHorario} onChange={(e) => setFormHorario(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="cu-salidas">En qué pueden trabajar</label>
+                  <textarea id="cu-salidas" className="form-control" rows={3} value={formSalidas} onChange={(e) => setFormSalidas(e.target.value)}></textarea>
                 </div>
               </div>
               <div className="modal-footer">

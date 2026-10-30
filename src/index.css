@@ -3069,3 +3069,23 @@ tr:last-child td {
 }
 .dashboard-layout .table-container td { overflow-wrap: break-word; }
 @media (min-width: 1280px) { .dashboard-layout td .admin-acciones { flex-wrap: nowrap; } }
+
+/* Portada: elegir situación y preguntas */
+.pub-situacion { padding-top: 32px; }
+.pub-situacion h2 { font-size: 26px; color: var(--primary); margin-bottom: 14px; }
+.pub-situacion > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.pub .pub-situacion a { display: flex; flex-direction: column; gap: 4px; padding: 18px 20px; border: 1px solid var(--pub-linea); border-radius: 4px; color: var(--text); transition: border-color .15s ease; }
+.pub-situacion a:hover { border-color: var(--primary); }
+.pub-situacion strong { font-size: 19px; font-weight: 600; color: var(--primary); }
+.pub-situacion span { color: var(--pub-suave); font-size: 15.5px; }
+.pub-preguntas-portada { padding-bottom: 56px; }
+.pub-preguntas-portada a { text-decoration: underline; }
+.pub-ejemplo { margin-left: 10px; padding: 2px 8px; border-radius: 3px; background: var(--warning-bg); color: var(--warning-text); font-size: 13px; font-weight: 600; }
+.pub-aviso-ejemplo { margin-top: 16px; padding-top: 12px; padding-bottom: 12px; background: var(--warning-bg); border-radius: 4px; }
+.pub-lista-curso { margin-left: 20px; max-width: 62ch; }
+.pub-lista-curso li { margin-bottom: 5px; }
+.pub-parecidos { padding-bottom: 56px; }
+.pub .pub-compartir { color: var(--white); text-decoration: underline; font-size: 16px; }
+.pub-select { width: 100%; padding: 8px 10px; border: 1px solid #9FB0A9; border-radius: 4px; background: var(--white); font-size: 16px; }
+.pub-filtros .pub-enlace { font-size: 15px; margin-top: 4px; }
+@media (max-width: 900px) { .pub-situacion > div { grid-template-columns: minmax(0, 1fr); } }

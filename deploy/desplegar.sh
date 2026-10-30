@@ -46,8 +46,12 @@ echo "==> Instalando servicios systemd"
 install -m 644 "$APP_DIR/deploy/systemd/cursenda.service" /etc/systemd/system/
 install -m 644 "$APP_DIR/deploy/systemd/cursenda-backup.service" /etc/systemd/system/
 install -m 644 "$APP_DIR/deploy/systemd/cursenda-backup.timer" /etc/systemd/system/
+install -m 644 "$APP_DIR/deploy/systemd/cursenda-correo.service" /etc/systemd/system/
+install -m 644 "$APP_DIR/deploy/systemd/cursenda-correo.timer" /etc/systemd/system/
+install -d -o cursenda -g cursenda -m 700 /srv/cursenda/data/correo
 systemctl daemon-reload
 systemctl restart cursenda.service
+systemctl enable --now cursenda-correo.timer
 
 echo "==> Comprobando que responde"
 ok=0
