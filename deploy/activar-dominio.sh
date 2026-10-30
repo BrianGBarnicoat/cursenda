@@ -79,7 +79,7 @@ nginx -t
 systemctl reload nginx
 systemctl restart cursenda
 sleep 2
-curl -sf -o /dev/null "https://$DOMINIO/api/public/cursos"
+curl -sf --resolve "$DOMINIO:443:127.0.0.1" -o /dev/null "https://$DOMINIO/api/public/cursos"
 
 trap - ERR
 echo "==> Listo. https://$DOMINIO ya funciona. Copia de lo anterior en $COPIA"
