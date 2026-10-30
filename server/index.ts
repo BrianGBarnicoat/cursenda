@@ -1700,12 +1700,16 @@ function paginaHtml(meta: Meta) {
 }
 
 const META_PORTADA: Meta = {
-  titulo: 'Cursenda · Cursos 100% subvencionados cerca de usted',
-  descripcion: 'Encuentre cursos gratuitos financiados por el SEPE y las comunidades autónomas para desempleados y trabajadores, y pida su plaza en un minuto.',
+  titulo: 'Cursenda · Cursos gratis subvencionados',
+  descripcion: 'Cursos gratuitos subvencionados con dinero público que publican las academias. Pide plaza y la academia te llama.',
   ruta: '/'
 };
 
 async function metaDe(ruta: string): Promise<Meta> {
+  if (ruta === '/cursos') {
+    return { titulo: 'Cursos gratis · Cursenda', descripcion: 'Todos los cursos gratuitos publicados en Cursenda, por oficio, modalidad y fecha de inicio.', ruta };
+  }
+
   if (ruta === '/centros') {
     return {
       titulo: 'Cursenda para centros · Llene las plazas de sus cursos subvencionados',
@@ -1770,7 +1774,7 @@ app.get('/sitemap.xml', async (req, res) => {
   try {
     const db = await getDatabase();
     const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`);
-    const rutas = ['/', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
+    const rutas = ['/', '/cursos', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
     const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
   } catch (err) {

@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useSearchPa
 import { 
   BookOpen, 
   MapPin, 
-  Clock, 
   Users, 
   Plus, 
   Download, 
@@ -22,11 +21,6 @@ import {
   Code,
   MessageSquare,
   Shield,
-  Search,
-  Grid,
-  Map,
-  Building2,
-  ArrowRight
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -78,7 +72,8 @@ function MapaGoogle({ titulo, src }: { titulo: string; src: string }) {
   );
 }
 
-// Fotos de Unsplash guardadas en public/images/cursos (licencia Unsplash)
+// Fotos de Unsplash guardadas en public/images/cursos (licencia Unsplash): Jeff Siepman (hostelería),
+// Age Cymru (sanidad), Centre for Ageing Better (logística), Compagnons (informática), Vitaly Gariev (administración)
 export const getCourseImage = (categoria: string) => {
   const mapping: { [key: string]: string } = {
     'Informática': '/images/cursos/informatica.webp',
@@ -97,1393 +92,372 @@ const useTitulo = (titulo?: string | null) => {
   }, [titulo]);
 };
 
-// --- PORTAL ALUMNOS: LISTADO ---
-function AlumnosHome() {
-  useTitulo('Cursenda · Cursos 100% subvencionados cerca de usted');
+// --- PORTAL ALUMNOS ---
+
+// Foto de cada categoría. Solo salen las categorías que tienen cursos publicados.
+const FOCO_CATEGORIA: Record<string, string> = {
+  'Hostelería': '50% 30%',
+  'Sanidad': '60% 25%',
+  'Logística': '45% 30%',
+  'Administración': '55% 25%'
+};
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+// La academia escribe la fecha a mano ("15 de enero de 2027", "Inmediata"...).
+// Si no se entiende o ya ha pasado, el curso va al grupo "Otras fechas" con su texto tal cual.
+function inicioDe(curso: any): { grupo: string; orden: number } {
+  const texto = String(curso.fecha_inicio || '').toLowerCase();
+  if (texto.includes('inmediat')) return { grupo: 'Empiezan ya', orden: 0 };
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  let fecha: Date | null = null;
+  const conMes = texto.match(new RegExp(`(\\d{1,2})\\s+de\\s+(${MESES.join('|')})(?:\\s+(?:de(?:l)?\\s+)?(\\d{4}))?`));
+  const iso = texto.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (conMes) {
+    const mes = MESES.indexOf(conMes[2]);
+    fecha = new Date(conMes[3] ? Number(conMes[3]) : hoy.getFullYear(), mes, Number(conMes[1]));
+    if (!conMes[3] && fecha < hoy) fecha.setFullYear(fecha.getFullYear() + 1);
+  } else if (iso) {
+    fecha = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  }
+  if (!fecha || fecha < hoy) return { grupo: 'Otras fechas', orden: Number.MAX_SAFE_INTEGER };
+  return { grupo: `Empiezan en ${MESES[fecha.getMonth()]} de ${fecha.getFullYear()}`, orden: fecha.getTime() };
+}
+
+const ordenarPorInicio = (cursos: any[]) => [...cursos].sort((a, b) => inicioDe(a).orden - inicioDe(b).orden);
+
+const plazasLibres = (curso: any) => Math.max(0, curso.plazas - curso.plazas_cubiertas);
+const textoPlazas = (curso: any) => {
+  const libres = plazasLibres(curso);
+  if (libres === 0) return 'Sin plazas libres';
+  return libres === 1 ? '1 plaza libre' : `${libres} plazas libres`;
+};
+const textoModalidad = (curso: any) => {
+  if (curso.modalidad === 'Online') return 'Online';
+  return `${curso.modalidad === 'Mixta' ? 'Mixto' : 'Presencial'} en ${curso.localidad}`;
+};
+// Los certificados de profesionalidad llevan un código de 4 letras y 4 números (IFCD0210)
+const codigoCertificado = (titulo: string) => titulo.match(/^([A-Z]{4}\d{4})\b/)?.[1] || null;
+const tituloSinCodigo = (titulo: string) => titulo.replace(/^[A-Z]{4}\d{4}\s*[-–]\s*/, '');
+
+function useCursosPublicos() {
   const [cursos, setCursos] = useState<any[]>([]);
-  const [unfilteredCursos, setUnfilteredCursos] = useState<any[]>([]);
-  const [mapSearch, setMapSearch] = useState('');
-  const [search, setSearch] = useState('');
-  const [categoria, setCategoria] = useState('Todas');
-  const [modalidad, setModalidad] = useState('Todas');
-  const [loading, setLoading] = useState(true);
-  const [alumnoFaq, setAlumnoFaq] = useState(-1);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [compareList, setCompareList] = useState<any[]>([]);
-  const [compareModalOpen, setCompareModalOpen] = useState(false);
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardStep, setWizardStep] = useState(1);
-  const [wizardAnswers, setWizardAnswers] = useState({ categoria: '', modalidad: '', situacion: '' });
-  const [faqSearch, setFaqSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
-  const [activeMapCursoIndex, setActiveMapCursoIndex] = useState(0);
-
-  const popularSearches = [
-    'IFCD0210 Desarrollo de Aplicaciones',
-    'SANT0208 Atención Sociosanitaria',
-    'Logística y Almacén',
-    'Administración y Gestión',
-    'Fuenlabrada',
-    'Madrid',
-    'Móstoles'
-  ];
-
-  // Observer para revelar elementos al hacer scroll (animación premium)
+  const [estado, setEstado] = useState<'cargando' | 'listo' | 'error'>('cargando');
   useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-        }
-      });
-    }, { threshold: 0.1 });
-
-    const elements = document.querySelectorAll('.reveal, .reveal-scale, .reveal-left');
-    elements.forEach(el => observer.observe(el));
-
-    return () => {
-      elements.forEach(el => observer.unobserve(el));
-      observer.disconnect();
-    };
-  }, [cursos, viewMode]);
-
-  // Cargar cursos sin filtros para el Asistente
-  useEffect(() => {
-    const fetchAllCursos = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/public/cursos`);
-        const data = await res.json();
-        setUnfilteredCursos(data);
-      } catch (err) {
-        console.error("Error al cargar cursos para el asistente:", err);
-      }
-    };
-    fetchAllCursos();
+    fetch(`${API_BASE}/public/cursos`)
+      .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+      .then(datos => { setCursos(datos); setEstado('listo'); })
+      .catch(() => setEstado('error'));
   }, []);
+  return { cursos, estado };
+}
 
-  const toggleCompare = (curso: any) => {
-    if (compareList.some(c => c.id === curso.id)) {
-      setCompareList(compareList.filter(c => c.id !== curso.id));
-    } else {
-      if (compareList.length >= 3) {
-        alert("Puede comparar un máximo de 3 cursos simultáneamente.");
-        return;
-      }
-      setCompareList([...compareList, curso]);
-    }
-  };
+function CabeceraPublica() {
+  return (
+    <header className="pub-barra">
+      <Logo light={true} />
+      <nav>
+        <Link to="/cursos" className="pub-solo-ancho">Cursos</Link>
+        <Link to="/centros">Soy una academia</Link>
+      </nav>
+    </header>
+  );
+}
 
-  const fetchCursos = async (searchOverride?: string) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      const currentSearch = searchOverride !== undefined ? searchOverride : search;
-      if (currentSearch) params.append('search', currentSearch);
-      if (categoria && categoria !== 'Todas') params.append('categoria', categoria);
-      if (modalidad && modalidad !== 'Todas') params.append('modalidad', modalidad);
+function PiePublico() {
+  return (
+    <footer className="pub-pie">
+      <div className="pub-ancho">
+        <p>Cursenda es un portal independiente. No pertenece al SEPE ni a ninguna administración pública.</p>
+        <nav>
+          <Link to="/legal/aviso-legal">Aviso legal</Link>
+          <Link to="/legal/privacidad">Privacidad</Link>
+          <Link to="/legal/cookies">Cookies</Link>
+        </nav>
+      </div>
+    </footer>
+  );
+}
 
-      const res = await fetch(`${API_BASE}/public/cursos?${params.toString()}`);
-      const data = await res.json();
-      setCursos(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+function FilaCurso({ curso }: { curso: any }) {
+  const codigo = codigoCertificado(curso.titulo);
+  return (
+    <article className="pub-curso">
+      <Link to={`/curso/${curso.id}`} className="pub-curso-foto" tabIndex={-1} aria-hidden="true">
+        <img src={getCourseImage(curso.categoria)} alt="" loading="lazy" style={{ objectPosition: FOCO_CATEGORIA[curso.categoria] }} />
+      </Link>
+      <div>
+        <p className="pub-curso-inicio">{curso.fecha_inicio}</p>
+        <h3><Link to={`/curso/${curso.id}`}>{tituloSinCodigo(curso.titulo)}</Link></h3>
+        <p className="pub-curso-datos">{textoModalidad(curso)}, {curso.duracion_horas} horas.{codigo ? ` Certificado ${codigo}.` : ''}</p>
+      </div>
+      <div className="pub-curso-lado">
+        <span>{textoPlazas(curso)}</span>
+        <Link to={`/curso/${curso.id}`} className="pub-boton">Ver curso</Link>
+      </div>
+    </article>
+  );
+}
 
-  // Búsqueda y filtrado en tiempo real con debounce
+function AvisoCursos({ estado }: { estado: string }) {
+  if (estado === 'cargando') return <p className="pub-aviso">Cargando cursos...</p>;
+  if (estado === 'error') {
+    return <p className="pub-aviso">No se han podido cargar los cursos. <button type="button" className="pub-enlace" onClick={() => window.location.reload()}>Volver a intentarlo</button></p>;
+  }
+  return <p className="pub-aviso">Ahora mismo no hay cursos publicados.</p>;
+}
+
+function AlumnosHome() {
+  useTitulo('Cursenda · Cursos gratis subvencionados');
+  const navigate = useNavigate();
+  const { cursos, estado } = useCursosPublicos();
+  const [busqueda, setBusqueda] = useState('');
+  const [activa, setActiva] = useState(0);
+  const [pausada, setPausada] = useState(false);
+
+  // Una franja por cada categoría con cursos: las que más cursos tienen, primero
+  const categorias = Object.entries(
+    cursos.reduce((grupos: Record<string, any[]>, curso) => {
+      (grupos[curso.categoria] = grupos[curso.categoria] || []).push(curso);
+      return grupos;
+    }, {})
+  ).sort((a, b) => b[1].length - a[1].length).slice(0, 6);
+
+  // Las fotos se van abriendo solas hasta que la persona toca alguna
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      fetchCursos();
-    }, 200);
+    if (pausada || categorias.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const turno = setInterval(() => setActiva(i => (i + 1) % categorias.length), 4500);
+    return () => clearInterval(turno);
+  }, [pausada, categorias.length]);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [search, categoria, modalidad]);
-
-  // Asegura que al cambiar los resultados se resetee el índice del mapa activo a 0
-  useEffect(() => {
-    setActiveMapCursoIndex(0);
-  }, [cursos]);
-
-
+  const proximos = ordenarPorInicio(cursos).slice(0, 5);
 
   return (
-    <div style={{ backgroundColor: 'var(--bg)', minHeight: '100vh' }}>
-      {/* CABECERA OSCURA DE ALUMNOS */}
-      <div style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', paddingBottom: '4.5rem', position: 'relative' }}>
-        <header className="alumnos-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'transparent' }}>
-          <Logo light={true} />
-          <Link to="/centros" className="btn btn-accent btn-sm">Acceso Centros</Link>
-        </header>
-
-        <div className="alumnos-container" style={{ textAlign: 'center', marginTop: '2rem', marginBottom: 0 }}>
-          <div className="official-accreditation-badge reveal-scale">
-            <Shield size={13} className="shield-icon" />
-            <span>Cursos subvencionados por el SEPE y las comunidades autónomas</span>
-          </div>
-
-          <h1 style={{ fontSize: '2.85rem', marginBottom: '0.75rem', color: 'var(--white)', fontWeight: '800', lineHeight: '1.18', letterSpacing: '-0.02em' }}>
-            Encuentre su <span style={{ background: 'var(--gradient-accent)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: '800' }}>plaza gratuita</span> en cursos subvencionados
-          </h1>
-          <p style={{ fontSize: '1.05rem', color: 'rgba(255,255,255,0.78)', marginBottom: '2.25rem', maxWidth: '640px', margin: '0 auto 2.25rem', lineHeight: '1.5' }}>
-            Formación 100% gratuita financiada por fondos públicos para personas desempleadas y ocupadas.
-          </p>
-
-          {/* FLOATING QUICK STATS BAR */}
-          <div className="stats-bar reveal-scale stagger-1" style={{
-            backgroundColor: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.12)', color: 'var(--white)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.15)', margin: '0 auto', borderRadius: '16px'
-          }}>
-            <div className="stats-item">
-              <div className="stats-icon-box"><BookOpen size={16} /></div>
-              <div>
-                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)', display: 'block', lineHeight: 1 }}>
-                  {cursos.length > 0 ? cursos.length : '45+'}
-                </span>
-                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Activos</span>
-              </div>
-            </div>
-            <div className="stats-divider" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}></div>
-            <div className="stats-item">
-              <div className="stats-icon-box"><Users size={16} /></div>
-              <div>
-                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--white)', fontFamily: 'var(--font-title)', display: 'block', lineHeight: 1 }}>
-                  {cursos.length > 0 ? cursos.reduce((sum: number, c: any) => sum + (c.plazas - c.plazas_cubiertas), 0) : '350+'}
-                </span>
-                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Plazas Vacantes</span>
-              </div>
-            </div>
-            <div className="stats-divider" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}></div>
-            <div className="stats-item">
-              <div className="stats-icon-box"><CheckCircle size={16} /></div>
-              <div>
-                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--accent)', fontFamily: 'var(--font-title)', display: 'block', lineHeight: 1 }}>100%</span>
-                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Subvencionado</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>      <div className="alumnos-container" style={{ marginTop: '-2.25rem', position: 'relative', zIndex: 10 }}>
-        {/* PANEL DE BÚSQUEDA UNIFICADO */}
-        <div className="search-panel reveal stagger-1">
-          <form onSubmit={(e) => { e.preventDefault(); fetchCursos(); }} className="search-filters-bar">
-            <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
-              <label className="form-label">Buscar curso o localidad</label>
-              <input 
-                type="text" 
-                className="form-control" 
-                placeholder="Ej: React, Logística, Madrid..." 
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
-              />
-              {showSuggestions && (
-                <div className="suggestions-dropdown" style={{
-                  position: 'absolute', top: '100%', left: 0, right: 0,
-                  backgroundColor: 'var(--white)', border: '1px solid var(--lines)',
-                  borderRadius: '8px', boxShadow: 'var(--card-shadow-hover)',
-                  zIndex: 999, marginTop: '0.5rem', maxHeight: '240px', overflowY: 'auto'
-                }}>
-                  {popularSearches
-                    .filter(s => s.toLowerCase().includes(search.toLowerCase()))
-                    .map((s, idx) => (
-                      <div 
-                        key={idx} 
-                        className="suggestion-item"
-                        style={{
-                          padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '0.875rem',
-                          transition: 'background-color 0.2s ease', borderBottom: '1px solid var(--lines-light)',
-                          textAlign: 'left', color: 'var(--primary)'
-                        }}
-                        onMouseDown={() => {
-                          setSearch(s);
-                          setShowSuggestions(false);
-                        }}
-                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'var(--lines-light)')}
-                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                      >
-                        <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '0.625rem', color: 'var(--text-muted)', verticalAlign: 'middle' }}>
-                          <Search size={14} />
-                        </span> 
-                        <span style={{ verticalAlign: 'middle' }}>{s}</span>
-                      </div>
-                    ))}
-                  {popularSearches.filter(s => s.toLowerCase().includes(search.toLowerCase())).length === 0 && (
-                    <div style={{ padding: '0.75rem 1rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                      No hay sugerencias que coincidan
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Categoría</label>
-              <select className="form-control" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-                <option value="Todas">Todas</option>
-                <option value="Informática">Informática</option>
-                <option value="Sanidad">Sanidad</option>
-                <option value="Logística">Logística</option>
-                <option value="Administración">Administración</option>
-                <option value="Hostelería">Hostelería</option>
-                <option value="Otros">Otros</option>
-              </select>
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Modalidad</label>
-              <select className="form-control" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
-                <option value="Todas">Todas</option>
-                <option value="Presencial">Presencial</option>
-                <option value="Online">Online</option>
-                <option value="Mixta">Mixta</option>
-              </select>
-            </div>
-            <button type="submit" className="btn btn-primary" style={{ height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', whiteSpace: 'nowrap' }}>
-              <Search size={16} />
-              <span>Buscar</span>
-            </button>
-          </form>
-
-          {/* FILA INFERIOR: CATEGORÍAS POPULARES + BOTÓN AL ASISTENTE */}
-          <div className="search-panel-footer" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: '1.25rem',
-            paddingTop: '1.25rem',
-            borderTop: '1px solid var(--lines-light)',
-            flexWrap: 'wrap',
-            gap: '1rem'
-          }}>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '0.5rem', fontWeight: 600 }}>Categorías populares:</span>
-              {['Todas', 'Informática', 'Sanidad', 'Logística', 'Hostelería'].map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  style={categoria === cat ? { backgroundColor: 'var(--primary)', color: 'var(--white)', borderColor: 'var(--primary)', borderRadius: '16px' } : { borderRadius: '16px' }}
-                  onClick={() => setCategoria(cat)}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            <button 
-              type="button"
-              onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '0.8125rem',
-                color: 'var(--accent)',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.375rem',
-                padding: 0
-              }}
-            >
-              <HelpCircle size={14} />
-              <span>Test de orientación de cursos</span>
-            </button>
-          </div>
-        </div>
-
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem' }}>Cargando cursos disponibles...</div>
-        ) : (
+    <div className="pub">
+      <div className="pub-arriba">
+        <CabeceraPublica />
+        <div className="pub-portada pub-ancho">
+          <h1>Aprende un oficio con un curso gratis</h1>
           <div>
-            {/* BARRA DE RESULTADOS Y CHIPS DE FILTRO */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '1rem',
-              marginBottom: '1.5rem',
-              padding: '0.25rem 0.5rem',
-              animation: 'fadeIn 0.25s ease-out'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                  Mostrando <strong style={{ color: 'var(--primary)' }}>{cursos.length}</strong> cursos de formación subvencionada
-                </div>
-                {cursos.length > 0 && (
-                  <div style={{ display: 'flex', gap: '2px', backgroundColor: '#e2e0d880', padding: '3px', borderRadius: '8px', border: '1px solid var(--lines)' }}>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('grid')}
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '0.375rem', 
-                        padding: '5px 12px', 
-                        borderRadius: '6px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        boxShadow: viewMode === 'grid' ? '0 2px 6px rgba(12, 59, 51, 0.1)' : 'none',
-                        backgroundColor: viewMode === 'grid' ? 'var(--white)' : 'transparent',
-                        color: viewMode === 'grid' ? 'var(--primary)' : 'var(--text-muted)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <Grid size={13} />
-                      <span>Cuadrícula</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewMode('map');
-                        setActiveMapCursoIndex(0);
-                      }}
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '0.375rem', 
-                        padding: '5px 12px', 
-                        borderRadius: '6px',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        boxShadow: viewMode === 'map' ? '0 2px 6px rgba(12, 59, 51, 0.1)' : 'none',
-                        backgroundColor: viewMode === 'map' ? 'var(--white)' : 'transparent',
-                        color: viewMode === 'map' ? 'var(--primary)' : 'var(--text-muted)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <Map size={13} />
-                      <span>Mapa</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {(search || (categoria && categoria !== 'Todas') || (modalidad && modalidad !== 'Todas')) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Filtros activos:</span>
-                  {search && (
-                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', color: 'var(--primary)', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      "{search}"
-                      <button type="button" onClick={() => setSearch('')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
+            <p>Cursos subvencionados con dinero público que publican las academias. Pides plaza aquí y la academia te llama.</p>
+            <form className="pub-buscador" onSubmit={(e) => { e.preventDefault(); navigate(`/cursos?q=${encodeURIComponent(busqueda.trim())}`); }}>
+              <input aria-label="Qué quieres estudiar" placeholder="Qué quieres estudiar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+              <button type="submit">Buscar</button>
+            </form>
+          </div>
+        </div>
+        {categorias.length > 0 && (
+          <nav className="pub-franjas" aria-label="Cursos por oficio">
+            {categorias.map(([categoria, lista], i) => {
+              const siguiente = ordenarPorInicio(lista)[0];
+              return (
+                <Link
+                  key={categoria}
+                  to={`/cursos?categoria=${encodeURIComponent(categoria)}`}
+                  className={`pub-franja ${i === activa ? 'activa' : ''}`}
+                  style={{ animationDelay: `${i * 90}ms` }}
+                  onMouseEnter={() => { setPausada(true); setActiva(i); }}
+                  onFocus={() => { setPausada(true); setActiva(i); }}
+                >
+                  <img src={getCourseImage(categoria)} alt="" style={{ objectPosition: FOCO_CATEGORIA[categoria] }} />
+                  <span className="pub-franja-texto">
+                    <strong>{categoria}</strong>
+                    <span className="pub-franja-mas">
+                      <span>
+                        <span className="pub-franja-curso">{lista.length === 1 ? tituloSinCodigo(siguiente.titulo) : `${lista.length} cursos. El próximo: ${tituloSinCodigo(siguiente.titulo)}`}</span>
+                        <span className="pub-franja-ver">{lista.length === 1 ? 'Ver el curso' : 'Ver los cursos'}</span>
+                      </span>
                     </span>
-                  )}
-                  {categoria && categoria !== 'Todas' && (
-                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', color: 'var(--primary)', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      {categoria}
-                      <button type="button" onClick={() => setCategoria('Todas')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
-                    </span>
-                  )}
-                  {modalidad && modalidad !== 'Todas' && (
-                    <span className="course-meta-tag" style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', color: 'var(--primary)', padding: '2px 8px', fontSize: '0.75rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      {modalidad}
-                      <button type="button" onClick={() => setModalidad('Todas')} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: '0.875rem', color: 'var(--text-muted)', display: 'inline-flex', lineHeight: 1 }}>&times;</button>
-                    </span>
-                  )}
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setSearch('');
-                      setCategoria('Todas');
-                      setModalidad('Todas');
-                    }} 
-                    style={{
-                      border: 'none', background: 'none', cursor: 'pointer', padding: '2px 6px',
-                      fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700, textDecoration: 'underline'
-                    }}
-                  >
-                    Limpiar todo
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {cursos.length === 0 ? (
-              <div className="empty-state">
-                <BookOpen size={48} style={{ color: 'var(--text-muted)' }} />
-                <h3 className="empty-state-title">No se encontraron cursos</h3>
-                <p className="empty-state-desc">Intente ajustar los filtros de búsqueda o categoría para encontrar otras opciones.</p>
-              </div>
-            ) : viewMode === 'map' ? (
-              (() => {
-                const filteredMapCursos = cursos.filter(curso => {
-                  const query = mapSearch.toLowerCase();
-                  return (
-                    curso.titulo.toLowerCase().includes(query) ||
-                    curso.localidad.toLowerCase().includes(query) ||
-                    (curso.centro_nombre && curso.centro_nombre.toLowerCase().includes(query)) ||
-                    curso.categoria.toLowerCase().includes(query)
-                  );
-                });
-
-                const mapSafeIndex = (filteredMapCursos && activeMapCursoIndex < filteredMapCursos.length && activeMapCursoIndex >= 0) ? activeMapCursoIndex : 0;
-                const mapSafeCurso = (filteredMapCursos && filteredMapCursos.length > 0) ? filteredMapCursos[mapSafeIndex] : null;
-
-                return (
-                  <div className="map-explorer-layout">
-                    {/* Left Side: Search + Compact List */}
-                    <div className="map-explorer-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', height: '100%' }}>
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          type="text"
-                          placeholder="Buscar en el mapa (ciudad, academia, curso...)"
-                          value={mapSearch}
-                          onChange={(e) => {
-                            setMapSearch(e.target.value);
-                            setActiveMapCursoIndex(0);
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '0.625rem 2.5rem 0.625rem 1.25rem',
-                            borderRadius: '8px',
-                            border: '1px solid var(--lines)',
-                            fontSize: '0.8125rem',
-                            backgroundColor: 'var(--white)',
-                            color: 'var(--primary)',
-                            boxShadow: 'var(--card-shadow)',
-                            outline: 'none',
-                            transition: 'border-color 0.2s ease'
-                          }}
-                          onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
-                          onBlur={(e) => e.target.style.borderColor = 'var(--lines)'}
-                        />
-                        <Search size={14} style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                      </div>
-                      
-                      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, paddingRight: '0.25rem', maxHeight: '520px' }}>
-                        {filteredMapCursos.length > 0 ? (
-                          filteredMapCursos.map((curso, idx) => {
-                            const active = idx === mapSafeIndex;
-                            const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
-                            return (
-                              <div 
-                                key={curso.id}
-                                onClick={() => setActiveMapCursoIndex(idx)}
-                                style={{
-                                  backgroundColor: 'var(--white)',
-                                  border: active ? '2px solid var(--accent)' : '1px solid rgba(12, 59, 51, 0.1)',
-                                  borderRadius: '14px',
-                                  padding: '1.15rem 1.25rem',
-                                  cursor: 'pointer',
-                                  boxShadow: active ? '0 8px 24px -4px rgba(212, 158, 53, 0.25)' : '0 2px 8px rgba(0,0,0,0.04)',
-                                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                  transform: active ? 'translateX(4px)' : 'none',
-                                  textAlign: 'left'
-                                }}
-                              >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                                  <div style={{ display: 'flex', gap: '0.35rem' }}>
-                                    <span className="course-meta-tag category-tag" style={{ fontSize: '0.625rem', padding: '2px 8px' }}>{curso.categoria}</span>
-                                    <span className="course-meta-tag modality-tag" style={{ fontSize: '0.625rem', padding: '2px 8px' }}>{curso.modalidad}</span>
-                                  </div>
-                                  <Link 
-                                    to={`/curso/${curso.id}`}
-                                    style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '2px' }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    Detalles <ArrowRight size={12} />
-                                  </Link>
-                                </div>
-                                <h4 style={{ color: 'var(--primary)', margin: '0.35rem 0 0.5rem', fontSize: '0.9375rem', fontWeight: 700, lineHeight: '1.3' }}>{curso.titulo}</h4>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8125rem' }}>
-                                  <span className="course-info-bullet" style={{ padding: '3px 8px', fontSize: '0.75rem' }}>
-                                    <MapPin size={12} style={{ color: 'var(--accent)' }} />
-                                    {curso.localidad}
-                                  </span>
-                                  <span style={{ 
-                                    color: plazasLibres <= 3 ? 'var(--accent)' : 'var(--success-text)', 
-                                    fontWeight: 700,
-                                    fontSize: '0.75rem'
-                                  }}>
-                                    {plazasLibres <= 3 ? `¡Últimas ${plazasLibres} plazas!` : `${plazasLibres} vacantes`}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-                            No se encontraron cursos que coincidan con la búsqueda en el mapa.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right Side: Map Centered on Selected Course Locality */}
-                    <div className="map-explorer-container" style={{ borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', height: '100%' }}>
-                      {mapSafeCurso ? (
-                        <MapaGoogle titulo="Geolocalización del curso" src={`https://maps.google.com/maps?q=${encodeURIComponent(mapSafeCurso.modalidad === 'Online' ? 'España' : (mapSafeCurso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(mapSafeCurso.localidad) + ', España')}&t=&z=${mapSafeCurso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`} />
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                          Seleccione un curso del listado para ver su ubicación.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="courses-grid">
-                {(() => {
-                  const cards = [];
-                  
-                  cursos.forEach((curso, idx) => {
-                    cards.push(
-                      <div key={curso.id} className={`course-card reveal stagger-${(idx % 4) + 1}`}>
-                        <div className="course-card-banner">
-                          <button 
-                            type="button" 
-                            className={`course-card-compare-btn ${compareList.some(c => c.id === curso.id) ? 'active' : ''}`}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleCompare(curso); }}
-                          >
-                            {compareList.some(c => c.id === curso.id) ? (
-                              <><Check size={13} /> Comparando</>
-                            ) : (
-                              <><Plus size={13} /> Comparar</>
-                            )}
-                          </button>
-                          <img 
-                            src={getCourseImage(curso.categoria)} 
-                            alt={curso.titulo} 
-                            className="course-card-img" 
-                          />
-                          <div className="course-card-banner-shadow"></div>
-                          <div className="course-card-meta-overlay">
-                            <span className="course-meta-tag category-tag">{curso.categoria}</span>
-                            <span className="course-meta-tag modality-tag">{curso.modalidad}</span>
-                          </div>
-                        </div>
-                        
-                        <div className="course-card-body">
-                          <div className="course-card-top">
-                            <h3 className="course-card-title" title={curso.titulo}>{curso.titulo}</h3>
-                            <div className="course-provider">
-                              <Building2 size={14} className="provider-icon" />
-                              <span>{curso.centro_nombre}</span>
-                            </div>
-                            
-                            <div className="course-info-row">
-                              <div className="course-info-bullet">
-                                <span className="bullet-icon"><MapPin size={13} /></span>
-                                <span>{curso.localidad}</span>
-                              </div>
-                              <div className="course-info-bullet">
-                                <span className="bullet-icon"><Clock size={13} /></span>
-                                <span>{curso.duracion_horas} horas</span>
-                              </div>
-                              <div className="course-info-bullet">
-                                <span className="bullet-icon"><Users size={13} /></span>
-                                <span>{curso.dirigido_a}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {(() => {
-                            const plazasLibres = curso.plazas - (curso.plazas_cubiertas || 0);
-                            const percentage = Math.min(100, Math.max(5, ((curso.plazas_cubiertas || 0) / curso.plazas) * 100));
-                            const isUrgent = plazasLibres <= 3;
-                            return (
-                              <div className="course-plazas-box">
-                                <div className="plazas-header">
-                                  <span className="plazas-label">Plazas ocupadas</span>
-                                  <span className={`plazas-value ${isUrgent ? 'urgent' : 'available'}`}>
-                                    {isUrgent ? (
-                                      <span className="urgent-badge">
-                                        <span className="pulse-dot"></span>
-                                        ¡Últimas {plazasLibres} plazas!
-                                      </span>
-                                    ) : (
-                                      `${plazasLibres} vacantes`
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="plazas-bar-track">
-                                  <div 
-                                    className={`plazas-bar-fill ${isUrgent ? 'fill-urgent' : 'fill-normal'}`} 
-                                    style={{ width: `${percentage}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          <div className="course-card-footer">
-                            <div className="price-tag-wrapper">
-                              <span className="course-price-badge">Gratis</span>
-                              <span className="price-subtext">100% Subvencionado</span>
-                            </div>
-                            <Link to={`/curso/${curso.id}`} className="btn btn-primary btn-sm btn-card-action">
-                              <span>Ver detalles</span>
-                              <ArrowRight size={14} className="arrow-icon" />
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    );
-
-                    if (idx === 1) {
-                      cards.push(
-                        <div key="wizard-promo" className="course-card wizard-promo-card reveal stagger-3">
-                          <div className="wizard-promo-icon-box">
-                            <HelpCircle size={26} />
-                          </div>
-                          <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>Test de Orientación Académica</h3>
-                          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.5', padding: '0 0.5rem' }}>
-                            Responda 3 sencillas preguntas para recibir una recomendación personalizada basada en su perfil y ubicación.
-                          </p>
-                          <button 
-                            type="button"
-                            onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
-                            className="btn btn-accent btn-sm"
-                            style={{ width: '100%', marginTop: '0.5rem', fontWeight: 700 }}
-                          >
-                            Iniciar Test de Orientación
-                          </button>
-                        </div>
-                      );
-                    }
-                  });
-
-                  if (cursos.length < 2) {
-                    cards.push(
-                      <div key="wizard-promo" className="course-card wizard-promo-card reveal stagger-2">
-                        <div className="wizard-promo-icon-box">
-                          <HelpCircle size={26} />
-                        </div>
-                        <h3 style={{ color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800, marginBottom: '0.5rem' }}>Test de Orientación Académica</h3>
-                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.5', padding: '0 0.5rem' }}>
-                          Responda 3 sencillas preguntas para recibir una recomendación personalizada basada en su perfil y ubicación.
-                        </p>
-                        <button 
-                          type="button"
-                          onClick={() => { setWizardOpen(true); setWizardStep(1); setWizardAnswers({ categoria: '', modalidad: '', situacion: '' }); }}
-                          className="btn btn-accent btn-sm"
-                          style={{ width: '100%', marginTop: '0.5rem', fontWeight: 700 }}
-                        >
-                          Iniciar Test de Orientación
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  return cards;
-                })()}
-              </div>
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
         )}
       </div>
-    )}
-  </div>
 
-      {/* BUSCADOR POR COMUNIDAD AUTÓNOMA */}
-      <div className="alumnos-container reveal" style={{ marginTop: '3.5rem', marginBottom: '3.5rem' }}>
-        <h2 style={{ fontSize: '1.5rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '0.5rem' }}>Buscar por Comunidad Autónoma</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-          Explore y filtre las plazas subvencionadas disponibles en las principales regiones
-        </p>
+      <main className="pub-ancho pub-seccion">
+        <h2 className="pub-titulo">Próximos cursos</h2>
+        {proximos.length === 0 ? <AvisoCursos estado={estado} /> : proximos.map(curso => <FilaCurso key={curso.id} curso={curso} />)}
+        {cursos.length > proximos.length && (
+          <p className="pub-ver-todos"><Link to="/cursos" className="pub-boton">Ver los {cursos.length} cursos</Link></p>
+        )}
+      </main>
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap', maxWidth: '900px', margin: '0 auto' }}>
-          {[
-            { name: 'Madrid', code: 'Madrid' },
-            { name: 'Cataluña', code: 'Cataluña' },
-            { name: 'Andalucía', code: 'Andalucía' },
-            { name: 'C. Valenciana', code: 'Valenciana' },
-            { name: 'País Vasco', code: 'Vasco' },
-            { name: 'Galicia', code: 'Galicia' },
-          ].map((reg) => (
-            <button
-              key={reg.name}
-              type="button"
-              onClick={() => {
-                setSearch(reg.code);
-                const params = new URLSearchParams();
-                params.append('search', reg.code);
-                if (categoria && categoria !== 'Todas') params.append('categoria', categoria);
-                if (modalidad && modalidad !== 'Todas') params.append('modalidad', modalidad);
-                fetch(`${API_BASE}/public/cursos?${params.toString()}`)
-                  .then(res => res.json())
-                  .then(data => setCursos(data));
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              style={{
-                background: 'var(--white)',
-                border: '1px solid var(--lines)',
-                borderRadius: '30px',
-                padding: '0.625rem 1.25rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                color: 'var(--primary)',
-                transition: 'all 0.2s ease',
-                boxShadow: 'var(--card-shadow)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-              onMouseOver={(e) => { 
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; 
-                (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; 
-                (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow-hover)';
-              }}
-              onMouseOut={(e) => { 
-                (e.currentTarget as HTMLElement).style.transform = ''; 
-                (e.currentTarget as HTMLElement).style.borderColor = 'var(--lines)';
-                (e.currentTarget as HTMLElement).style.boxShadow = 'var(--card-shadow)';
-              }}
-            >
-              <MapPin size={14} style={{ color: 'var(--accent)' }} />
-              <span>{reg.name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* CÓMO FUNCIONA */}
-      <div className="alumnos-container" style={{ marginTop: '4rem', borderTop: '1px solid var(--lines)' }}>
-        <h2 style={{ fontSize: '1.75rem', color: 'var(--primary)', textAlign: 'center', margin: '4rem 0 2.5rem' }}>Cómo funciona la matriculación en Cursenda</h2>
-        <div className="features-grid">
-          <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <span className="step-number">1</span>
-            <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '1.125rem' }}>Encuentre su curso</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>Explore los cursos subvencionados de distintas especialidades oficiales del SEPE disponibles en su zona o en modalidad online.</p>
-          </div>
-          <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <span className="step-number">2</span>
-            <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '1.125rem' }}>Solicite su plaza gratis</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>Rellene el formulario de inscripción en menos de un minuto. No requerimos ningún método de pago: el curso está subvencionado al 100%.</p>
-          </div>
-          <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <span className="step-number">3</span>
-            <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '1.125rem' }}>Validación y Matrícula</h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>El centro de formación oficial se pondrá en contacto con usted en un plazo máximo de 24 horas para validar sus requisitos y formalizar la plaza.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SECCIÓN INFORMATIVA: FAQ Y REQUISITOS (2 COLUMNAS) */}
-      <div className="alumnos-container reveal" style={{ marginTop: '5rem', marginBottom: '3.5rem' }}>
-        <div className="info-requirements-grid">
-          {/* COLUMNA IZQUIERDA: FAQ */}
-          <div className="faq-column">
-            <h2 style={{ fontSize: '1.625rem', color: 'var(--primary)', marginBottom: '0.5rem', textAlign: 'left' }}>Preguntas Frecuentes</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '1.75rem', fontSize: '0.875rem', textAlign: 'left' }}>
-              Todo lo que necesita saber sobre la formación subvencionada
-            </p>
-            
-            {/* BUSCADOR DE FAQ */}
-            <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Buscar en preguntas frecuentes..."
-                value={faqSearch}
-                onChange={(e) => setFaqSearch(e.target.value)}
-                style={{ paddingLeft: '2.5rem', height: '40px', fontSize: '0.875rem' }}
-              />
-              <span style={{ position: 'absolute', top: '50%', left: '1rem', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-                <Search size={14} />
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {[
-                { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE (Servicio Público de Empleo Estatal) y los servicios autonómicos de empleo. No se requiere ningún pago ni dato bancario por parte del alumno.' },
-                { q: '¿Quién puede acceder a estos cursos?', a: 'Trabajadores en activo (cuenta ajena, autónomos, ERTE), desempleados inscritos como demandantes de empleo y colectivos prioritarios (jóvenes menores de 30, mayores de 45, mujeres, personas con discapacidad).' },
-                { q: '¿Los certificados tienen validez oficial?', a: 'Sí. Los cursos de Certificado de Profesionalidad están reconocidos oficialmente por el SEPE en todo el territorio nacional y acreditan competencias profesionales con plena validez laboral.' },
-                { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa en menos de 1 minuto. El centro de formación se pondrá en contacto con usted en un plazo máximo de 24 horas hábiles para confirmar su plaza y los requisitos documentales.' },
-                { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes a todos los cursos que le interesen. Cada centro gestionará de forma independiente su candidatura y le informará de la disponibilidad.' },
-              ].filter(faq => 
-                faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
-                faq.a.toLowerCase().includes(faqSearch.toLowerCase())
-              ).map((faq, i) => (
-                <div key={i} style={{ backgroundColor: 'var(--white)', border: '1px solid var(--lines)', borderRadius: '8px', overflow: 'hidden' }}>
-                  <button
-                    type="button"
-                    onClick={() => setAlumnoFaq(alumnoFaq === i ? -1 : i)}
-                    style={{ width: '100%', padding: '1.25rem 1.5rem', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', textAlign: 'left' }}
-                  >
-                    <span style={{ fontWeight: '600', fontSize: '0.9375rem', color: 'var(--primary)' }}>{faq.q}</span>
-                    <span style={{ fontSize: '1.25rem', color: 'var(--accent)', fontWeight: 'bold', flexShrink: 0, marginLeft: '1rem' }}>{alumnoFaq === i ? '−' : '+'}</span>
-                  </button>
-                  {alumnoFaq === i && (
-                    <div style={{ padding: '0 1.5rem 1.25rem', fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>{faq.a}</div>
-                  )}
-                </div>
-              ))}
-              {[
-                { q: '¿Realmente es gratis?', a: 'Sí. Los cursos están 100% financiados por fondos públicos del SEPE...' },
-                { q: '¿Quién puede acceder a estos cursos?', a: 'Trabajadores en activo...' },
-                { q: '¿Los certificados tienen validez oficial?', a: 'Sí...' },
-                { q: '¿Cuánto tarda el proceso de matrícula?', a: 'El formulario de solicitud se completa...' },
-                { q: '¿Puedo solicitar plaza en varios cursos a la vez?', a: 'Sí, puede enviar solicitudes...' },
-              ].filter(faq => 
-                faq.q.toLowerCase().includes(faqSearch.toLowerCase()) || 
-                faq.a.toLowerCase().includes(faqSearch.toLowerCase())
-              ).length === 0 && (
-                <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.875rem', border: '1px dashed var(--lines)', borderRadius: '8px' }}>
-                  No se encontraron preguntas frecuentes que coincidan con "{faqSearch}".
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* COLUMNA DERECHA: REQUISITOS GENERALES */}
-          <div className="requirements-column">
-            <div style={{ 
-              backgroundColor: 'var(--white)', 
-              border: '1px solid var(--lines)', 
-              padding: '2.25rem', 
-              borderRadius: '16px', 
-              boxShadow: 'var(--card-shadow)',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center'
-            }}>
-              <h3 style={{ fontSize: '1.25rem', color: 'var(--primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '800' }}>
-                <Shield size={20} style={{ color: 'var(--accent)' }} />
-                <span>Requisitos de Acceso</span>
-              </h3>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineHeight: '1.6', marginBottom: '1.5rem' }}>
-                Los cursos publicados están subvencionados al 100% por el SEPE. Para acceder, debe cumplir alguno de los siguientes requisitos en España:
-              </p>
-              <ul style={{ paddingLeft: '0', listStyle: 'none', fontSize: '0.875rem', color: 'var(--text)', display: 'flex', flexDirection: 'column', gap: '1.25rem', lineHeight: '1.5', margin: 0 }}>
-                <li style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                  <CheckCircle size={16} style={{ color: 'var(--success-text)', flexShrink: 0, marginTop: '2px' }} />
-                  <span><strong>Trabajadores en activo:</strong> Empleados de cualquier sector o autónomos. Financiado por Fundae.</span>
-                </li>
-                <li style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                  <CheckCircle size={16} style={{ color: 'var(--success-text)', flexShrink: 0, marginTop: '2px' }} />
-                  <span><strong>Desempleados:</strong> Inscritos oficialmente como demandantes de empleo (DARDE activa).</span>
-                </li>
-                <li style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                  <CheckCircle size={16} style={{ color: 'var(--success-text)', flexShrink: 0, marginTop: '2px' }} />
-                  <span><strong>Colectivos Prioritarios:</strong> Menores de 30 años, mayores de 45 años, mujeres y personas con discapacidad.</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* BANNER CENTROS */}
-      <div className="centros-cross-banner" style={{ marginTop: '4rem' }}>
-        <div className="centros-cross-content">
-          <h2 className="centros-cross-title">¿Representa a un centro de formación?</h2>
-          <p className="centros-cross-desc">Publique sus cursos subvencionados de forma totalmente gratuita y capte alumnos interesados en sus plazas libres.</p>
-          <Link to="/centros" className="btn btn-accent btn-sm">Más información y planes</Link>
-        </div>
-      </div>
-
-      {/* FOOTER */}
-      <footer className="landing-footer">
-        <div className="footer-content">
+      <section className="pub-academias">
+        <div className="pub-ancho">
           <div>
-            <Logo light={true} />
-            <p style={{ color: 'rgba(255, 255, 255, 0.65)', marginTop: '0.75rem', fontSize: '0.8125rem', lineHeight: '1.6', maxWidth: '340px' }}>
-              Portal independiente para la consulta de convocatorias oficiales de formación subvencionada 100% gratuita financiada por fondos públicos en España.
-            </p>
+            <h2>¿Tienes una academia?</h2>
+            <p>Publica tus cursos y recibe aquí a la gente que pide plaza, con su teléfono. El primer mes es gratis y luego cuesta desde 79 € al mes más IVA.</p>
+            <p className="pub-academias-enlaces"><Link to="/centros">Ver cómo funciona</Link><Link to="/centros/login">Entrar al panel</Link></p>
           </div>
-          <div style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.875rem' }}>
-            <strong style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--white)', letterSpacing: '0.03em' }}>Acceso Centros</strong>
-            <p style={{ margin: '0.35rem 0' }}><Link to="/centros" style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>Portal de Centros de Formación</Link></p>
-            <p style={{ margin: '0.35rem 0' }}><Link to="/centros/login" style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none' }}>Acceso a Gestión de Leads</Link></p>
-          </div>
-          <div style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.875rem' }}>
-            <strong style={{ display: 'block', marginBottom: '0.75rem', color: 'var(--white)', letterSpacing: '0.03em' }}>Atención al Usuario</strong>
-            <p style={{ margin: '0.35rem 0', color: 'rgba(255,255,255,0.6)' }}>Soporte: {DATOS_LEGALES.email}</p>
-            <p style={{ margin: '0.35rem 0', color: 'rgba(255,255,255,0.6)' }}>Horario: L-V 09:00 - 18:00h</p>
+          <div className="pub-ficha">
+            <span className="pub-ficha-ejemplo">Ejemplo de solicitud en el panel</span>
+            <strong>Lucía Navarro</strong> 600 100 205
+            <p>Creación y gestión de microempresas</p>
+            <p className="pub-ficha-nota">Le he enviado por WhatsApp la lista de documentos. Trae el DARDE el jueves.</p>
           </div>
         </div>
-        <div className="footer-bottom">
-          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)' }}>&copy; {new Date().getFullYear()} Cursenda • Buscador de formación subvencionada.</span>
-          <div className="footer-links">
-            <Link to="/legal/aviso-legal" className="footer-link">Aviso Legal</Link>
-            <Link to="/legal/privacidad" className="footer-link">Política de Privacidad</Link>
-            <Link to="/legal/cookies" className="footer-link">Política de Cookies</Link>
-          </div>
-        </div>
-      </footer>
-
-      {/* COMPARADOR: BARRA FLOTANTE */}
-      {compareList.length > 0 && (
-        <div className="compare-floating-bar" style={{
-          position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
-          backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '0.85rem 1.5rem',
-          borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '1.25rem',
-          boxShadow: '0 12px 40px rgba(8, 42, 36, 0.4)', zIndex: 9999,
-          border: '1px solid rgba(255,255,255,0.18)', width: 'max-content', maxWidth: '92%',
-          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-          animation: 'fadeInScale 0.3s ease-out', flexWrap: 'wrap', justifyContent: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <span style={{ backgroundColor: 'var(--accent)', color: 'var(--white)', borderRadius: '50%', width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.75rem' }}>
-              {compareList.length}
-            </span>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Cursos a comparar</span>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {compareList.map(c => (
-              <div key={c.id} style={{ fontSize: '0.75rem', backgroundColor: 'rgba(255,255,255,0.08)', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <span style={{ maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.titulo}</span>
-                <button 
-                  onClick={() => setCompareList(compareList.filter(item => item.id !== c.id))}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '0.875rem', display: 'inline-flex', padding: 0 }}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <button 
-              onClick={() => setCompareModalOpen(true)}
-              className="btn btn-accent btn-sm"
-              style={{ padding: '6px 16px', fontSize: '0.8125rem', borderRadius: '20px', fontWeight: 700 }}
-            >
-              Comparar ahora
-            </button>
-            <button 
-              onClick={() => setCompareList([])}
-              style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
-            >
-              Limpiar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* COMPARADOR: MODAL MATRIX */}
-      {compareModalOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
-          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 10000, padding: '1rem', animation: 'fadeIn 0.25s ease-out'
-        }}>
-          <div className="reveal-scale visible" style={{
-            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '880px',
-            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
-            overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh'
-          }}>
-            {/* Modal Header */}
-            <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
-              <div>
-                <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.25rem', fontWeight: 800 }}>Comparador de Cursos</h3>
-                <p style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Analice las diferencias cara a cara para elegir su plaza ideal</p>
-              </div>
-              <button 
-                onClick={() => setCompareModalOpen(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.5rem', cursor: 'pointer', display: 'inline-flex', padding: '0.5rem' }}
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Modal Body (Scrollable Table) */}
-            <div style={{ padding: '2rem', overflowX: 'auto', flexGrow: 1 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid var(--lines)' }}>
-                    <th style={{ padding: '1rem', width: '180px', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Característica</th>
-                    {compareList.map(c => (
-                      <th key={c.id} style={{ padding: '1rem', color: 'var(--primary)', fontSize: '0.9375rem', fontWeight: 700, verticalAlign: 'top' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>{c.categoria}</div>
-                        {c.titulo}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Centro Organizador</td>
-                    {compareList.map(c => (
-                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text)', fontWeight: 500 }}>{c.centro_nombre}</td>
-                    ))}
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Modalidad</td>
-                    {compareList.map(c => (
-                      <td key={c.id} style={{ padding: '1rem' }}>
-                        <span className="course-meta-tag" style={{ backgroundColor: 'var(--primary)', color: 'var(--white)', display: 'inline-block' }}>{c.modalidad}</span>
-                      </td>
-                    ))}
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Duración</td>
-                    {compareList.map(c => (
-                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text)', fontWeight: 600 }}>{c.duracion_horas} horas</td>
-                    ))}
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Localidad</td>
-                    {compareList.map(c => (
-                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text)' }}>{c.localidad}</td>
-                    ))}
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Dirigido a</td>
-                    {compareList.map(c => (
-                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{c.dirigido_a}</td>
-                    ))}
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                    <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Plazas Libres</td>
-                    {compareList.map(c => (
-                      <td key={c.id} style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--success-text)', fontWeight: 600 }}>
-                        {c.plazas - c.plazas_cubiertas} vacantes
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td style={{ padding: '1.5rem 1rem' }}></td>
-                    {compareList.map(c => (
-                      <td key={c.id} style={{ padding: '1.5rem 1rem' }}>
-                        <Link 
-                          to={`/curso/${c.id}`} 
-                          onClick={() => setCompareModalOpen(false)}
-                          className="btn btn-primary btn-sm" 
-                          style={{ width: '100%', textAlign: 'center' }}
-                        >
-                          Ver ficha y Matricularse
-                        </Link>
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* WIZARD RECOMENDADOR INTELIGENTE */}
-      {wizardOpen && (
-        <div style={{
-          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
-          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 10000, padding: '1rem', animation: 'fadeIn 0.25s ease-out'
-        }}>
-          <div className="reveal-scale visible" style={{
-            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '540px',
-            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
-            overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh'
-          }}>
-            {/* Modal Header */}
-            <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
-              <div>
-                <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800 }}>Recomendador Inteligente</h3>
-                <p style={{ margin: '0.125rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Paso {wizardStep} de 3</p>
-              </div>
-              <button 
-                onClick={() => setWizardOpen(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.375rem', cursor: 'pointer', display: 'inline-flex', padding: '0.25rem' }}
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ padding: '1.75rem', overflowY: 'auto' }}>
-              {/* STEP 1: CATEGORY */}
-              {wizardStep === 1 && (
-                <div>
-                  <h4 style={{ color: 'var(--primary)', margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 700 }}>1. ¿Qué área profesional te interesa aprender?</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {[
-                      { key: 'Informática', label: 'Informática y Tecnología (Web, Ciberseguridad...)', desc: 'Sectores con alta demanda y salarios competitivos' },
-                      { key: 'Sanidad', label: 'Sanidad y Cuidados (Auxiliar de Enfermería...)', desc: 'Empleabilidad del 95% en centros y residencias' },
-                      { key: 'Logística', label: 'Logística y Almacén (Gestión de Stock...)', desc: 'Clave para el comercio electrónico y distribución' },
-                      { key: 'Hostelería', label: 'Hostelería y Cocina (Sumillería, Sala...)', desc: 'Especializaciones en el principal motor turístico' },
-                      { key: 'Administración', label: 'Gestión y Administración (Microempresas...)', desc: 'Formación transversal útil para cualquier sector' }
-                    ].map(opt => (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => {
-                          setWizardAnswers({ ...wizardAnswers, categoria: opt.key });
-                          setWizardStep(2);
-                        }}
-                        style={{
-                          textAlign: 'left', padding: '1rem', border: '1px solid var(--lines)',
-                          borderRadius: '8px', cursor: 'pointer', backgroundColor: 'var(--white)',
-                          transition: 'all 0.2s ease', display: 'block', width: '100%'
-                        }}
-                        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.backgroundColor = 'var(--bg)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--lines)'; e.currentTarget.style.backgroundColor = 'var(--white)'; }}
-                      >
-                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem' }}>{opt.label}</strong>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* STEP 2: MODALITY */}
-              {wizardStep === 2 && (
-                <div>
-                  <h4 style={{ color: 'var(--primary)', margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 700 }}>2. ¿Qué modalidad de estudio prefieres?</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {[
-                      { key: 'Online', label: '100% Online', desc: 'Clases virtuales a tu ritmo desde cualquier lugar' },
-                      { key: 'Presencial', label: 'Presencial', desc: 'Clases y prácticas físicas en aula acreditada' },
-                      { key: 'Todas', label: 'Indiferente / Mixta', desc: 'Cualquier modalidad que tenga plazas libres rápidas' }
-                    ].map(opt => (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => {
-                          setWizardAnswers({ ...wizardAnswers, modalidad: opt.key });
-                          setWizardStep(3);
-                        }}
-                        style={{
-                          textAlign: 'left', padding: '1rem', border: '1px solid var(--lines)',
-                          borderRadius: '8px', cursor: 'pointer', backgroundColor: 'var(--white)',
-                          transition: 'all 0.2s ease', display: 'block', width: '100%'
-                        }}
-                        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.backgroundColor = 'var(--bg)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--lines)'; e.currentTarget.style.backgroundColor = 'var(--white)'; }}
-                      >
-                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem' }}>{opt.label}</strong>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setWizardStep(1)} 
-                    style={{ marginTop: '1.25rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
-                  >
-                    Volver atrás
-                  </button>
-                </div>
-              )}
-
-              {/* STEP 3: EMPLOYMENT STATUS */}
-              {wizardStep === 3 && (
-                <div>
-                  <h4 style={{ color: 'var(--primary)', margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 700 }}>3. ¿Cuál es su situación laboral actual?</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {[
-                      { key: 'desempleado', label: 'Desempleado / Demandante de empleo', desc: 'Acceso preferente en cursos del plan nacional de empleo' },
-                      { key: 'ocupado', label: 'Trabajador contratado o autónomo', desc: 'Formación de reciclaje compatible con horarios laborales' },
-                      { key: 'joven', label: 'Joven menor de 30 años', desc: 'Programas de inserción y de garantía juvenil del SEPE' }
-                    ].map(opt => (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => {
-                          setWizardAnswers({ ...wizardAnswers, situacion: opt.key });
-                          setWizardStep(4);
-                        }}
-                        style={{
-                          textAlign: 'left', padding: '1rem', border: '1px solid var(--lines)',
-                          borderRadius: '8px', cursor: 'pointer', backgroundColor: 'var(--white)',
-                          transition: 'all 0.2s ease', display: 'block', width: '100%'
-                        }}
-                        onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.backgroundColor = 'var(--bg)'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--lines)'; e.currentTarget.style.backgroundColor = 'var(--white)'; }}
-                      >
-                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem' }}>{opt.label}</strong>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => setWizardStep(2)} 
-                    style={{ marginTop: '1.25rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8125rem', textDecoration: 'underline' }}
-                  >
-                    Volver atrás
-                  </button>
-                </div>
-              )}
-
-              {/* STEP 4: RECOMMENDATIONS RESULTS */}
-              {wizardStep === 4 && (() => {
-                // Filter the real catalog
-                const sourceCursos = unfilteredCursos.length > 0 ? unfilteredCursos : cursos;
-                const filtered = sourceCursos.filter(c => {
-                  const matchCat = c.categoria === wizardAnswers.categoria;
-                  const matchMod = wizardAnswers.modalidad === 'Todas' || c.modalidad === wizardAnswers.modalidad;
-                  
-                  // Match situacion
-                  let matchSit = true;
-                  const sit = wizardAnswers.situacion;
-                  const dir = c.dirigido_a ? c.dirigido_a.toLowerCase() : '';
-                  if (sit === 'desempleado') {
-                    matchSit = dir.includes('desempleado') || dir.includes('todos') || dir.includes('cualquiera') || dir === '';
-                  } else if (sit === 'ocupado') {
-                    matchSit = dir.includes('ocupado') || dir.includes('todos') || dir.includes('cualquiera') || dir === '';
-                  } else if (sit === 'joven') {
-                    matchSit = dir.includes('joven') || dir.includes('todos') || dir.includes('desempleado') || dir.includes('cualquiera') || dir === '';
-                  }
-                  
-                  return matchCat && matchMod && matchSit;
-                });
-
-                return (
-                  <div>
-                    <h4 style={{ color: 'var(--primary)', margin: '0 0 0.5rem', fontSize: '1.1rem', fontWeight: 800 }}>¡Plazas recomendadas para ti!</h4>
-                    <p style={{ margin: '0 0 1.5rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                      Recomendaciones basadas en: {wizardAnswers.categoria} • {wizardAnswers.modalidad === 'Todas' ? 'Cualquier modalidad' : wizardAnswers.modalidad} • {wizardAnswers.situacion === 'desempleado' ? 'Desempleado' : wizardAnswers.situacion === 'ocupado' ? 'Trabajador' : 'Joven <30'}
-                    </p>
-
-                    {filtered.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                        {filtered.slice(0, 3).map(c => (
-                          <div key={c.id} style={{ padding: '1rem', border: '1px solid var(--lines)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', backgroundColor: 'var(--white)' }}>
-                            <div>
-                              <span className="course-meta-tag" style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '2px 8px', fontSize: '0.6875rem' }}>{c.modalidad}</span>
-                              <h5 style={{ margin: '0.375rem 0 0.125rem', fontSize: '0.875rem', color: 'var(--primary)', fontWeight: 700 }}>{c.titulo}</h5>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{c.centro_nombre} • {c.duracion_horas}h</span>
-                            </div>
-                            <Link 
-                              to={`/curso/${c.id}`}
-                              onClick={() => setWizardOpen(false)}
-                              className="btn btn-primary btn-sm"
-                              style={{ flexShrink: 0, padding: '6px 12px', fontSize: '0.75rem' }}
-                            >
-                              Ver Plaza
-                            </Link>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                        <HelpCircle size={28} style={{ color: 'var(--accent)', marginBottom: '0.5rem' }} />
-                        <strong style={{ color: 'var(--primary)', display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>No hay convocatorias directas en este momento</strong>
-                        <p style={{ margin: '0 0 1.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          No hay cursos activos de {wizardAnswers.categoria} en la modalidad elegida para tu perfil. Te sugerimos registrarte en la base general o ver otros cursos populares:
-                        </p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                          {sourceCursos.slice(0, 2).map(c => (
-                            <div key={c.id} style={{ padding: '0.75rem 1rem', border: '1px solid var(--lines)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(201,150,46,0.03)', textAlign: 'left' }}>
-                              <div>
-                                <h6 style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--primary)', fontWeight: 700 }}>{c.titulo}</h6>
-                                <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>{c.categoria} • {c.modalidad}</span>
-                              </div>
-                              <Link 
-                                to={`/curso/${c.id}`}
-                                onClick={() => setWizardOpen(false)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                              >
-                                Ver Curso
-                              </Link>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem', borderTop: '1px solid var(--lines)', paddingTop: '1.25rem' }}>
-                      <button 
-                        type="button"
-                        onClick={() => setWizardStep(1)} 
-                        className="btn btn-secondary" 
-                        style={{ flex: 1, padding: '8px', fontSize: '0.8125rem' }}
-                      >
-                        Reiniciar test
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setWizardOpen(false)} 
-                        className="btn btn-primary" 
-                        style={{ flex: 1, padding: '8px', fontSize: '0.8125rem' }}
-                      >
-                        Cerrar asistente
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
+      </section>
+      <PiePublico />
     </div>
   );
 }
 
-// --- PORTAL ALUMNOS: DETALLE ---
+const OPCIONES_SITUACION = [
+  { valor: 'Desempleados', texto: 'Estoy en paro' },
+  { valor: 'Ocupados', texto: 'Estoy trabajando' }
+];
+
+function AlumnosLista() {
+  useTitulo('Cursos gratis · Cursenda');
+  const { cursos, estado } = useCursosPublicos();
+  const [params, setParams] = useSearchParams();
+  const [modalidades, setModalidades] = useState<string[]>([]);
+  const [situaciones, setSituaciones] = useState<string[]>([]);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const busqueda = params.get('q') || '';
+  const categoria = params.get('categoria') || '';
+
+  const cambiarParam = (nombre: string, valor: string) => {
+    const nuevos = new URLSearchParams(params);
+    if (valor) nuevos.set(nombre, valor); else nuevos.delete(nombre);
+    setParams(nuevos, { replace: true });
+  };
+  const alternar = (lista: string[], valor: string) => lista.includes(valor) ? lista.filter(v => v !== valor) : [...lista, valor];
+
+  // Solo se ofrecen los filtros que dan algún resultado
+  const categorias = [...new Set(cursos.map(c => c.categoria))].sort();
+  const modalidadesDisponibles = ['Presencial', 'Online', 'Mixta'].filter(m => cursos.some(c => c.modalidad === m));
+  const hayCursosPorSituacion = cursos.some(c => c.dirigido_a !== 'Todos');
+
+  // Busca igual con tilde o sin ella
+  const normalizar = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const texto = normalizar(busqueda.trim());
+  const filtrados = cursos.filter(c =>
+    (!categoria || c.categoria === categoria) &&
+    (!modalidades.length || modalidades.includes(c.modalidad)) &&
+    (!situaciones.length || c.dirigido_a === 'Todos' || situaciones.includes(c.dirigido_a)) &&
+    (!texto || [c.titulo, c.localidad, c.categoria, c.centro_nombre, c.descripcion].some(v => normalizar(v).includes(texto)))
+  );
+
+  const grupos: { titulo: string; cursos: any[] }[] = [];
+  ordenarPorInicio(filtrados).forEach(curso => {
+    const titulo = inicioDe(curso).grupo;
+    const grupo = grupos.find(g => g.titulo === titulo);
+    if (grupo) grupo.cursos.push(curso); else grupos.push({ titulo, cursos: [curso] });
+  });
+
+  const hayFiltros = !!(texto || categoria || modalidades.length || situaciones.length);
+  const quitarFiltros = () => { setParams({}, { replace: true }); setModalidades([]); setSituaciones([]); };
+
+  return (
+    <div className="pub">
+      <div className="pub-arriba">
+        <CabeceraPublica />
+        <div className="pub-ancho pub-lista-cabeza">
+          <h1>Todos los cursos</h1>
+          <div className="pub-buscador">
+            <input aria-label="Qué quieres estudiar" placeholder="Qué quieres estudiar" value={busqueda} onChange={(e) => cambiarParam('q', e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      <div className="pub-ancho">
+        {categorias.length > 1 && (
+          <div className="pub-oficios" role="group" aria-label="Filtrar por oficio">
+            {categorias.map(c => (
+              <button key={c} type="button" className="pub-oficio" aria-pressed={categoria === c} onClick={() => cambiarParam('categoria', categoria === c ? '' : c)}>
+                <img src={getCourseImage(c)} alt="" style={{ objectPosition: FOCO_CATEGORIA[c] }} />
+                <span>{c}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="pub-lista">
+          <aside className="pub-filtros">
+            <button type="button" className="pub-filtros-boton" aria-expanded={filtrosAbiertos} onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}>
+              {filtrosAbiertos ? 'Ocultar filtros' : 'Filtrar por modalidad y situación'}
+            </button>
+            <div className={filtrosAbiertos ? 'abiertos' : ''}>
+              {modalidadesDisponibles.length > 1 && (
+                <fieldset>
+                  <legend>Cómo es el curso</legend>
+                  {modalidadesDisponibles.map(m => (
+                    <label key={m}><input type="checkbox" checked={modalidades.includes(m)} onChange={() => setModalidades(alternar(modalidades, m))} />{m === 'Mixta' ? 'Mixto' : m}</label>
+                  ))}
+                </fieldset>
+              )}
+              {hayCursosPorSituacion && (
+                <fieldset>
+                  <legend>Tu situación</legend>
+                  {OPCIONES_SITUACION.map(o => (
+                    <label key={o.valor}><input type="checkbox" checked={situaciones.includes(o.valor)} onChange={() => setSituaciones(alternar(situaciones, o.valor))} />{o.texto}</label>
+                  ))}
+                </fieldset>
+              )}
+            </div>
+          </aside>
+
+          <main>
+            {estado !== 'listo' || cursos.length === 0 ? <AvisoCursos estado={estado} /> : (
+              <>
+                <p className="pub-resumen">
+                  <span>{filtrados.length === 1 ? '1 curso' : `${filtrados.length} cursos`}</span>
+                  {hayFiltros && <button type="button" className="pub-enlace" onClick={quitarFiltros}>Quitar filtros</button>}
+                </p>
+                {grupos.map(grupo => (
+                  <section key={grupo.titulo}>
+                    <h2 className="pub-titulo">{grupo.titulo}</h2>
+                    {grupo.cursos.map(curso => <FilaCurso key={curso.id} curso={curso} />)}
+                  </section>
+                ))}
+                {filtrados.length === 0 && (
+                  <p className="pub-aviso">No hay cursos con esos filtros. <button type="button" className="pub-enlace" onClick={quitarFiltros}>Quítalos para ver todos</button></p>
+                )}
+              </>
+            )}
+          </main>
+        </div>
+      </div>
+      <PiePublico />
+    </div>
+  );
+}
+
 function AlumnosDetalle() {
   const { id } = useParams();
   const [curso, setCurso] = useState<any>(null);
-  useTitulo(curso ? `${curso.titulo} · Cursenda` : null);
+  useTitulo(curso ? `${tituloSinCodigo(curso.titulo)} · Cursenda` : null);
   const [loading, setLoading] = useState(true);
-  
-  // Formulario de solicitud
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
   const [rgpd, setRgpd] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [enviando, setEnviando] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [eligibilityCheck, setEligibilityCheck] = useState({ sepe: false, region: false, level: false });
 
-  const fetchCurso = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/public/cursos/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCurso(data);
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/public/cursos/${id}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(datos => {
+        setCurso(datos);
         // Registrar visita
-        fetch(`${API_BASE}/public/cursos/${id}/visita`, { method: 'POST' });
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCurso();
+        if (datos) fetch(`${API_BASE}/public/cursos/${id}/visita`, { method: 'POST' });
+      })
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
   }, [id]);
-
-  useEffect(() => {
-    if (!curso) return;
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-        }
-      });
-    }, { threshold: 0.05 });
-
-    const elements = document.querySelectorAll('.reveal, .reveal-scale, .reveal-left');
-    elements.forEach(el => observer.observe(el));
-
-    return () => {
-      elements.forEach(el => observer.unobserve(el));
-      observer.disconnect();
-    };
-  }, [curso]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError('');
-
-    if (!nombre.trim() || !email.trim() || !telefono.trim()) {
-      setSubmitError('Por favor, rellene todos los campos requeridos');
-      return;
-    }
-
-    if (!rgpd) {
-      setSubmitError('Debe aceptar la política de privacidad y protección de datos');
-      return;
-    }
-
+    setEnviando(true);
     try {
       const res = await fetch(`${API_BASE}/public/solicitudes`, {
         method: 'POST',
@@ -1491,241 +465,100 @@ function AlumnosDetalle() {
         body: JSON.stringify({ curso_id: id, nombre, email, telefono, rgpd })
       });
       const data = await res.json();
-
-      if (res.ok) {
-        setSubmitSuccess(true);
-      } else {
-        setSubmitError(data.error || 'Error al enviar la solicitud');
-      }
+      if (res.ok) setSubmitSuccess(true);
+      else setSubmitError(data.error || 'No se ha podido enviar la solicitud.');
     } catch (err) {
-      setSubmitError('Error de red. Inténtelo de nuevo.');
+      setSubmitError('No se ha podido enviar. Comprueba tu conexión y vuelve a intentarlo.');
+    } finally {
+      setEnviando(false);
     }
   };
 
-  if (loading) return <div style={{ textAlign: 'center', padding: '5rem' }}>Cargando detalles del curso...</div>;
+  if (loading) return <div className="pub"><div className="pub-arriba"><CabeceraPublica /></div><p className="pub-aviso pub-ancho">Cargando el curso...</p></div>;
   if (!curso) return <NoEncontrada />;
 
-  const plazasPct = Math.min(100, Math.round((curso.plazas_cubiertas / curso.plazas) * 100));
+  const codigo = codigoCertificado(curso.titulo);
+  const libres = plazasLibres(curso);
+  const localidadMapa = cleanLocalidad(curso.localidad);
+  const dirigidoA: Record<string, string> = { Desempleados: 'Personas en paro', Ocupados: 'Personas que trabajan', Todos: 'Personas en paro o que trabajan' };
 
   return (
-    <div>
-      <header className="alumnos-header">
-        <Logo />
-        <Link to="/" className="btn btn-secondary btn-sm">← Volver al buscador</Link>
-      </header>
-
-      <div className="alumnos-container">
-        <div className="detail-breadcrumbs" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-          <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Inicio</Link>
-          <span style={{ opacity: 0.5 }}>/</span>
-          <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Catálogo de Cursos</Link>
-          <span style={{ opacity: 0.5 }}>/</span>
-          <span>{curso.categoria}</span>
-          <span style={{ opacity: 0.5 }}>/</span>
-          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{curso.titulo}</span>
+    <div className="pub">
+      <div className="pub-arriba"><CabeceraPublica /></div>
+      <section className="pub-curso-portada">
+        <img src={getCourseImage(curso.categoria)} alt="" style={{ objectPosition: FOCO_CATEGORIA[curso.categoria] }} />
+        <div className="pub-ancho">
+          <Link to="/cursos" className="pub-volver">Volver a los cursos</Link>
+          <h1>{tituloSinCodigo(curso.titulo)}</h1>
+          <p>{codigo ? `Certificado de profesionalidad ${codigo}. ` : ''}Lo imparte {curso.centro_nombre}.</p>
         </div>
+      </section>
 
-        <div className="course-detail-layout">
-          <div className="course-detail-main reveal" style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="course-detail-banner" style={{ height: '260px', width: '100%', overflow: 'hidden', position: 'relative' }}>
-              <img 
-                src={getCourseImage(curso.categoria)} 
-                alt={curso.titulo} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              />
-              <div style={{ position: 'absolute', top: '1.25rem', left: '1.25rem', zIndex: 5, display: 'flex', gap: '0.5rem' }}>
-                <span className="course-meta-tag category-tag">{curso.categoria}</span>
-                <span className="course-meta-tag modality-tag">{curso.modalidad}</span>
-              </div>
-            </div>
+      <div className="pub-ancho">
+        <dl className="pub-datos">
+          <div><dt>Empieza</dt><dd>{curso.fecha_inicio}</dd></div>
+          <div><dt>Duración</dt><dd>{curso.duracion_horas} horas</dd></div>
+          <div><dt>Modalidad</dt><dd>{textoModalidad(curso)}</dd></div>
+          <div><dt>Plazas libres</dt><dd>{libres} de {curso.plazas}</dd></div>
+          <div><dt>Para</dt><dd>{dirigidoA[curso.dirigido_a] || curso.dirigido_a}</dd></div>
+        </dl>
 
-            <div className="course-detail-body">
-              <h1 className="course-detail-title" style={{ marginTop: 0 }}>{curso.titulo}</h1>
-              <div style={{ color: 'var(--text-muted)', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.875rem' }}>
-                <Building2 size={15} style={{ color: 'var(--accent)' }} />
-                <span>Impartido por: <strong style={{ color: 'var(--primary)' }}>{curso.centro_nombre}</strong></span>
-              </div>
-
-            <div className="course-detail-meta">
-              <div className="course-detail-meta-item">
-                <span className="course-detail-meta-label">Localidad</span>
-                <span className="course-detail-meta-value">{curso.localidad}</span>
-              </div>
-              <div className="course-detail-meta-item">
-                <span className="course-detail-meta-label">Duración</span>
-                <span className="course-detail-meta-value">{curso.duracion_horas} horas</span>
-              </div>
-              <div className="course-detail-meta-item">
-                <span className="course-detail-meta-label">Dirigido a</span>
-                <span className="course-detail-meta-value">{curso.dirigido_a}</span>
-              </div>
-            </div>
-
-            <div className="course-detail-description">
-              <h3>Descripción del curso</h3>
-              <p>{curso.descripcion}</p>
-            </div>
-
-            {/* COMPROBADOR INTERACTIVO DE REQUISITOS */}
-            <div style={{
-              marginTop: '2.5rem', padding: '1.75rem', backgroundColor: 'var(--bg)',
-              border: '1px solid var(--lines)', borderRadius: '12px',
-            }}>
-              <h4 style={{ margin: '0 0 0.5rem', color: 'var(--primary)', fontSize: '1.05rem', fontWeight: 700 }}>
-                ¿Cumplo los requisitos de acceso gratuito?
-              </h4>
-              <p style={{ margin: '0 0 1.25rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-                Verifique su perfil para confirmar que es elegible para esta plaza 100% subvencionada.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text)' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={eligibilityCheck.sepe} 
-                    onChange={(e) => setEligibilityCheck({ ...eligibilityCheck, sepe: e.target.checked })}
-                    style={{ marginTop: '3px' }}
-                  />
-                  <span>Soy trabajador en activo, autónomo o desempleado inscrito como demandante de empleo.</span>
-                </label>
-
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text)' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={eligibilityCheck.region} 
-                    onChange={(e) => setEligibilityCheck({ ...eligibilityCheck, region: e.target.checked })}
-                    style={{ marginTop: '3px' }}
-                  />
-                  <span>Resido en España (para modalidad Online) o en la provincia del centro (para modalidad Presencial/Mixta).</span>
-                </label>
-
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem', fontSize: '0.875rem', cursor: 'pointer', color: 'var(--text)' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={eligibilityCheck.level} 
-                    onChange={(e) => setEligibilityCheck({ ...eligibilityCheck, level: e.target.checked })}
-                    style={{ marginTop: '3px' }}
-                  />
-                  <span>Poseo el nivel mínimo de estudios/competencias requerido para este tipo de curso.</span>
-                </label>
-              </div>
-
-              {(eligibilityCheck.sepe && eligibilityCheck.region && eligibilityCheck.level) ? (
-                <div className="alert-box alert-success" style={{ padding: '0.875rem 1rem', marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem' }}>
-                  <Check size={16} />
-                  <span><strong>¡Apto para Subvención!</strong> Cumple los requisitos generales. Puede solicitar su plaza con total garantía.</span>
-                </div>
-              ) : (
-                <div className="alert-box alert-warning" style={{ padding: '0.875rem 1rem', marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', backgroundColor: 'var(--warning-bg)', color: 'var(--warning-text)', border: '1px solid var(--warning-border)', borderRadius: '6px' }}>
-                  <span>Marque las tres casillas para validar su perfil y confirmar su aptitud.</span>
-                </div>
-              )}
-            </div>
-
-            {/* MAPA DE UBICACIÓN / COBERTURA */}
-            <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--lines)', paddingTop: '2rem' }}>
-              <h4 style={{ color: 'var(--primary)', marginBottom: '1rem', fontSize: '1.1rem', fontWeight: 700 }}>
-                Ubicación y Cobertura
-              </h4>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                {curso.modalidad === 'Online' 
-                  ? 'Este curso se imparte en modalidad 100% online, disponible para residentes de cualquier localidad en España.'
-                  : `Este curso se imparte en modalidad ${curso.modalidad.toLowerCase()} con sede física en la localidad de ${curso.localidad}.`
-                }
-              </p>
-              <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--lines)', height: '280px', width: '100%', boxShadow: 'var(--card-shadow)' }}>
-                <MapaGoogle titulo="Mapa de ubicación" src={`https://maps.google.com/maps?q=${encodeURIComponent(curso.modalidad === 'Online' ? 'España' : (curso.centro_nombre || 'Academia') + ', ' + cleanLocalidad(curso.localidad) + ', España')}&t=&z=${curso.modalidad === 'Online' ? 5 : 16}&ie=UTF8&iwloc=&output=embed`} />
-              </div>
-            </div>
-          </div>
-        </div>
-
+        <div className="pub-detalle">
           <div>
-            <div className="course-sidebar-card reveal stagger-1">
-              <h3 className="course-sidebar-title">Pida su plaza gratis</h3>
-              <p className="course-sidebar-subtitle">Complete el formulario y el centro de formación contactará con usted para confirmar la plaza.</p>
-
-              {submitSuccess ? (
-                <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                  <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
-                  <h4 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>¡Solicitud Recibida!</h4>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>El centro de formación se pondrá en contacto con usted en un plazo máximo de 24 horas.</p>
+            <section>
+              <h2>De qué trata</h2>
+              <p>{curso.descripcion}</p>
+            </section>
+            <section>
+              <h2>Qué pasa cuando pides plaza</h2>
+              <p>{curso.centro_nombre} recibe tus datos y te llama. Con esa llamada te confirma si cumples los requisitos del curso y qué documentos necesitas.</p>
+            </section>
+            {curso.modalidad !== 'Online' && (
+              <section>
+                <h2>Dónde es</h2>
+                <div className="pub-mapa">
+                  <MapaGoogle titulo="Mapa de ubicación" src={`https://maps.google.com/maps?q=${encodeURIComponent(`${curso.centro_nombre || 'Academia'}, ${localidadMapa}, España`)}&t=&z=16&ie=UTF8&iwloc=&output=embed`} />
                 </div>
-              ) : (
-                <form onSubmit={handleSubmit}>
-                  {submitError && (
-                    <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
-                      {submitError}
-                    </div>
-                  )}
-
-                  <div className="form-group">
-                    <label className="form-label">Nombre completo</label>
-                    <input 
-                      type="text" 
-                      className="form-control" 
-                      placeholder="Ej: María García López"
-                      value={nombre}
-                      onChange={(e) => setNombre(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Correo electrónico</label>
-                    <input 
-                      type="email" 
-                      className="form-control" 
-                      placeholder="Ej: maria@correo.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Teléfono de contacto</label>
-                    <input 
-                      type="tel" 
-                      className="form-control" 
-                      placeholder="Ej: 600123456"
-                      value={telefono}
-                      onChange={(e) => setTelefono(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <div className="plazas-container" style={{ margin: '1rem 0 1.5rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span className="plazas-text">Plazas cubiertas:</span>
-                        <span className="plazas-text"><strong>{curso.plazas_cubiertas}</strong> de <strong>{curso.plazas}</strong></span>
-                      </div>
-                      <div className="plazas-bar-bg">
-                        <div 
-                          className={`plazas-bar-fill ${plazasPct === 100 ? 'full' : ''}`} 
-                          style={{ width: `${plazasPct}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-checkbox-container" style={{ marginBottom: '1.5rem' }}>
-                    <input 
-                      type="checkbox" 
-                      id="rgpd"
-                      checked={rgpd}
-                      onChange={(e) => setRgpd(e.target.checked)}
-                    />
-                    <label htmlFor="rgpd" className="form-checkbox-label">
-                      Acepto que mis datos de contacto se entreguen al centro de formación organizador para la gestión y tramitación de mi matrícula gratuita (<Link to="/legal/privacidad" target="_blank">política de privacidad</Link>).
-                    </label>
-                  </div>
-
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Pida su plaza gratis</button>
-                </form>
-              )}
-            </div>
+              </section>
+            )}
           </div>
+
+          <aside className="pub-pedir" id="pedir">
+            {submitSuccess ? (
+              <div className="pub-gracias">
+                <h2>Solicitud enviada</h2>
+                <p>{curso.centro_nombre} ya tiene tus datos y te llamará al {telefono}.</p>
+                <p><Link to="/cursos">Ver más cursos</Link></p>
+              </div>
+            ) : libres === 0 ? (
+              <div>
+                <h2>Sin plazas libres</h2>
+                <p>Este curso ya no tiene plazas libres.</p>
+                <p><Link to={`/cursos?categoria=${encodeURIComponent(curso.categoria)}`}>Ver otros cursos de {curso.categoria}</Link></p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                <h2>Pide tu plaza</h2>
+                <p>El curso es gratis y pedir plaza no te compromete a nada.</p>
+                {submitError && <p className="pub-error" role="alert">{submitError}</p>}
+                <label>Nombre y apellidos<input required autoComplete="name" value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
+                <label>Teléfono<input required type="tel" autoComplete="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
+                <label>Correo<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+                <label className="pub-rgpd">
+                  <input required type="checkbox" checked={rgpd} onChange={(e) => setRgpd(e.target.checked)} />
+                  <span>Acepto que mis datos se entreguen a {curso.centro_nombre} para gestionar mi plaza (<Link to="/legal/privacidad" target="_blank">política de privacidad</Link>).</span>
+                </label>
+                <button type="submit" className="pub-boton pub-boton-pedir" disabled={enviando}>{enviando ? 'Enviando...' : 'Pedir plaza'}</button>
+              </form>
+            )}
+          </aside>
         </div>
       </div>
+
+      {!submitSuccess && libres > 0 && (
+        <div className="pub-barra-movil"><span>{textoPlazas(curso)}</span><a href="#pedir" className="pub-boton pub-boton-pedir">Pedir plaza</a></div>
+      )}
+      <PiePublico />
     </div>
   );
 }
@@ -6034,6 +4867,7 @@ function App() {
       <Routes>
         {/* Alumnos */}
         <Route path="/" element={<AlumnosHome />} />
+        <Route path="/cursos" element={<AlumnosLista />} />
         <Route path="/curso/:id" element={<AlumnosDetalle />} />
 
         {/* Centros */}
