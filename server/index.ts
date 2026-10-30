@@ -585,6 +585,16 @@ app.get('/api/cursos', authenticateToken, async (req: any, res) => {
 });
 
 // Crear curso
+// El plan Starter permite 5 cursos activos a la vez. Pausar siempre se puede.
+const LIMITE_CURSOS_STARTER = 5;
+const AVISO_LIMITE_CURSOS = `El plan Starter permite ${LIMITE_CURSOS_STARTER} cursos activos a la vez. Pause uno o cambie al plan Pro.`;
+
+async function superaLimiteCursos(db: any, centro: any) {
+  if (centro.plan !== 'starter' || centro.rol === 'admin') return false;
+  const { total } = await db.get(`SELECT COUNT(*) as total FROM cursos WHERE centro_id = ? AND estado = 'publicado'`, [centro.id]);
+  return total >= LIMITE_CURSOS_STARTER;
+}
+
 app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const { titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion } = req.body;
 
@@ -602,6 +612,10 @@ app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (r
 
   try {
     const db = await getDatabase();
+    if (await superaLimiteCursos(db, req.centro)) {
+      return res.status(403).json({ error: AVISO_LIMITE_CURSOS });
+    }
+
     const result = await db.run(`
       INSERT INTO cursos (centro_id, titulo, categoria, modalidad, localidad, duracion_horas, plazas, plazas_cubiertas, fecha_inicio, dirigido_a, descripcion)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -688,6 +702,9 @@ app.post('/api/cursos/:id/toggle-estado', authenticateToken, puedeEditar, requie
     }
 
     const nuevoEstado = curso.estado === 'publicado' ? 'pausado' : 'publicado';
+    if (nuevoEstado === 'publicado' && await superaLimiteCursos(db, req.centro)) {
+      return res.status(403).json({ error: AVISO_LIMITE_CURSOS });
+    }
     await db.run('UPDATE cursos SET estado = ? WHERE id = ?', [nuevoEstado, id]);
 
     res.json({ success: true, estado: nuevoEstado });

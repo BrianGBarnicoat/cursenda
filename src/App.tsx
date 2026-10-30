@@ -2881,6 +2881,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       const res = await fetch(`${API_BASE}/cursos/${id}/toggle-estado`, { method: 'POST' });
       if (res.ok) {
         loadCursos();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'No se ha podido cambiar el estado del curso.');
       }
     } catch (err) {
       console.error(err);
