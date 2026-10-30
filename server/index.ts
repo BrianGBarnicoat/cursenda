@@ -554,7 +554,7 @@ app.post('/api/public/cursos/:id/visita', async (req, res) => {
 });
 
 // Obtener cursos del centro autenticado
-app.get('/api/cursos', authenticateToken, async (req: any, res) => {
+app.get('/api/cursos', authenticateToken, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const list = await db.all('SELECT * FROM cursos WHERE centro_id = ? ORDER BY id DESC', [req.centro.id]);
@@ -956,7 +956,7 @@ app.get('/api/solicitudes/export', authenticateToken, puedeEditar, requiereAcces
 
 // --- Endpoints de Estadísticas ---
 
-app.get('/api/estadisticas', authenticateToken, async (req: any, res) => {
+app.get('/api/estadisticas', authenticateToken, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     
@@ -1096,7 +1096,7 @@ app.get('/api/facturas', authenticateToken, soloPropietario, async (req: any, re
 // --- Endpoints de Configuración de API y Webhooks ---
 
 // Obtener configuración de API y Webhook
-app.get('/api/centro/api-settings', authenticateToken, soloPropietario, async (req: any, res) => {
+app.get('/api/centro/api-settings', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const row = await db.get('SELECT api_token, webhook_url FROM centros WHERE id = ?', [req.centro.id]);
@@ -1110,7 +1110,7 @@ app.get('/api/centro/api-settings', authenticateToken, soloPropietario, async (r
 });
 
 // Regenerar clave API
-app.post('/api/centro/api-settings/regenerate', authenticateToken, soloPropietario, async (req: any, res) => {
+app.post('/api/centro/api-settings/regenerate', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   const nuevoToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
   try {
     const db = await getDatabase();
@@ -1122,7 +1122,7 @@ app.post('/api/centro/api-settings/regenerate', authenticateToken, soloPropietar
 });
 
 // Guardar webhook
-app.post('/api/centro/api-settings/webhook', authenticateToken, soloPropietario, async (req: any, res) => {
+app.post('/api/centro/api-settings/webhook', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   const { webhook_url } = req.body;
   if (webhook_url && !(await isSafeWebhookUrl(webhook_url))) {
     return res.status(400).json({ error: 'La URL del webhook debe ser HTTPS y apuntar a un servidor público' });
@@ -1137,7 +1137,7 @@ app.post('/api/centro/api-settings/webhook', authenticateToken, soloPropietario,
 });
 
 // Datos del centro (pestaña Configuración)
-app.put('/api/centro/perfil', authenticateToken, soloPropietario, async (req: any, res) => {
+app.put('/api/centro/perfil', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   const limpio = (v: any, max = 200) => String(v ?? '').trim().slice(0, max);
   const nombre = limpio(req.body?.nombre);
   if (!nombre) return res.status(400).json({ error: 'El nombre del centro es obligatorio' });
@@ -1162,7 +1162,7 @@ app.put('/api/centro/perfil', authenticateToken, soloPropietario, async (req: an
 
 const ROLES_MIEMBRO = ['gestor', 'colaborador'];
 
-app.get('/api/equipo', authenticateToken, soloPropietario, async (req: any, res) => {
+app.get('/api/equipo', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const miembros = await db.all(`
@@ -1209,7 +1209,7 @@ app.post('/api/equipo', authenticateToken, soloPropietario, requiereAcceso, asyn
 });
 
 // Cambiar rol o activar/desactivar
-app.put('/api/equipo/:id', authenticateToken, soloPropietario, async (req: any, res) => {
+app.put('/api/equipo/:id', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   const { rol, activo } = req.body || {};
   if (rol !== undefined && !ROLES_MIEMBRO.includes(rol)) {
     return res.status(400).json({ error: 'Rol no válido' });
@@ -1231,7 +1231,7 @@ app.put('/api/equipo/:id', authenticateToken, soloPropietario, async (req: any, 
   }
 });
 
-app.delete('/api/equipo/:id', authenticateToken, soloPropietario, async (req: any, res) => {
+app.delete('/api/equipo/:id', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const result = await db.run('DELETE FROM miembros WHERE id = ? AND centro_id = ?', [req.params.id, req.centro.id]);
@@ -1244,7 +1244,7 @@ app.delete('/api/equipo/:id', authenticateToken, soloPropietario, async (req: an
 });
 
 // Enlace para que un miembro ponga contraseña nueva
-app.post('/api/equipo/:id/enlace-recuperacion', authenticateToken, soloPropietario, async (req: any, res) => {
+app.post('/api/equipo/:id/enlace-recuperacion', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     const miembro = await db.get('SELECT id FROM miembros WHERE id = ? AND centro_id = ? AND password_hash IS NOT NULL', [req.params.id, req.centro.id]);
@@ -1263,7 +1263,7 @@ const PLANTILLAS_INICIALES = [
   { titulo: 'Convocatoria de inicio (WhatsApp)', tipo: 'whatsapp', texto: '¡Buenas noticias [Nombre]! Tu plaza para el curso "[Curso]" ha sido confirmada. Empezamos el próximo [Fecha] a las 09:00. Por favor, confirma tu asistencia respondiendo a este mensaje.' }
 ];
 
-app.get('/api/plantillas', authenticateToken, async (req: any, res) => {
+app.get('/api/plantillas', authenticateToken, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
     let lista = await db.all('SELECT * FROM plantillas WHERE centro_id = ? ORDER BY id', [req.centro.id]);

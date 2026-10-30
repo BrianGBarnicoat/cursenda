@@ -1007,7 +1007,7 @@ const DATOS_LEGALES = {
   titular: '',
   nif: '',
   domicilio: '',
-  email: 'info@cursenda.es',
+  email: 'brian@gbarnicoat.uk',
   dominio: 'gbarnicoat.uk',
   actualizado: '29 de octubre de 2026'
 };
@@ -1359,11 +1359,10 @@ function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { u
         <span style={{ flex: 1 }}>
           <strong>Su periodo de prueba ha terminado.</strong>{' '}
           {esPropietario
-            ? 'Sus cursos no se muestran en la web y no puede ver las solicitudes hasta que active su suscripción.'
+            ? 'Sus cursos no se muestran en la web y el panel queda bloqueado hasta que active su suscripción. Sus datos siguen guardados.'
             : 'Pida al responsable del centro que active la suscripción para seguir usando Cursenda.'}
         </span>
-        {esPropietario && !enPlan && <button type="button" className="btn btn-primary btn-sm" onClick={onIrAPlan}>Activar suscripción</button>}
-      </div>
+              </div>
     );
   }
 
@@ -2458,7 +2457,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     return <DashboardAdmin user={user} onLogout={onLogout} />;
   }
 
-  const [tab, setTab] = useState<'cursos' | 'solicitudes' | 'stats' | 'plan' | 'plantillas' | 'personal' | 'integraciones' | 'configuracion'>('cursos');
+  const [tabElegida, setTab] = useState<'cursos' | 'solicitudes' | 'stats' | 'plan' | 'plantillas' | 'personal' | 'integraciones' | 'configuracion'>('cursos');
+  // Sin suscripción ni prueba, lo único que queda abierto es la pantalla de pago
+  const bloqueado = !user?.acceso;
+  const tab: string = bloqueado ? (!user?.usuario?.rol || user.usuario.rol === 'propietario' ? 'plan' : 'ninguna') : tabElegida;
   const [cursos, setCursos] = useState<any[]>([]);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -2481,9 +2483,11 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   const rolUsuario: 'propietario' | 'gestor' | 'colaborador' = user?.usuario?.rol || 'propietario';
   const esPropietario = rolUsuario === 'propietario';
   const puedeEditar = rolUsuario !== 'colaborador';
-  const tabsPermitidas = esPropietario
-    ? ['cursos', 'solicitudes', 'plantillas', 'stats', 'plan', 'personal', 'integraciones', 'configuracion']
-    : ['cursos', 'solicitudes', 'plantillas', 'stats'];
+  const tabsPermitidas = bloqueado
+    ? (esPropietario ? ['plan'] : [])
+    : esPropietario
+      ? ['cursos', 'solicitudes', 'plantillas', 'stats', 'plan', 'personal', 'integraciones', 'configuracion']
+      : ['cursos', 'solicitudes', 'plantillas', 'stats'];
 
   // Plantillas de mensajes (guardadas en el servidor)
   const [templates, setTemplates] = useState<any[]>([]);
@@ -3108,12 +3112,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         <div>
           <Logo />
           <ul className="nav-menu">
+            {tabsPermitidas.includes('cursos') && (
             <li className={`nav-item ${tab === 'cursos' ? 'active' : ''}`}>
               <button onClick={() => setTab('cursos')}>
                 <BookOpen size={18} />
                 <span>Mis cursos</span>
               </button>
             </li>
+            )}
+            {tabsPermitidas.includes('solicitudes') && (
             <li className={`nav-item ${tab === 'solicitudes' ? 'active' : ''}`}>
               <button onClick={() => setTab('solicitudes')}>
                 <Users size={18} />
@@ -3121,18 +3128,23 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 {countNuevas > 0 && <span className="nav-badge">{countNuevas}</span>}
               </button>
             </li>
+            )}
+            {tabsPermitidas.includes('plantillas') && (
             <li className={`nav-item ${tab === 'plantillas' ? 'active' : ''}`}>
               <button onClick={() => setTab('plantillas')}>
                 <MessageSquare size={18} />
                 <span>Plantillas</span>
               </button>
             </li>
+            )}
+            {tabsPermitidas.includes('stats') && (
             <li className={`nav-item ${tab === 'stats' ? 'active' : ''}`}>
               <button onClick={() => setTab('stats')}>
                 <BarChart3 size={18} />
                 <span>Estadísticas</span>
               </button>
             </li>
+            )}
             {tabsPermitidas.includes('plan') && (
             <li className={`nav-item ${tab === 'plan' ? 'active' : ''}`}>
               <button onClick={() => setTab('plan')}>
