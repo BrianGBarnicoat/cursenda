@@ -1891,6 +1891,20 @@ app.use(async (req, res, next) => {
 // La cuenta demo se reinicia cada noche
 programarReinicioDemo(getDatabase);
 
+// Cumple los plazos de la política de privacidad: solicitudes 2 años, peticiones de acceso 1 año
+async function borrarDatosCaducados() {
+  try {
+    const db = await getDatabase();
+    await db.run("DELETE FROM notas_contacto WHERE solicitud_id IN (SELECT id FROM solicitudes WHERE fecha_creacion < datetime('now', '-2 years'))");
+    await db.run("DELETE FROM solicitudes WHERE fecha_creacion < datetime('now', '-2 years')");
+    await db.run("DELETE FROM solicitudes_demo WHERE fecha_creacion < datetime('now', '-1 year')");
+  } catch (err: any) {
+    console.error('Error borrando datos caducados:', err.message);
+  }
+}
+borrarDatosCaducados();
+setInterval(borrarDatosCaducados, 24 * 60 * 60 * 1000);
+
 // Iniciar servidor
 if (LISTEN_SOCKET) {
   // Borrar el socket si se quedó de antes

@@ -1089,7 +1089,7 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
             <h2>Qué datos recogemos y para qué</h2>
             <ul>
               <li><strong>Si pide plaza en un curso:</strong> nombre, email y teléfono. Los usamos para hacérselos llegar al centro que imparte el curso, que se pondrá en contacto con usted. A partir de ese momento el centro también es responsable del tratamiento de sus datos para gestionar su matrícula.</li>
-              <li><strong>Si es un centro y pide una demo:</strong> nombre del centro, persona de contacto, email y teléfono, para contactarle y enseñarle la plataforma.</li>
+              <li><strong>Si es una academia y pide acceso:</strong> nombre del centro, persona de contacto, email y teléfono, para contactarle y enseñarle la plataforma.</li>
               <li><strong>Si tiene cuenta de centro:</strong> los datos de su cuenta y de su equipo, para darle acceso al panel y prestarle el servicio.</li>
             </ul>
 
@@ -1100,7 +1100,7 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
             <p>Las solicitudes de plaza se guardan mientras el centro las necesite para gestionar la matrícula y, como máximo, 2 años. Las solicitudes de demo, hasta 1 año si no se contrata el servicio. Los datos de cuentas, mientras la cuenta esté activa.</p>
 
             <h2>Quién más los ve</h2>
-            <p>Solo el centro de formación al que pide plaza. No vendemos datos ni los usamos para publicidad. La web está alojada en un servidor propio en la Unión Europea.</p>
+            <p>Si pide plaza, el centro de formación del curso. Si una academia contrata un plan, el pago lo gestiona Stripe, que recibe los datos de facturación y de la tarjeta. No vendemos datos ni los usamos para publicidad. La web está alojada en un servidor propio en la Unión Europea.</p>
 
             <h2>Sus derechos</h2>
             <p>Puede pedir ver, corregir o borrar sus datos, oponerse a su uso, limitarlo o llevárselos a otro sitio escribiendo a {d.email}. Si cree que no los tratamos bien, puede reclamar ante la Agencia Española de Protección de Datos (www.aepd.es).</p>
@@ -3088,7 +3088,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                             <div>
                               <div style={{ fontWeight: '600' }}>{s.nombre}</div>
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>
-                                <Phone size={10} style={{ display: 'inline', marginRight: '4px' }} /> {s.telefono} | <Mail size={10} style={{ display: 'inline', marginRight: '4px' }} /> {s.email}
+                                <Phone size={10} style={{ display: 'inline', marginRight: '4px' }} /> <a href={`tel:${s.telefono}`} className="enlace-telefono">{s.telefono}</a> | <Mail size={10} style={{ display: 'inline', marginRight: '4px' }} /> {s.email}
                               </div>
                             </div>
                           </div>

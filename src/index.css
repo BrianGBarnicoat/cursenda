@@ -3015,3 +3015,22 @@ tr:last-child td {
 .admin-aviso { padding: 10px 12px; background: var(--warning-bg); color: var(--text); border-radius: 4px; }
 .admin-guardar { display: flex; align-items: center; gap: 14px; position: sticky; bottom: 0; padding: 12px 0; background: var(--white); }
 .admin-error { color: var(--error-text); }
+
+/* Las tablas de los paneles pasan a tarjetas en el móvil */
+.enlace-telefono { color: var(--primary); text-decoration: underline; }
+@media (max-width: 760px) {
+  .dashboard-layout .table-container { overflow: visible; }
+  .dashboard-layout .table-container table,
+  .dashboard-layout .table-container tbody,
+  .dashboard-layout .table-container tr,
+  .dashboard-layout .table-container td { display: block; width: 100%; min-width: 0; }
+  .dashboard-layout .table-container thead { display: none; }
+  .dashboard-layout .table-container tr { padding: 14px 16px; border-bottom: 1px solid #D5DED9; }
+  .dashboard-layout .table-container td { padding: 4px 0; border: 0; }
+  .dashboard-layout .table-container td:empty { display: none; }
+  .admin .admin-cabecera .form-control { width: 100%; }
+}
+
+/* Páginas legales con el estilo de la web */
+.legal-page, .legal-page h1, .legal-page h2 { font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-weight: 600; }
+.legal-page { font-weight: 400; }
