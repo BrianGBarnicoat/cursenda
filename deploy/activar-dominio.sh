@@ -13,8 +13,19 @@ ENV_FILE="/etc/cursenda/cursenda.env"
 
 [[ $EUID -eq 0 ]] || { echo "Hay que lanzarlo como root" >&2; exit 1; }
 
+# Mientras se propaga, unas veces responde y otras no: se insiste un poco antes de parar
+apunta_aqui() {
+  local intento servidor
+  for intento in 1 2 3 4 5 6; do
+    for servidor in 1.1.1.1 8.8.8.8 9.9.9.9; do
+      [[ "$(dig +short A "$1" "@$servidor" | tail -1)" == "$IP" ]] && return 0
+    done
+    sleep 5
+  done
+  return 1
+}
 for nombre in "$DOMINIO" "www.$DOMINIO" "mail.$DOMINIO"; do
-  if [[ "$(dig +short A "$nombre" @8.8.8.8 | tail -1)" != "$IP" ]]; then
+  if ! apunta_aqui "$nombre"; then
     echo "$nombre todavía no apunta a este servidor. Vuelve a lanzarlo en un rato." >&2
     exit 1
   fi
