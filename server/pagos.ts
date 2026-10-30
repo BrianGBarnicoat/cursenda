@@ -29,11 +29,11 @@ export const accesoDe = (t: string) => `(${t}.rol = 'admin' OR ${t}.es_demo = 1
   OR (${t}.suscripcion_estado = 'prueba' AND ${t}.prueba_hasta > datetime('now')))`;
 export const ACCESO_SQL = accesoDe('centros');
 
-// En la web pública: los cursos de la demo solo salen mientras no haya cursos de centros reales
-export const VISIBLE_SQL = `(${ACCESO_SQL} AND (centros.es_demo IS NOT 1 OR NOT EXISTS (
+// En la web pública: los cursos de la demo solo salen si el admin no los ha quitado y mientras no haya cursos de centros reales
+export const VISIBLE_SQL = `(${ACCESO_SQL} AND (centros.es_demo IS NOT 1 OR (NOT EXISTS (SELECT 1 FROM ajustes WHERE clave = 'demo_oculta') AND NOT EXISTS (
   SELECT 1 FROM cursos cr JOIN centros cc ON cr.centro_id = cc.id
   WHERE cc.es_demo IS NOT 1 AND (cc.rol IS NULL OR cc.rol != 'admin') AND cr.estado = 'publicado' AND ${accesoDe('cc')}
-)))`;
+))))`;
 
 function planDePrecio(priceId?: string | null) {
   return Object.keys(PRECIOS).find(plan => PRECIOS[plan] && PRECIOS[plan] === priceId) || null;

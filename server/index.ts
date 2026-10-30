@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import { getDatabase, verifyPassword, hashPassword } from './db.js';
 import { reiniciarDemo, programarReinicioDemo } from './demo.js';
+import { familiaDe } from './familias.js';
 import { avisoContrasena, avisoPeticionAcceso, avisoPrueba, avisoSolicitud } from './correo.js';
 import { ACCESO_SQL, VISIBLE_SQL, PLANES_DE_PAGO, pagosConfigurados, modoPruebaStripe, crearCheckout, crearPortal, handleWebhook } from './pagos.js';
 import crypto from 'crypto';
@@ -162,7 +163,7 @@ function baseUrl(req: any) {
 }
 
 // Datos del centro que ve el panel (sin contraseñas ni claves)
-const CAMPOS_CENTRO = `id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol, cif, direccion, web, es_demo,
+const CAMPOS_CENTRO = `id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol, cif, direccion, web, es_demo, logo,
   suscripcion_estado, prueba_hasta, stripe_subscription_id IS NOT NULL as tiene_suscripcion,
   CASE WHEN ${ACCESO_SQL} THEN 1 ELSE 0 END as acceso`;
 
@@ -493,7 +494,7 @@ app.get('/api/public/cursos', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    let query = `SELECT cursos.*, centros.nombre as centro_nombre, centros.es_demo FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`;
+    let query = `SELECT cursos.*, centros.nombre as centro_nombre, centros.es_demo, centros.logo as centro_logo FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`;
     const params: any[] = [];
 
     if (search) {
@@ -525,7 +526,7 @@ app.get('/api/public/cursos/:id', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    const curso = await db.get(`SELECT cursos.*, centros.nombre as centro_nombre, centros.es_demo FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}`, [id]);
+    const curso = await db.get(`SELECT cursos.*, centros.nombre as centro_nombre, centros.es_demo, centros.logo as centro_logo, centros.web as centro_web FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}`, [id]);
 
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado' });
@@ -538,6 +539,21 @@ app.get('/api/public/cursos/:id', async (req, res) => {
 });
 
 // Cursos de un centro para el widget que pegan en su propia web (abierto a cualquier web, sin cookies)
+// Academias con algún curso a la vista. La demo no cuenta.
+app.get('/api/public/academias', async (req, res) => {
+  try {
+    const db = await getDatabase();
+    res.json(await db.all(`
+      SELECT centros.id, centros.nombre, centros.logo, centros.web, centros.direccion, COUNT(cursos.id) as cursos
+      FROM centros JOIN cursos ON cursos.centro_id = centros.id AND cursos.estado = 'publicado'
+      WHERE centros.es_demo IS NOT 1 AND (centros.rol IS NULL OR centros.rol != 'admin') AND ${VISIBLE_SQL}
+      GROUP BY centros.id ORDER BY cursos DESC, centros.nombre
+    `));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar las academias' });
+  }
+});
+
 app.get('/api/public/centros/:id/cursos', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Cache-Control', 'public, max-age=300');
@@ -640,7 +656,7 @@ app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (r
     `, [
       req.centro.id,
       titulo,
-      categoria,
+      familiaDe(titulo, categoria),
       modalidad,
       localidad,
       parseInt(duracion_horas),
@@ -692,7 +708,7 @@ app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async
       WHERE id = ?
     `, [
       titulo || curso.titulo,
-      categoria || curso.categoria,
+      familiaDe(titulo || curso.titulo, categoria || curso.categoria),
       modalidad || curso.modalidad,
       localidad || curso.localidad,
       duracion_horas !== undefined ? parseInt(duracion_horas) : curso.duracion_horas,
@@ -1594,7 +1610,7 @@ app.get('/api/admin/solicitudes', authenticateAdmin, async (req, res) => {
 // Ampliar la prueba gratis de un centro (por defecto 30 días más desde hoy o desde su fin)
 const AJUSTES_EDITABLES: Record<string, number> = {
   portada_titulo: 120, portada_texto: 400, academias_titulo: 120, academias_texto: 500, pie_texto: 300,
-  precio_starter: 5, precio_pro: 5,
+  precio_starter: 5, precio_pro: 5, demo_oculta: 1,
   legal_titular: 200, legal_nif: 30, legal_domicilio: 300, legal_email: 200
 };
 
@@ -1802,6 +1818,56 @@ app.post('/api/admin/centros/:id/enlace-recuperacion', authenticateAdmin, async 
   }
 });
 
+// Logo de la academia: solo PNG, JPG o WebP, comprobando el contenido real del archivo
+const CARPETA_LOGOS = path.join(path.dirname(process.env.CURSENDA_DB_PATH || './cursenda.db'), 'logos');
+const formatoLogo = (b: Buffer) => {
+  if (b.length > 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
+  if (b.length > 12 && b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
+  return null;
+};
+const borrarLogo = (nombre?: string | null) => {
+  if (nombre && /^[\w-]+\.(png|jpg|webp)$/.test(nombre)) fs.rmSync(path.join(CARPETA_LOGOS, nombre), { force: true });
+};
+
+app.put('/api/centro/logo', authenticateToken, soloPropietario, requiereAcceso,
+  express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '200kb' }), async (req: any, res) => {
+    const formato = Buffer.isBuffer(req.body) ? formatoLogo(req.body) : null;
+    if (!formato) return res.status(400).json({ error: 'El logo tiene que ser PNG, JPG o WebP.' });
+    try {
+      const db = await getDatabase();
+      const actual = await db.get('SELECT logo FROM centros WHERE id = ?', [req.centro.id]);
+      fs.mkdirSync(CARPETA_LOGOS, { recursive: true, mode: 0o700 });
+      const nombre = `${req.centro.id}-${crypto.randomBytes(6).toString('hex')}.${formato}`;
+      fs.writeFileSync(path.join(CARPETA_LOGOS, nombre), req.body, { mode: 0o600 });
+      await db.run('UPDATE centros SET logo = ? WHERE id = ?', [nombre, req.centro.id]);
+      borrarLogo(actual?.logo);
+      res.json({ logo: nombre });
+    } catch (err) {
+      res.status(500).json({ error: 'No se ha podido guardar el logo.' });
+    }
+  });
+
+app.delete('/api/centro/logo', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
+  try {
+    const db = await getDatabase();
+    const actual = await db.get('SELECT logo FROM centros WHERE id = ?', [req.centro.id]);
+    await db.run('UPDATE centros SET logo = NULL WHERE id = ?', [req.centro.id]);
+    borrarLogo(actual?.logo);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'No se ha podido quitar el logo.' });
+  }
+});
+
+app.get('/logos/:archivo', (req, res) => {
+  const archivo = req.params.archivo;
+  if (!/^[\w-]+\.(png|jpg|webp)$/.test(archivo)) return res.status(404).end();
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.sendFile(archivo, { root: path.resolve(CARPETA_LOGOS) }, (err) => { if (err && !res.headersSent) res.status(404).end(); });
+});
+
 // --- Servir archivos estáticos del Frontend en Producción ---
 const distPath = path.resolve(process.cwd(), 'dist');
 // index: false para que "/" pase por las metaetiquetas de abajo
@@ -1818,8 +1884,8 @@ const recortar = (texto: string, max = 160) => {
 };
 
 const IMAGENES_CATEGORIA: Record<string, string> = {
-  'Informática': 'informatica', 'Sanidad': 'sanidad', 'Logística': 'logistica',
-  'Hostelería': 'hosteleria', 'Administración': 'administracion'
+  'Informática y comunicaciones': 'informatica', 'Sanidad': 'sanidad', 'Servicios socioculturales y a la comunidad': 'sanidad',
+  'Comercio y marketing': 'logistica', 'Hostelería y turismo': 'hosteleria', 'Administración y gestión': 'administracion'
 };
 
 let plantillaHtml: string | null = null;
@@ -1864,6 +1930,18 @@ const META_PORTADA: Meta = {
 };
 
 async function metaDe(ruta: string): Promise<Meta> {
+  if (ruta === '/academias') {
+    return { titulo: 'Academias · Cursenda', descripcion: 'Las academias que publican sus cursos subvencionados en Cursenda.', ruta };
+  }
+
+  const academia = ruta.match(/^\/academia\/(\d+)$/);
+  if (academia) {
+    const db = await getDatabase();
+    const a = await db.get(`SELECT centros.nombre FROM centros JOIN cursos ON cursos.centro_id = centros.id AND cursos.estado = 'publicado'
+      WHERE centros.id = ? AND centros.es_demo IS NOT 1 AND ${VISIBLE_SQL}`, [academia[1]]);
+    if (a) return { titulo: `${a.nombre} · Cursenda`, descripcion: `Cursos de ${a.nombre} publicados en Cursenda.`, ruta };
+  }
+
   if (ruta === '/como-funciona') {
     return { titulo: 'Cómo funcionan los cursos subvencionados · Cursenda', descripcion: 'Quién puede apuntarse, qué es un certificado profesional y qué requisitos pide cada nivel, con enlaces a las fuentes oficiales.', ruta };
   }
@@ -1936,7 +2014,7 @@ app.get('/sitemap.xml', async (req, res) => {
   try {
     const db = await getDatabase();
     const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`);
-    const rutas = ['/', '/cursos', '/como-funciona', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
+    const rutas = ['/', '/cursos', '/como-funciona', '/academias', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
     const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
   } catch (err) {

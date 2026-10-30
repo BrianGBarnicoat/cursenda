@@ -6,31 +6,31 @@ import type { Database } from 'sqlite';
 const CURSOS = [
   {
     titulo: 'IFCD0210 - Desarrollo de Aplicaciones con Tecnologías Web',
-    categoria: 'Informática', modalidad: 'Online', localidad: 'Madrid / Remoto',
+    categoria: 'Informática y comunicaciones', modalidad: 'Online', localidad: 'Madrid / Remoto',
     duracion_horas: 510, plazas: 25, plazas_cubiertas: 12, fecha_inicio: '15 de enero de 2027', dirigido_a: 'Desempleados', visitas: 184, estado: 'publicado',
     descripcion: 'Aprenda a desarrollar aplicaciones web modernas, desde el frontend con HTML, CSS y JavaScript hasta el backend y las bases de datos. Certificado de profesionalidad de nivel 3.'
   },
   {
     titulo: 'ADGD0210 - Creación y Gestión de Microempresas',
-    categoria: 'Administración', modalidad: 'Mixta', localidad: 'Móstoles',
+    categoria: 'Administración y gestión', modalidad: 'Mixta', localidad: 'Móstoles',
     duracion_horas: 520, plazas: 20, plazas_cubiertas: 19, fecha_inicio: '1 de febrero de 2027', dirigido_a: 'Todos', visitas: 98, estado: 'publicado',
     descripcion: 'Formación para planificar, poner en marcha y gestionar una pequeña empresa o un proyecto de autoempleo: contabilidad, fiscalidad, recursos humanos y marketing.'
   },
   {
     titulo: 'COML0309 - Organización y Gestión de Almacenes',
-    categoria: 'Logística', modalidad: 'Presencial', localidad: 'Alcalá de Henares',
+    categoria: 'Comercio y marketing', modalidad: 'Presencial', localidad: 'Alcalá de Henares',
     duracion_horas: 390, plazas: 15, plazas_cubiertas: 5, fecha_inicio: 'Inmediata', dirigido_a: 'Ocupados', visitas: 45, estado: 'pausado',
     descripcion: 'Optimización de flujos de almacén, control de existencias, prevención de riesgos y manejo de programas de gestión de almacenes.'
   },
   {
     titulo: 'HOTR0608 - Servicios de Restaurante y Sumillería',
-    categoria: 'Hostelería', modalidad: 'Presencial', localidad: 'Madrid Centro',
+    categoria: 'Hostelería y turismo', modalidad: 'Presencial', localidad: 'Madrid Centro',
     duracion_horas: 580, plazas: 18, plazas_cubiertas: 8, fecha_inicio: '10 de febrero de 2027', dirigido_a: 'Todos', visitas: 62, estado: 'publicado',
     descripcion: 'Formación práctica para profesionales de sala: servicio de mesa, coctelería, cata de vinos, maridaje y organización de eventos.'
   },
   {
     titulo: 'SSCS0208 - Atención Sociosanitaria a Personas Dependientes en Instituciones Sociales',
-    categoria: 'Sanidad', modalidad: 'Presencial', localidad: 'Fuenlabrada',
+    categoria: 'Servicios socioculturales y a la comunidad', modalidad: 'Presencial', localidad: 'Fuenlabrada',
     duracion_horas: 450, plazas: 20, plazas_cubiertas: 15, fecha_inicio: '20 de enero de 2027', dirigido_a: 'Todos', visitas: 112, estado: 'publicado',
     descripcion: 'Certificado de profesionalidad para trabajar en residencias y centros de día: cuidados básicos, higiene, alimentación, apoyo psicosocial y primeros auxilios.'
   }

@@ -19,6 +19,7 @@ import {
   Shield,
   Globe,
   Building,
+  Briefcase, Dumbbell, Sprout, Printer, Palette, ShoppingCart, Zap, Droplets, HardHat, Cog, UtensilsCrossed, Pickaxe, Monitor, Wrench, Scissors, Clapperboard, Wheat, Trees, Ship, FlaskConical, HeartPulse, ShieldCheck, HandHeart, Shirt, Car, Wine, GraduationCap, ChevronDown, Search,
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -72,15 +73,16 @@ function MapaGoogle({ titulo, src }: { titulo: string; src: string }) {
 
 // Fotos de Unsplash guardadas en public/images/cursos (licencia Unsplash): Jeff Siepman (hostelería),
 // Age Cymru (sanidad), Centre for Ageing Better (logística), Compagnons (informática), Vitaly Gariev (administración)
-export const getCourseImage = (categoria: string) => {
+export const getCourseImage = (categoria: string): string | null => {
   const mapping: { [key: string]: string } = {
-    'Informática': '/images/cursos/informatica.webp',
+    'Informática y comunicaciones': '/images/cursos/informatica.webp',
     'Sanidad': '/images/cursos/sanidad.webp',
-    'Logística': '/images/cursos/logistica.webp',
-    'Hostelería': '/images/cursos/hosteleria.webp',
-    'Administración': '/images/cursos/administracion.webp'
+    'Servicios socioculturales y a la comunidad': '/images/cursos/sanidad.webp',
+    'Comercio y marketing': '/images/cursos/logistica.webp',
+    'Hostelería y turismo': '/images/cursos/hosteleria.webp',
+    'Administración y gestión': '/images/cursos/administracion.webp'
   };
-  return mapping[categoria] || '/images/cursos/generica.webp';
+  return mapping[categoria] || null;
 };
 
 // Título de la pestaña del navegador
@@ -104,7 +106,8 @@ const AJUSTES_INICIALES = {
   legal_nif: '',
   legal_domicilio: '',
   legal_email: 'info@cursenda.es',
-  legal_actualizado: '29 de octubre de 2026'
+  legal_actualizado: '29 de octubre de 2026',
+  demo_oculta: ''
 };
 type Ajustes = typeof AJUSTES_INICIALES;
 const AjustesContexto = createContext<{ ajustes: Ajustes; setAjustes: (a: Ajustes) => void }>({ ajustes: AJUSTES_INICIALES, setAjustes: () => {} });
@@ -114,10 +117,11 @@ const useAjustes = () => useContext(AjustesContexto);
 
 // Foto de cada categoría. Solo salen las categorías que tienen cursos publicados.
 const FOCO_CATEGORIA: Record<string, string> = {
-  'Hostelería': '50% 30%',
+  'Hostelería y turismo': '50% 30%',
   'Sanidad': '60% 25%',
-  'Logística': '45% 30%',
-  'Administración': '55% 25%'
+  'Servicios socioculturales y a la comunidad': '60% 25%',
+  'Comercio y marketing': '45% 30%',
+  'Administración y gestión': '55% 25%'
 };
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -160,59 +164,17 @@ const textoModalidad = (curso: any) => {
 const codigoCertificado = (titulo: string) => titulo.match(/^([A-Z]{4}\d{4})\b/)?.[1] || null;
 const tituloSinCodigo = (titulo: string) => titulo.replace(/^[A-Z]{4}\d{4}\s*[-–]\s*/, '');
 
-function useCursosPublicos() {
-  const [cursos, setCursos] = useState<any[]>([]);
-  const [estado, setEstado] = useState<'cargando' | 'listo' | 'error'>('cargando');
-  useEffect(() => {
-    fetch(`${API_BASE}/public/cursos`)
-      .then(res => { if (!res.ok) throw new Error(); return res.json(); })
-      .then(datos => { setCursos(datos); setEstado('listo'); })
-      .catch(() => setEstado('error'));
-  }, []);
-  return { cursos, estado };
-}
-
-function CabeceraPublica() {
-  return (
-    <header className="pub-barra">
-      <Logo light={true} />
-      <nav>
-        <Link to="/cursos" className="pub-solo-ancho">Cursos</Link>
-        <Link to="/como-funciona">Cómo funciona</Link>
-        <Link to="/centros">Soy una academia</Link>
-      </nav>
-    </header>
-  );
-}
-
-function PiePublico() {
-  const { ajustes } = useAjustes();
-  return (
-    <footer className="pub-pie">
-      <div className="pub-ancho">
-        <p>{ajustes.pie_texto}</p>
-        <nav>
-          <Link to="/como-funciona">Cómo funciona</Link>
-          <Link to="/legal/aviso-legal">Aviso legal</Link>
-          <Link to="/legal/privacidad">Privacidad</Link>
-          <Link to="/legal/cookies">Cookies</Link>
-        </nav>
-      </div>
-    </footer>
-  );
-}
-
 function FilaCurso({ curso }: { curso: any }) {
   const codigo = codigoCertificado(curso.titulo);
   return (
     <article className="pub-curso">
       <Link to={`/curso/${curso.id}`} className="pub-curso-foto" tabIndex={-1} aria-hidden="true">
-        <img src={getCourseImage(curso.categoria)} alt="" loading="lazy" style={{ objectPosition: FOCO_CATEGORIA[curso.categoria] }} />
+        <ImagenFamilia categoria={curso.categoria} />
       </Link>
       <div>
         <p className="pub-curso-inicio">{curso.fecha_inicio}{curso.es_demo ? <span className="pub-ejemplo">Curso de ejemplo</span> : null}</p>
         <h3><Link to={`/curso/${curso.id}`}>{tituloSinCodigo(curso.titulo)}</Link></h3>
-        <p className="pub-curso-datos">{textoModalidad(curso)}, {curso.duracion_horas} horas.{codigo ? ` Certificado ${codigo}.` : ''}</p>
+        <p className="pub-curso-datos">{textoModalidad(curso)}, {curso.duracion_horas} horas.{codigo ? ` Certificado ${codigo}.` : ''} {curso.centro_nombre}.</p>
       </div>
       <div className="pub-curso-lado">
         <span>{textoPlazas(curso)}</span>
@@ -233,6 +195,7 @@ function AvisoCursos({ estado }: { estado: string }) {
 const FUENTES = {
   sepeFundae: 'https://sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2025%2FSeptiembre%2F&detail=formacion-subvencionada-sepe-colaboracion-fundae',
   sepe45: 'https://www.sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2026%2FMarzo%2F&detail=proximos-cursos-gratuitos-desempleados-45-o-mas-anios-edad',
+  familias: 'https://www.sepe.es/dam/jcr:cbc76b14-9495-49f3-9abe-82fb98ff27c7/certificados_profesionalidad.pdf',
   sepeAutonomias: 'https://www.sepe.es/HomeSepe/es/formacion-trabajo/iniciativas-formacion-trabajo/ofertas-formacion-comunidades-autonomas.html',
   madrid: 'https://oficinaempleo.comunidad.madrid/BuscadorCursosPublico/',
   fundae: 'https://experienciafundae.es/formacion-subvencionada',
@@ -248,8 +211,8 @@ function ComoFunciona() {
   useTitulo('Cómo funcionan los cursos subvencionados · Cursenda');
   return (
     <div className="pub">
+      <CabeceraPublica />
       <div className="pub-arriba">
-        <CabeceraPublica />
         <div className="pub-ancho pub-lista-cabeza">
           <h1>Cómo funcionan los cursos subvencionados</h1>
           <p className="pub-info-entrada">Lo básico, con enlaces a las fuentes oficiales. Cursenda no es un organismo público: lo que vale para cada curso es lo que diga su convocatoria.</p>
@@ -329,74 +292,283 @@ function ComoFunciona() {
   );
 }
 
+// Familias profesionales oficiales (Repertorio Nacional de Certificados de Profesionalidad, SEPE)
+const FAMILIAS: { codigo: string; nombre: string; icono: React.ComponentType<{ size?: number }> }[] = [
+  { codigo: 'ADG', nombre: 'Administración y gestión', icono: Briefcase },
+  { codigo: 'AFD', nombre: 'Actividades físicas y deportivas', icono: Dumbbell },
+  { codigo: 'AGA', nombre: 'Agraria', icono: Sprout },
+  { codigo: 'ARG', nombre: 'Artes gráficas', icono: Printer },
+  { codigo: 'ART', nombre: 'Artes y artesanías', icono: Palette },
+  { codigo: 'COM', nombre: 'Comercio y marketing', icono: ShoppingCart },
+  { codigo: 'ELE', nombre: 'Electricidad y electrónica', icono: Zap },
+  { codigo: 'ENA', nombre: 'Energía y agua', icono: Droplets },
+  { codigo: 'EOC', nombre: 'Edificación y obra civil', icono: HardHat },
+  { codigo: 'FME', nombre: 'Fabricación mecánica', icono: Cog },
+  { codigo: 'HOT', nombre: 'Hostelería y turismo', icono: UtensilsCrossed },
+  { codigo: 'IEX', nombre: 'Industrias extractivas', icono: Pickaxe },
+  { codigo: 'IFC', nombre: 'Informática y comunicaciones', icono: Monitor },
+  { codigo: 'IMA', nombre: 'Instalación y mantenimiento', icono: Wrench },
+  { codigo: 'IMP', nombre: 'Imagen personal', icono: Scissors },
+  { codigo: 'IMS', nombre: 'Imagen y sonido', icono: Clapperboard },
+  { codigo: 'INA', nombre: 'Industrias alimentarias', icono: Wheat },
+  { codigo: 'MAM', nombre: 'Madera, mueble y corcho', icono: Trees },
+  { codigo: 'MAP', nombre: 'Marítimo pesquera', icono: Ship },
+  { codigo: 'QUI', nombre: 'Química', icono: FlaskConical },
+  { codigo: 'SAN', nombre: 'Sanidad', icono: HeartPulse },
+  { codigo: 'SEA', nombre: 'Seguridad y medioambiente', icono: ShieldCheck },
+  { codigo: 'SSC', nombre: 'Servicios socioculturales y a la comunidad', icono: HandHeart },
+  { codigo: 'TCP', nombre: 'Textil, confección y piel', icono: Shirt },
+  { codigo: 'TMV', nombre: 'Transporte y mantenimiento de vehículos', icono: Car },
+  { codigo: 'VIC', nombre: 'Vidrio y cerámica', icono: Wine }
+];
+const OTRA_FORMACION = 'Otra formación';
+const NOMBRES_FAMILIAS = [...FAMILIAS.map(f => f.nombre), OTRA_FORMACION];
+// El código del certificado indica la familia: SSCS0208 es de SSC
+const familiaDelTitulo = (titulo: string) => FAMILIAS.find(f => f.codigo === titulo.match(/^([A-Z]{3})[A-Z]\d{4}\b/)?.[1])?.nombre;
+
+// Foto si la hay; si no, el icono de la familia
+function ImagenFamilia({ categoria, className }: { categoria: string; className?: string }) {
+  const foto = getCourseImage(categoria);
+  if (foto) return <img className={className} src={foto} alt="" loading="lazy" style={{ objectPosition: FOCO_CATEGORIA[categoria] }} />;
+  const Icono = FAMILIAS.find(f => f.nombre === categoria)?.icono || GraduationCap;
+  return <span className={`pub-icono-familia ${className || ''}`}><Icono size={30} /></span>;
+}
+
+// Los cursos se piden una vez y los comparten el buscador y la página
+let peticionCursos: Promise<any[]> | null = null;
+const pedirCursos = () => {
+  if (!peticionCursos) {
+    peticionCursos = fetch(`${API_BASE}/public/cursos`).then(res => { if (!res.ok) throw new Error(); return res.json(); });
+    peticionCursos.catch(() => { peticionCursos = null; });
+    setTimeout(() => { peticionCursos = null; }, 60000);
+  }
+  return peticionCursos;
+};
+
+function useCursosPublicos() {
+  const [cursos, setCursos] = useState<any[]>([]);
+  const [estado, setEstado] = useState<'cargando' | 'listo' | 'error'>('cargando');
+  useEffect(() => {
+    let vivo = true;
+    pedirCursos().then(datos => { if (vivo) { setCursos(datos); setEstado('listo'); } }).catch(() => { if (vivo) setEstado('error'); });
+    return () => { vivo = false; };
+  }, []);
+  return { cursos, estado };
+}
+
+function BuscadorCursos() {
+  const navigate = useNavigate();
+  const { cursos } = useCursosPublicos();
+  const [texto, setTexto] = useState('');
+  const [abierto, setAbierto] = useState(false);
+  const limpio = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const q = limpio(texto.trim());
+  const coincide = cursos.filter(c => !q || [c.titulo, c.localidad, c.categoria, c.centro_nombre].some(v => limpio(v).includes(q)));
+  const lista = (q ? coincide : [...coincide].sort((a, b) => b.visitas - a.visitas)).slice(0, 4);
+  const familias = q ? FAMILIAS.filter(f => limpio(f.nombre).includes(q)).slice(0, 4) : [];
+  const ir = (ruta: string) => { setAbierto(false); setTexto(''); navigate(ruta); };
+
+  return (
+    <form className="pub-busqueda" role="search" onSubmit={(e) => { e.preventDefault(); ir(`/cursos?q=${encodeURIComponent(texto.trim())}`); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setAbierto(false); }}
+      onKeyDown={(e) => { if (e.key === 'Escape') setAbierto(false); }}>
+      <Search size={18} aria-hidden="true" />
+      <input aria-label="Buscar cursos" placeholder="¿Qué quieres aprender?" value={texto} onFocus={() => setAbierto(true)} onChange={(e) => { setTexto(e.target.value); setAbierto(true); }} />
+      {abierto && (lista.length > 0 || familias.length > 0 || q) && (
+        <div className="pub-sugerencias">
+          {familias.length > 0 && <p className="pub-sugerencias-titulo">Familias</p>}
+          {familias.map(f => <button type="button" key={f.codigo} onClick={() => ir(`/cursos?categoria=${encodeURIComponent(f.nombre)}`)}><span className="pub-sugerencia-icono"><f.icono size={18} /></span><span>{f.nombre}</span></button>)}
+          {lista.length > 0 && <p className="pub-sugerencias-titulo">{q ? 'Cursos' : 'Los más vistos'}</p>}
+          {lista.map(c => (
+            <button type="button" key={c.id} onClick={() => ir(`/curso/${c.id}`)}>
+              <ImagenFamilia categoria={c.categoria} className="pub-sugerencia-foto" />
+              <span><strong>{tituloSinCodigo(c.titulo)}</strong><small>{textoModalidad(c)}</small></span>
+            </button>
+          ))}
+          {q && lista.length === 0 && familias.length === 0 && <p className="pub-sugerencias-vacio">No hay cursos con esa búsqueda.</p>}
+        </div>
+      )}
+    </form>
+  );
+}
+
+function MenuExplorar() {
+  const [abierto, setAbierto] = useState(false);
+  const { cursos } = useCursosPublicos();
+  const cuantos = (nombre: string) => cursos.filter(c => c.categoria === nombre).length;
+  const cerrar = () => setAbierto(false);
+  return (
+    <div className="pub-explorar" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) cerrar(); }} onKeyDown={(e) => { if (e.key === 'Escape') cerrar(); }}>
+      <button type="button" className="pub-explorar-boton" aria-expanded={abierto} onClick={() => setAbierto(!abierto)}>Explorar <ChevronDown size={16} /></button>
+      {abierto && (
+        <div className="pub-explorar-panel">
+          <div>
+            <p className="pub-explorar-titulo">Familias profesionales</p>
+            <div className="pub-explorar-familias">
+              {FAMILIAS.map(f => (
+                <Link key={f.codigo} to={`/cursos?categoria=${encodeURIComponent(f.nombre)}`} onClick={cerrar}>
+                  <f.icono size={16} /><span>{f.nombre}</span>{cuantos(f.nombre) > 0 && <em>{cuantos(f.nombre)}</em>}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="pub-explorar-titulo">Tu situación</p>
+            <Link to="/cursos?situacion=Desempleados" onClick={cerrar}>Estoy en paro</Link>
+            <Link to="/cursos?situacion=Ocupados" onClick={cerrar}>Estoy trabajando</Link>
+            <p className="pub-explorar-titulo">Más</p>
+            <Link to="/cursos" onClick={cerrar}>Todos los cursos</Link>
+            <Link to="/academias" onClick={cerrar}>Academias</Link>
+            <Link to="/como-funciona" onClick={cerrar}>Cómo funcionan los cursos</Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CabeceraPublica() {
+  return (
+    <header className="pub-cabecera">
+      <div className="pub-cabecera-arriba">
+        <div className="pub-ancho">
+          <span>Para alumnos</span>
+          <Link to="/centros">Para academias</Link>
+        </div>
+      </div>
+      <div className="pub-cabecera-principal pub-ancho">
+        <Logo />
+        <MenuExplorar />
+        <BuscadorCursos />
+        <nav>
+          <Link to="/academias" className="pub-solo-ancho">Academias</Link>
+          <Link to="/como-funciona" className="pub-solo-ancho">Cómo funciona</Link>
+          <Link to="/centros/login" className="pub-boton-borde">Entrar</Link>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function PiePublico() {
+  const { ajustes } = useAjustes();
+  return (
+    <footer className="pub-pie">
+      <div className="pub-ancho">
+        <div className="pub-pie-columnas">
+          <div><Logo /><p>{ajustes.pie_texto}</p></div>
+          <div>
+            <strong>Cursos</strong>
+            <Link to="/cursos">Todos los cursos</Link>
+            <Link to="/cursos?situacion=Desempleados">Para personas en paro</Link>
+            <Link to="/cursos?situacion=Ocupados">Para personas que trabajan</Link>
+            <Link to="/como-funciona">Cómo funcionan</Link>
+          </div>
+          <div>
+            <strong>Academias</strong>
+            <Link to="/academias">Academias en Cursenda</Link>
+            <Link to="/centros">Publicar mis cursos</Link>
+            <Link to="/centros/login">Entrar al panel</Link>
+          </div>
+          <div>
+            <strong>Legal</strong>
+            <Link to="/legal/aviso-legal">Aviso legal</Link>
+            <Link to="/legal/privacidad">Privacidad</Link>
+            <Link to="/legal/cookies">Cookies</Link>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// Tarjeta de curso para las secciones de la portada
+function TarjetaCurso({ curso }: { curso: any }) {
+  return (
+    <Link to={`/curso/${curso.id}`} className="pub-tarjeta">
+      <ImagenFamilia categoria={curso.categoria} className="pub-tarjeta-foto" />
+      <span className="pub-tarjeta-cuerpo">
+        <span className="pub-tarjeta-familia">{curso.categoria}</span>
+        <strong>{tituloSinCodigo(curso.titulo)}</strong>
+        <span>{textoModalidad(curso)}, {curso.duracion_horas} horas</span>
+        <span>Empieza: {curso.fecha_inicio}</span>
+        <span className="pub-tarjeta-pie">{textoPlazas(curso)}{curso.es_demo ? <em className="pub-ejemplo">Ejemplo</em> : null}</span>
+      </span>
+    </Link>
+  );
+}
+
+function useAcademias() {
+  const [academias, setAcademias] = useState<any[]>([]);
+  const [listo, setListo] = useState(false);
+  useEffect(() => {
+    fetch(`${API_BASE}/public/academias`).then(r => r.ok ? r.json() : []).then(setAcademias).catch(() => {}).finally(() => setListo(true));
+  }, []);
+  return { academias, listo };
+}
+
+function LogoAcademia({ academia, grande }: { academia: { nombre: string; logo?: string | null }; grande?: boolean }) {
+  return academia.logo
+    ? <img className={`pub-logo-academia ${grande ? 'grande' : ''}`} src={`/logos/${academia.logo}`} alt={`Logo de ${academia.nombre}`} />
+    : <span className={`pub-logo-academia pub-logo-letra ${grande ? 'grande' : ''}`} aria-hidden="true"><Building size={grande ? 34 : 22} /></span>;
+}
+
 function AlumnosHome() {
   useTitulo('Cursenda · Cursos gratis subvencionados');
   const { ajustes } = useAjustes();
-  const navigate = useNavigate();
   const { cursos, estado } = useCursosPublicos();
-  const [busqueda, setBusqueda] = useState('');
+  const { academias } = useAcademias();
   const [activa, setActiva] = useState(0);
   const [pausada, setPausada] = useState(false);
+  const [todasFamilias, setTodasFamilias] = useState(false);
 
-  // Una franja por cada categoría con cursos: las que más cursos tienen, primero
-  const categorias = Object.entries(
-    cursos.reduce((grupos: Record<string, any[]>, curso) => {
-      (grupos[curso.categoria] = grupos[curso.categoria] || []).push(curso);
-      return grupos;
-    }, {})
-  ).sort((a, b) => b[1].length - a[1].length).slice(0, 6);
+  // Franjas: las familias con foto, primero las que tienen cursos
+  const franjas = ['Informática y comunicaciones', 'Hostelería y turismo', 'Servicios socioculturales y a la comunidad', 'Comercio y marketing', 'Administración y gestión']
+    .map(nombre => ({ nombre, lista: cursos.filter(c => c.categoria === nombre) }))
+    .sort((a, b) => b.lista.length - a.lista.length);
+  const titulosCortos: Record<string, string> = { 'Informática y comunicaciones': 'Informática', 'Hostelería y turismo': 'Hostelería', 'Servicios socioculturales y a la comunidad': 'Atención a personas', 'Comercio y marketing': 'Comercio', 'Administración y gestión': 'Administración' };
 
-  // Las fotos se van abriendo solas hasta que la persona toca alguna
   useEffect(() => {
-    if (pausada || categorias.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const turno = setInterval(() => setActiva(i => (i + 1) % categorias.length), 4500);
+    if (pausada || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const turno = setInterval(() => setActiva(i => (i + 1) % franjas.length), 4500);
     return () => clearInterval(turno);
-  }, [pausada, categorias.length]);
+  }, [pausada, franjas.length]);
 
-  const proximos = ordenarPorInicio(cursos).slice(0, 5);
+  const proximos = ordenarPorInicio(cursos).slice(0, 4);
+  const masVistos = [...cursos].sort((a, b) => b.visitas - a.visitas).slice(0, 4);
+  const conCursos = (nombre: string) => cursos.filter(c => c.categoria === nombre).length;
+  const familiasOrdenadas = [...FAMILIAS].sort((a, b) => conCursos(b.nombre) - conCursos(a.nombre) || a.nombre.localeCompare(b.nombre));
+  const familiasVistas = todasFamilias ? familiasOrdenadas : familiasOrdenadas.slice(0, 12);
 
   return (
     <div className="pub">
+      <CabeceraPublica />
       <div className="pub-arriba">
-        <CabeceraPublica />
         <div className="pub-portada pub-ancho">
           <h1>{ajustes.portada_titulo}</h1>
           <div>
             <p>{ajustes.portada_texto}</p>
-            <form className="pub-buscador" onSubmit={(e) => { e.preventDefault(); navigate(`/cursos?q=${encodeURIComponent(busqueda.trim())}`); }}>
-              <input aria-label="Qué quieres estudiar" placeholder="Qué quieres estudiar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
-              <button type="submit">Buscar</button>
-            </form>
+            <p className="pub-portada-acciones"><Link to="/cursos" className="pub-boton pub-boton-pedir">Ver los cursos</Link><Link to="/como-funciona">Cómo funciona</Link></p>
           </div>
         </div>
-        {categorias.length > 0 && (
-          <nav className="pub-franjas" aria-label="Cursos por oficio">
-            {categorias.map(([categoria, lista], i) => {
-              const siguiente = ordenarPorInicio(lista)[0];
-              return (
-                <Link
-                  key={categoria}
-                  to={`/cursos?categoria=${encodeURIComponent(categoria)}`}
-                  className={`pub-franja ${i === activa ? 'activa' : ''}`}
-                  style={{ animationDelay: `${i * 90}ms` }}
-                  onMouseEnter={() => { setPausada(true); setActiva(i); }}
-                  onFocus={() => { setPausada(true); setActiva(i); }}
-                >
-                  <img src={getCourseImage(categoria)} alt="" style={{ objectPosition: FOCO_CATEGORIA[categoria] }} />
-                  <span className="pub-franja-texto">
-                    <strong>{categoria}</strong>
-                    <span className="pub-franja-mas">
-                      <span>
-                        <span className="pub-franja-curso">{lista.length === 1 ? tituloSinCodigo(siguiente.titulo) : `${lista.length} cursos. El próximo: ${tituloSinCodigo(siguiente.titulo)}`}</span>
-                        <span className="pub-franja-ver">{lista.length === 1 ? 'Ver el curso' : 'Ver los cursos'}</span>
-                      </span>
-                    </span>
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        )}
+        <nav className="pub-franjas" aria-label="Cursos por familia">
+          {franjas.map(({ nombre, lista }, i) => {
+            const siguiente = ordenarPorInicio(lista)[0];
+            return (
+              <Link key={nombre} to={`/cursos?categoria=${encodeURIComponent(nombre)}`} className={`pub-franja ${i === activa ? 'activa' : ''}`} style={{ animationDelay: `${i * 90}ms` }}
+                onMouseEnter={() => { setPausada(true); setActiva(i); }} onFocus={() => { setPausada(true); setActiva(i); }}>
+                <img src={getCourseImage(nombre) as string} alt="" style={{ objectPosition: FOCO_CATEGORIA[nombre] }} />
+                <span className="pub-franja-texto">
+                  <strong>{titulosCortos[nombre]}</strong>
+                  <span className="pub-franja-mas"><span>
+                    <span className="pub-franja-curso">{siguiente ? (lista.length === 1 ? tituloSinCodigo(siguiente.titulo) : `${lista.length} cursos. El próximo: ${tituloSinCodigo(siguiente.titulo)}`) : nombre}</span>
+                    <span className="pub-franja-ver">{lista.length ? 'Ver los cursos' : 'Ver esta familia'}</span>
+                  </span></span>
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
       <section className="pub-ancho pub-situacion" aria-label="Elige tu situación">
@@ -408,13 +580,53 @@ function AlumnosHome() {
         </div>
       </section>
 
-      <main className="pub-ancho pub-seccion">
-        <h2 className="pub-titulo">Próximos cursos</h2>
+      {masVistos.length > 0 && (
+        <section className="pub-ancho pub-bloque">
+          <div className="pub-bloque-cabeza"><h2>Los cursos más vistos</h2><Link to="/cursos">Ver todos</Link></div>
+          <div className="pub-tarjetas">{masVistos.map(c => <TarjetaCurso key={c.id} curso={c} />)}</div>
+        </section>
+      )}
+
+      <section className="pub-fondo">
+        <div className="pub-ancho pub-bloque">
+          <div className="pub-bloque-cabeza"><h2>Explora por familia profesional</h2></div>
+          <p className="pub-bloque-texto">Los certificados oficiales se organizan en 26 familias profesionales. <a href={FUENTES.familias} target="_blank" rel="noopener noreferrer">Fuente: SEPE</a></p>
+          <div className="pub-familias">
+            {familiasVistas.map(f => (
+              <Link key={f.codigo} to={`/cursos?categoria=${encodeURIComponent(f.nombre)}`}>
+                <span className="pub-familia-icono"><f.icono size={20} /></span>
+                <span>{f.nombre}{conCursos(f.nombre) > 0 && <small>{conCursos(f.nombre) === 1 ? '1 curso' : `${conCursos(f.nombre)} cursos`}</small>}</span>
+              </Link>
+            ))}
+          </div>
+          {!todasFamilias && <p className="pub-ver-todos"><button type="button" className="pub-boton pub-boton-claro" onClick={() => setTodasFamilias(true)}>Ver las 26 familias</button></p>}
+        </div>
+      </section>
+
+      <main className="pub-ancho pub-bloque">
+        <div className="pub-bloque-cabeza"><h2>Próximos cursos</h2><Link to="/cursos">Ver todos</Link></div>
         {proximos.length === 0 ? <AvisoCursos estado={estado} /> : proximos.map(curso => <FilaCurso key={curso.id} curso={curso} />)}
-        {cursos.length > proximos.length && (
-          <p className="pub-ver-todos"><Link to="/cursos" className="pub-boton">Ver los {cursos.length} cursos</Link></p>
-        )}
       </main>
+
+      <section className="pub-fondo">
+        <div className="pub-ancho pub-bloque">
+          <div className="pub-bloque-cabeza"><h2>Cómo pedir plaza</h2></div>
+          <ol className="pub-pasos">
+            <li><strong>Elige un curso</strong><span>Busca por lo que quieres aprender, por familia o por localidad.</span></li>
+            <li><strong>Deja tus datos</strong><span>Pedir plaza es gratis y no te compromete a nada.</span></li>
+            <li><strong>La academia te llama</strong><span>Te confirma si cumples los requisitos y qué documentos necesitas.</span></li>
+          </ol>
+        </div>
+      </section>
+
+      {academias.length > 0 && (
+        <section className="pub-ancho pub-bloque">
+          <div className="pub-bloque-cabeza"><h2>Academias en Cursenda</h2><Link to="/academias">Ver todas</Link></div>
+          <div className="pub-academias-logos">
+            {academias.slice(0, 8).map(a => <Link key={a.id} to={`/academia/${a.id}`}><LogoAcademia academia={a} /><span>{a.nombre}</span></Link>)}
+          </div>
+        </section>
+      )}
 
       <section className="pub-ancho pub-preguntas-portada">
         <h2 className="pub-titulo">Preguntas frecuentes</h2>
@@ -426,20 +638,66 @@ function AlumnosHome() {
       </section>
 
       <section className="pub-academias">
-        <div className="pub-ancho">
+        <div className="pub-ancho pub-academias-simple">
           <div>
             <h2>¿Tienes una academia?</h2>
-            <p>Publica tus cursos y recibe aquí a la gente que pide plaza, con su teléfono. El primer mes es gratis y luego cuesta desde {ajustes.precio_starter} € al mes más IVA.</p>
-            <p className="pub-academias-enlaces"><Link to="/centros">Ver cómo funciona</Link><Link to="/centros/login">Entrar al panel</Link></p>
+            <p>Publica tus cursos y recibe aquí a la gente que pide plaza, con su teléfono.</p>
           </div>
-          <div className="pub-ficha">
-            <span className="pub-ficha-ejemplo">Ejemplo de solicitud en el panel</span>
-            <strong>Lucía Navarro</strong> 600 100 205
-            <p>Creación y gestión de microempresas</p>
-            <p className="pub-ficha-nota">Le he enviado por WhatsApp la lista de documentos. Trae el DARDE el jueves.</p>
-          </div>
+          <Link to="/centros" className="pub-boton">Ver cómo funciona</Link>
         </div>
       </section>
+      <PiePublico />
+    </div>
+  );
+}
+
+function AcademiasPublicas() {
+  useTitulo('Academias · Cursenda');
+  const { academias, listo } = useAcademias();
+  return (
+    <div className="pub">
+      <CabeceraPublica />
+      <div className="pub-arriba"><div className="pub-ancho pub-lista-cabeza"><h1>Academias en Cursenda</h1><p className="pub-info-entrada">Los centros que publican aquí sus cursos.</p></div></div>
+      <main className="pub-ancho pub-bloque">
+        {listo && academias.length === 0 && <p className="pub-aviso">Todavía no hay academias publicando cursos. <Link to="/centros">¿Tienes una?</Link></p>}
+        <div className="pub-academias-lista">
+          {academias.map(a => (
+            <Link key={a.id} to={`/academia/${a.id}`}>
+              <LogoAcademia academia={a} grande />
+              <span><strong>{a.nombre}</strong><small>{a.cursos === 1 ? '1 curso' : `${a.cursos} cursos`}</small></span>
+            </Link>
+          ))}
+        </div>
+      </main>
+      <PiePublico />
+    </div>
+  );
+}
+
+function AcademiaPublica() {
+  const { id } = useParams();
+  const { academias, listo } = useAcademias();
+  const { cursos } = useCursosPublicos();
+  const academia = academias.find(a => String(a.id) === id);
+  useTitulo(academia ? `${academia.nombre} · Cursenda` : null);
+  if (listo && !academia) return <NoEncontrada />;
+  if (!academia) return <div className="pub"><CabeceraPublica /><p className="pub-aviso pub-ancho">Cargando...</p></div>;
+  const suyos = ordenarPorInicio(cursos.filter(c => c.centro_id === academia.id));
+  return (
+    <div className="pub">
+      <CabeceraPublica />
+      <div className="pub-arriba"><div className="pub-ancho pub-academia-cabeza">
+        <LogoAcademia academia={academia} grande />
+        <div>
+          <h1>{academia.nombre}</h1>
+          {academia.direccion && <p className="pub-info-entrada">{academia.direccion}</p>}
+          {academia.web && /^https?:\/\//i.test(academia.web) && <p><a className="pub-compartir" href={academia.web} target="_blank" rel="noopener noreferrer nofollow">Ver su web</a></p>}
+        </div>
+      </div></div>
+      <main className="pub-ancho pub-bloque">
+        <div className="pub-bloque-cabeza"><h2>Sus cursos</h2></div>
+        {suyos.map(c => <FilaCurso key={c.id} curso={c} />)}
+      </main>
       <PiePublico />
     </div>
   );
@@ -473,7 +731,6 @@ function AlumnosLista() {
   const alternar = (lista: string[], valor: string) => lista.includes(valor) ? lista.filter(v => v !== valor) : [...lista, valor];
 
   // Solo se ofrecen los filtros que dan algún resultado
-  const categorias = [...new Set(cursos.map(c => c.categoria))].sort();
   const modalidadesDisponibles = ['Presencial', 'Online', 'Mixta'].filter(m => cursos.some(c => c.modalidad === m));
   const hayCursosPorSituacion = cursos.some(c => c.dirigido_a !== 'Todos');
   const zonas = [...new Set(cursos.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)))].sort();
@@ -508,27 +765,16 @@ function AlumnosLista() {
 
   return (
     <div className="pub">
+      <CabeceraPublica />
       <div className="pub-arriba">
-        <CabeceraPublica />
         <div className="pub-ancho pub-lista-cabeza">
-          <h1>Todos los cursos</h1>
-          <div className="pub-buscador">
-            <input aria-label="Qué quieres estudiar" placeholder="Qué quieres estudiar" value={busqueda} onChange={(e) => cambiarParam('q', e.target.value)} />
-          </div>
+          <h1>{categoria || 'Todos los cursos'}</h1>
+          <p className="pub-info-entrada">{filtrados.length === 1 ? '1 curso' : `${filtrados.length} cursos`}{categoria ? ` de ${categoria}` : ''}{busqueda ? ` con "${busqueda}"` : ''}</p>
         </div>
       </div>
 
       <div className="pub-ancho">
-        {categorias.length > 1 && (
-          <div className="pub-oficios" role="group" aria-label="Filtrar por oficio">
-            {categorias.map(c => (
-              <button key={c} type="button" className="pub-oficio" aria-pressed={categoria === c} onClick={() => cambiarParam('categoria', categoria === c ? '' : c)}>
-                <img src={getCourseImage(c)} alt="" style={{ objectPosition: FOCO_CATEGORIA[c] }} />
-                <span>{c}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        
 
         <div className="pub-lista">
           <aside className="pub-filtros">
@@ -544,6 +790,13 @@ function AlumnosLista() {
                   ))}
                 </fieldset>
               )}
+              <fieldset>
+                <legend>Familia profesional</legend>
+                <select className="pub-select" aria-label="Familia profesional" value={categoria} onChange={(e) => cambiarParam('categoria', e.target.value)}>
+                  <option value="">Todas las familias</option>
+                  {NOMBRES_FAMILIAS.map(f => <option key={f} value={f}>{f}{cursos.some(c => c.categoria === f) ? ` (${cursos.filter(c => c.categoria === f).length})` : ''}</option>)}
+                </select>
+              </fieldset>
               {zonas.length > 1 && (
                 <fieldset>
                   <legend>Dónde</legend>
@@ -574,7 +827,7 @@ function AlumnosLista() {
           </aside>
 
           <main>
-            {estado !== 'listo' || cursos.length === 0 ? <AvisoCursos estado={estado} /> : (
+            {estado !== 'listo' ? <AvisoCursos estado={estado} /> : (
               <>
                 <p className="pub-resumen">
                   <span>{filtrados.length === 1 ? '1 curso' : `${filtrados.length} cursos`}</span>
@@ -587,7 +840,10 @@ function AlumnosLista() {
                   </section>
                 ))}
                 {filtrados.length === 0 && (
-                  <p className="pub-aviso">No hay cursos con esos filtros. <button type="button" className="pub-enlace" onClick={quitarFiltros}>Quítalos para ver todos</button></p>
+                  <div className="pub-aviso">
+                    <p>{cursos.length ? 'No hay cursos con esos filtros.' : 'Todavía no hay cursos publicados en Cursenda.'}{cursos.length > 0 && <> <button type="button" className="pub-enlace" onClick={quitarFiltros}>Quítalos para ver todos</button></>}</p>
+                    <p className="pub-aviso-oficial">También puedes buscar en el <a href={FUENTES.madrid} target="_blank" rel="noopener noreferrer">buscador de la Comunidad de Madrid</a> o en <a href={FUENTES.sepeAutonomias} target="_blank" rel="noopener noreferrer">las ofertas de cada comunidad</a>.</p>
+                  </div>
                 )}
               </>
             )}
@@ -648,7 +904,7 @@ function AlumnosDetalle() {
     }
   };
 
-  if (loading) return <div className="pub"><div className="pub-arriba"><CabeceraPublica /></div><p className="pub-aviso pub-ancho">Cargando el curso...</p></div>;
+  if (loading) return <div className="pub"><CabeceraPublica /><p className="pub-aviso pub-ancho">Cargando el curso...</p></div>;
   if (!curso) return <NoEncontrada />;
 
   const codigo = codigoCertificado(curso.titulo);
@@ -661,19 +917,26 @@ function AlumnosDetalle() {
 
   return (
     <div className="pub">
-      <div className="pub-arriba"><CabeceraPublica /></div>
+      <CabeceraPublica />
       <section className="pub-curso-portada">
-        <img src={getCourseImage(curso.categoria)} alt="" style={{ objectPosition: FOCO_CATEGORIA[curso.categoria] }} />
+        {getCourseImage(curso.categoria) && <img src={getCourseImage(curso.categoria) as string} alt="" style={{ objectPosition: FOCO_CATEGORIA[curso.categoria] }} />}
         <div className="pub-ancho">
-          <Link to="/cursos" className="pub-volver">Volver a los cursos</Link>
+          <Link to={`/cursos?categoria=${encodeURIComponent(curso.categoria)}`} className="pub-volver">{curso.categoria}</Link>
           <h1>{tituloSinCodigo(curso.titulo)}</h1>
-          <p>{codigo ? `Certificado de profesionalidad ${codigo}. ` : ''}Lo imparte {curso.centro_nombre}.</p>
+          <p>{codigo ? `Certificado de profesionalidad ${codigo}. ` : ''}{curso.es_demo ? `Lo imparte ${curso.centro_nombre}.` : <>Lo imparte <Link to={`/academia/${curso.centro_id}`} className="pub-compartir">{curso.centro_nombre}</Link>.</>}</p>
           <p><a href={enlaceCompartir} target="_blank" rel="noopener noreferrer" className="pub-compartir">Compartir por WhatsApp</a></p>
         </div>
       </section>
 
       {!!curso.es_demo && <p className="pub-aviso-ejemplo pub-ancho">Este es un curso de ejemplo para enseñar cómo funciona Cursenda. No es un curso real.</p>}
       <div className="pub-ancho">
+        <nav className="pub-ficha-menu" aria-label="Secciones del curso">
+          <a href="#de-que-trata">De qué trata</a>
+          {curso.aprenderas && <a href="#aprender">Qué aprendes</a>}
+          {curso.requisitos && <a href="#requisitos">Requisitos</a>}
+          {curso.modalidad !== 'Online' && <a href="#donde">Dónde es</a>}
+          <a href="#pedir">Pedir plaza</a>
+        </nav>
         <dl className="pub-datos">
           <div><dt>Empieza</dt><dd>{curso.fecha_inicio}</dd></div>
           <div><dt>Duración</dt><dd>{curso.duracion_horas} horas</dd></div>
@@ -684,18 +947,18 @@ function AlumnosDetalle() {
 
         <div className="pub-detalle">
           <div>
-            <section>
+            <section id="de-que-trata">
               <h2>De qué trata</h2>
               <p>{curso.descripcion}</p>
             </section>
             {curso.aprenderas && (
-              <section>
+              <section id="aprender">
                 <h2>Qué vas a aprender</h2>
                 <ul className="pub-lista-curso">{lineasDe(curso.aprenderas).map(l => <li key={l}>{l}</li>)}</ul>
               </section>
             )}
             {curso.requisitos && (
-              <section>
+              <section id="requisitos">
                 <h2>Requisitos</h2>
                 <ul className="pub-lista-curso">{lineasDe(curso.requisitos).map(l => <li key={l}>{l}</li>)}</ul>
               </section>
@@ -717,7 +980,7 @@ function AlumnosDetalle() {
               <p>{curso.centro_nombre} recibe tus datos y te llama. Con esa llamada te confirma si cumples los requisitos del curso y qué documentos necesitas.</p>
             </section>
             {curso.modalidad !== 'Online' && (
-              <section>
+              <section id="donde">
                 <h2>Dónde es</h2>
                 <div className="pub-mapa">
                   <MapaGoogle titulo="Mapa de ubicación" src={`https://maps.google.com/maps?q=${encodeURIComponent(`${curso.centro_nombre || 'Academia'}, ${localidadMapa}, España`)}&t=&z=16&ie=UTF8&iwloc=&output=embed`} />
@@ -760,7 +1023,7 @@ function AlumnosDetalle() {
 
       {parecidos.length > 0 && (
         <section className="pub-ancho pub-parecidos">
-          <h2 className="pub-titulo">Cursos parecidos</h2>
+          <h2 className="pub-titulo">Más cursos de {curso.categoria}</h2>
           {parecidos.map(c => <FilaCurso key={c.id} curso={c} />)}
         </section>
       )}
@@ -1638,7 +1901,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const [showCursoModal, setShowCursoModal] = useState(false);
   const [selectedCurso, setSelectedCurso] = useState<any>(null);
   const [formCursoTitulo, setFormCursoTitulo] = useState('');
-  const [formCursoCategoria, setFormCursoCategoria] = useState('Informática');
+  const [formCursoCategoria, setFormCursoCategoria] = useState('Informática y comunicaciones');
   const [formCursoModalidad, setFormCursoModalidad] = useState('Online');
   const [formCursoLocalidad, setFormCursoLocalidad] = useState('');
   const [formCursoDuracion, setFormCursoDuracion] = useState('');
@@ -1756,7 +2019,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const handleGuardarAjustes = async (e: React.FormEvent) => {
     e.preventDefault();
     setAjustesEstado('');
-    const { legal_actualizado, ...cambios } = formAjustes;
+    const { legal_actualizado, demo_oculta, ...cambios } = formAjustes;
     try {
       const res = await fetch(`${API_BASE}/admin/ajustes`, {
         method: 'PUT',
@@ -1773,6 +2036,18 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     } catch (err) {
       setAjustesEstado('No se ha podido conectar. Vuelve a intentarlo.');
     }
+  };
+
+  const handleCursosEjemplo = async () => {
+    const res = await fetch(`${API_BASE}/admin/ajustes`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ demo_oculta: ajustes.demo_oculta ? '' : '1' })
+    });
+    if (res.ok) {
+      setAjustes({ ...AJUSTES_INICIALES, ...(await res.json()) });
+      loadData();
+    } else alert('No se ha podido cambiar.');
   };
 
   const campoAjuste = (clave: keyof Ajustes, etiqueta: string, largo = false) => (
@@ -2074,7 +2349,11 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                   <section>
                     <h2>Cuenta demo</h2>
                     <p className="admin-vacio">Se pone como nueva sola cada noche a las 4:00. Reiníciala antes de enseñarla en una academia.</p>
-                    <button type="button" onClick={handleReiniciarDemo} className="btn btn-secondary btn-sm">Reiniciar demo</button>
+                    <div className="admin-acciones" style={{ justifyContent: 'flex-start' }}>
+                      <button type="button" onClick={handleReiniciarDemo} className="btn btn-secondary btn-sm">Reiniciar demo</button>
+                      <button type="button" onClick={handleCursosEjemplo} className="btn btn-secondary btn-sm">{ajustes.demo_oculta ? 'Mostrar cursos de ejemplo en la web' : 'Quitar cursos de ejemplo de la web'}</button>
+                    </div>
+                    <p className="admin-dato" style={{ marginTop: '0.5rem' }}>{ajustes.demo_oculta ? 'Ahora no salen en la web. La cuenta demo los sigue teniendo para enseñarla.' : 'Ahora salen en la web, marcados como ejemplo, hasta que una academia real publique cursos.'}</p>
                   </section>
                 </div>
               </div>
@@ -2341,7 +2620,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                 {formCursoError && <div className="alert-box alert-error" role="alert">{formCursoError}</div>}
                 <div className="form-group"><label className="form-label" htmlFor="cu-titulo">Título *</label><input id="cu-titulo" required className="form-control" value={formCursoTitulo} onChange={(e) => setFormCursoTitulo(e.target.value)} /></div>
                 <div className="admin-dos">
-                  <div className="form-group"><label className="form-label" htmlFor="cu-cat">Categoría</label><select id="cu-cat" className="form-control" value={formCursoCategoria} onChange={(e) => setFormCursoCategoria(e.target.value)}>{['Informática', 'Sanidad', 'Logística', 'Hostelería', 'Administración', 'Otros'].map(c => <option key={c}>{c}</option>)}</select></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-cat">Familia profesional</label><select id="cu-cat" className="form-control" value={formCursoCategoria} onChange={(e) => setFormCursoCategoria(e.target.value)}>{NOMBRES_FAMILIAS.map(c => <option key={c}>{c}</option>)}</select></div>
                   <div className="form-group"><label className="form-label" htmlFor="cu-mod">Modalidad</label><select id="cu-mod" className="form-control" value={formCursoModalidad} onChange={(e) => setFormCursoModalidad(e.target.value)}>{['Presencial', 'Online', 'Mixta'].map(c => <option key={c}>{c}</option>)}</select></div>
                   <div className="form-group"><label className="form-label" htmlFor="cu-loc">Localidad *</label><input id="cu-loc" required className="form-control" value={formCursoLocalidad} onChange={(e) => setFormCursoLocalidad(e.target.value)} /></div>
                   <div className="form-group"><label className="form-label" htmlFor="cu-horas">Horas *</label><input id="cu-horas" required type="number" min="1" className="form-control" value={formCursoDuracion} onChange={(e) => setFormCursoDuracion(e.target.value)} /></div>
@@ -2437,10 +2716,33 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   const [solicitudSearch, setSolicitudSearch] = useState('');
   const [solicitudStatusFilter, setSolicitudStatusFilter] = useState<'todos' | 'nuevos' | 'gestionados' | 'archivadas'>('todos');
   const [verCursosArchivados, setVerCursosArchivados] = useState(false);
+  const [logoAcademia, setLogoAcademia] = useState<string | null>(user?.logo || null);
+  const [logoError, setLogoError] = useState('');
+
+  const handleSubirLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!archivo) return;
+    setLogoError('');
+    if (archivo.size > 200 * 1024) { setLogoError('El logo pesa más de 200 KB.'); return; }
+    try {
+      const res = await fetch(`${API_BASE}/centro/logo`, { method: 'PUT', headers: { 'Content-Type': archivo.type }, body: archivo });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setLogoAcademia(data.logo);
+      else setLogoError(data.error || 'No se ha podido subir el logo.');
+    } catch (err) {
+      setLogoError('No se ha podido conectar. Vuelve a intentarlo.');
+    }
+  };
+
+  const handleQuitarLogo = async () => {
+    const res = await fetch(`${API_BASE}/centro/logo`, { method: 'DELETE' });
+    if (res.ok) setLogoAcademia(null);
+  };
 
   // Formulario Curso
   const [formTitulo, setFormTitulo] = useState('');
-  const [formCategoria, setFormCategoria] = useState('Informática');
+  const [formCategoria, setFormCategoria] = useState('Informática y comunicaciones');
   const [formModalidad, setFormModalidad] = useState('Online');
   const [formLocalidad, setFormLocalidad] = useState('');
   const [formDuracion, setFormDuracion] = useState('');
@@ -2608,7 +2910,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       setFormHorario(curso.horario || '');
     } else {
       setFormTitulo('');
-      setFormCategoria('Informática');
+      setFormCategoria('Informática y comunicaciones');
       setFormModalidad('Online');
       setFormLocalidad('');
       setFormDuracion('');
@@ -3783,6 +4085,18 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
             <div className="table-container" style={{ padding: '2.5rem', maxWidth: '800px', margin: '0 auto' }}>
               <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Datos de tu academia</h3>
+              <div className="config-logo">
+                {logoAcademia ? <img src={`/logos/${logoAcademia}`} alt="Logo de tu academia" /> : <span><Building size={28} /></span>}
+                <div>
+                  <label className="btn btn-secondary btn-sm">
+                    {logoAcademia ? 'Cambiar el logo' : 'Subir el logo'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={handleSubirLogo} />
+                  </label>
+                  {logoAcademia && <button type="button" className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }} onClick={handleQuitarLogo}>Quitar</button>}
+                  <p className="admin-dato" style={{ marginTop: 6 }}>PNG, JPG o WebP, de menos de 200 KB. Sale junto a tus cursos.</p>
+                  {logoError && <p className="admin-error" role="alert">{logoError}</p>}
+                </div>
+              </div>
               
               {confSaveSuccess && (
                 <div className="alert-box alert-info" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
@@ -3910,20 +4224,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     className="form-control" 
                     placeholder="Ej: IFCD0210 - Desarrollo de aplicaciones web"
                     value={formTitulo}
-                    onChange={(e) => setFormTitulo(e.target.value)}
+                    onChange={(e) => { setFormTitulo(e.target.value); const familia = familiaDelTitulo(e.target.value); if (familia) setFormCategoria(familia); }}
                   />
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Categoría *</label>
+                    <label className="form-label">Familia profesional *</label>
                     <select className="form-control" value={formCategoria} onChange={(e) => setFormCategoria(e.target.value)}>
-                      <option value="Informática">Informática</option>
-                      <option value="Sanidad">Sanidad</option>
-                      <option value="Logística">Logística</option>
-                      <option value="Administración">Administración</option>
-                      <option value="Hostelería">Hostelería</option>
-                      <option value="Otros">Otros</option>
+                      {NOMBRES_FAMILIAS.map(f => <option key={f}>{f}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
@@ -4260,6 +4569,8 @@ function App() {
         <Route path="/" element={<AlumnosHome />} />
         <Route path="/cursos" element={<AlumnosLista />} />
         <Route path="/como-funciona" element={<ComoFunciona />} />
+        <Route path="/academias" element={<AcademiasPublicas />} />
+        <Route path="/academia/:id" element={<AcademiaPublica />} />
         <Route path="/curso/:id" element={<AlumnosDetalle />} />
 
         {/* Centros */}

@@ -1,3 +1,4 @@
+import { familiaDe } from './familias.js';
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
@@ -127,12 +128,19 @@ export async function getDatabase(): Promise<Database> {
     'ALTER TABLE cursos ADD COLUMN aprenderas TEXT',
     'ALTER TABLE cursos ADD COLUMN requisitos TEXT',
     'ALTER TABLE cursos ADD COLUMN salidas TEXT',
-    'ALTER TABLE cursos ADD COLUMN horario TEXT'
+    'ALTER TABLE cursos ADD COLUMN horario TEXT',
+    'ALTER TABLE centros ADD COLUMN logo TEXT'
   ];
   for (const sql of columnasPago) {
     try {
       await db.run(sql);
     } catch (_) {}
+  }
+
+  // Los cursos pasan a las familias profesionales oficiales
+  for (const c of await db.all('SELECT id, titulo, categoria FROM cursos')) {
+    const familia = familiaDe(c.titulo, c.categoria);
+    if (familia !== c.categoria) await db.run('UPDATE cursos SET categoria = ? WHERE id = ?', [familia, c.id]);
   }
   await db.run('CREATE UNIQUE INDEX IF NOT EXISTS facturas_stripe ON facturas(stripe_invoice_id)');
   // La cuenta demo de siempre
