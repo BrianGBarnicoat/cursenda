@@ -3218,3 +3218,48 @@ tr:last-child td {
 .pub-logo-academia { padding: 5px; }
 .pub-aviso-ejemplo.pub-ancho { max-width: 1124px; margin: 16px auto 0; padding: 12px 16px; }
 @media (max-width: 1200px) { .pub-aviso-ejemplo.pub-ancho { margin-left: 16px; margin-right: 16px; } }
+
+/* Menos redondeos y menos adornos */
+.pub *, .auth-card, .auth-card *, .dashboard-layout *, .modal-content, .modal-content * { border-radius: 2px !important; }
+.pub-franja, .pub-curso-foto img, .pub-tarjeta-foto { border-radius: 0 !important; }
+.pub .pub-tarjeta:hover { transform: none; }
+.pub-cabecera-principal .logo-text { color: var(--primary); }
+.pub-icono-familia { padding: 10px; font-size: 13px; font-weight: 600; line-height: 1.25; text-align: center; color: var(--primary); }
+.pub-tarjeta-foto.pub-icono-familia { font-size: 18px; padding: 16px; }
+.pub-sugerencia-foto.pub-icono-familia { padding: 2px; font-size: 9px; overflow: hidden; }
+.pub-logo-letra { font-size: 22px; font-weight: 600; }
+.pub-logo-letra.grande { font-size: 34px; }
+.pub-explorar-panel { width: min(640px, calc(100vw - 32px)); grid-template-columns: minmax(0, 1fr) 180px; }
+.pub-explorar-familias { grid-template-columns: minmax(0, 1fr); }
+.pub-explorar-mas { margin: 8px 8px 0; font-size: 15px; }
+.pub-explorar-panel > div:last-child a { padding-left: 8px; }
+
+/* En el móvil: nada que estorbe */
+@media (max-width: 700px) {
+  .pub-franjas { height: 240px; min-height: 0; }
+  .pub-franja-curso { display: none; }
+  .pub-franja-ver { margin-top: 6px; }
+  .pub-franja-texto strong { font-size: 20px; }
+  .pub-portada h1 { font-size: 30px; }
+  .pub-ficha-menu { position: static; }
+  .pub-explorar-panel { grid-template-columns: minmax(0, 1fr); }
+  .pub-bloque { padding-top: 26px; padding-bottom: 26px; }
+  .pub-situacion { padding-top: 22px; }
+  .pub-tarjetas { display: flex; overflow-x: auto; scroll-snap-type: x proximity; margin-right: -16px; padding-right: 16px; scrollbar-width: none; }
+  .pub-tarjeta { flex: 0 0 76%; scroll-snap-align: start; }
+  .pub-tarjeta-foto { height: 120px; }
+  .pub-curso-portada { height: 280px; }
+  .pub-curso-portada h1 { font-size: 26px; }
+  .pub-datos dd { font-size: 16px; }
+}
+.pub-ejemplo { display: inline-block; white-space: nowrap; }
+@media (max-width: 900px) {
+  .pub-barra-movil { position: static; padding: 14px 0 0; border-top: 0; background: none; }
+  .pub-detalle { padding-bottom: 40px; }
+}
+@media (max-width: 700px) {
+  .pub-curso-inicio .pub-ejemplo { display: block; width: fit-content; margin: 3px 0 0; }
+  .pub-familias:not(.todas) a:nth-child(n+7) { display: none; }
+  .pub-pie-columnas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 16px; }
+  .pub-pie-columnas > div:first-child { grid-column: 1 / -1; }
+}

@@ -19,7 +19,7 @@ import {
   Shield,
   Globe,
   Building,
-  Briefcase, Dumbbell, Sprout, Printer, Palette, ShoppingCart, Zap, Droplets, HardHat, Cog, UtensilsCrossed, Pickaxe, Monitor, Wrench, Scissors, Clapperboard, Wheat, Trees, Ship, FlaskConical, HeartPulse, ShieldCheck, HandHeart, Shirt, Car, Wine, GraduationCap, ChevronDown, Search,
+  ChevronDown, Search,
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -96,12 +96,12 @@ const useTitulo = (titulo?: string | null) => {
 // Lo que se puede cambiar desde el panel de administrador. Esto es lo que sale si no se ha cambiado nada.
 const AJUSTES_INICIALES = {
   portada_titulo: 'Aprende un oficio con un curso gratis',
-  portada_texto: 'Cursos subvencionados con dinero público que publican las academias. Pides plaza aquí y la academia te llama.',
+  portada_texto: 'Cursos subvencionados con dinero público que publican los centros. Pides plaza aquí y el centro te llama.',
   academias_titulo: 'Recibe a la gente que quiere plaza en tus cursos',
   academias_texto: 'Publicas tus cursos subvencionados y te llegan las solicitudes a un panel, con su teléfono, para que las llames.',
   pie_texto: 'Cursenda es un portal independiente. No pertenece al SEPE ni a ninguna administración pública.',
-  precio_starter: '79',
-  precio_pro: '149',
+  precio_starter: '',
+  precio_pro: '',
   legal_titular: '',
   legal_nif: '',
   legal_domicilio: '',
@@ -110,8 +110,16 @@ const AJUSTES_INICIALES = {
   demo_oculta: ''
 };
 type Ajustes = typeof AJUSTES_INICIALES;
-const AjustesContexto = createContext<{ ajustes: Ajustes; setAjustes: (a: Ajustes) => void }>({ ajustes: AJUSTES_INICIALES, setAjustes: () => {} });
+const AjustesContexto = createContext<{ ajustes: Ajustes; setAjustes: React.Dispatch<React.SetStateAction<Ajustes>> }>({ ajustes: AJUSTES_INICIALES, setAjustes: () => {} });
 const useAjustes = () => useContext(AjustesContexto);
+
+// Los precios no van en la parte pública: se piden al entrar al panel
+function usePrecios() {
+  const { setAjustes } = useAjustes();
+  const cargar = () => fetch(`${API_BASE}/precios`).then(r => r.ok ? r.json() : {}).then(p => setAjustes(a => ({ ...a, ...p }))).catch(() => {});
+  useEffect(() => { cargar(); }, []);
+  return cargar;
+}
 
 // --- PORTAL ALUMNOS ---
 
@@ -126,7 +134,7 @@ const FOCO_CATEGORIA: Record<string, string> = {
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-// La academia escribe la fecha a mano ("15 de enero de 2027", "Inmediata"...).
+// El centro escribe la fecha a mano ("15 de enero de 2027", "Inmediata"...).
 // Si no se entiende o ya ha pasado, el curso va al grupo "Otras fechas" con su texto tal cual.
 function inicioDe(curso: any): { grupo: string; orden: number } {
   const texto = String(curso.fecha_inicio || '').toLowerCase();
@@ -195,7 +203,6 @@ function AvisoCursos({ estado }: { estado: string }) {
 const FUENTES = {
   sepeFundae: 'https://sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2025%2FSeptiembre%2F&detail=formacion-subvencionada-sepe-colaboracion-fundae',
   sepe45: 'https://www.sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2026%2FMarzo%2F&detail=proximos-cursos-gratuitos-desempleados-45-o-mas-anios-edad',
-  familias: 'https://www.sepe.es/dam/jcr:cbc76b14-9495-49f3-9abe-82fb98ff27c7/certificados_profesionalidad.pdf',
   sepeAutonomias: 'https://www.sepe.es/HomeSepe/es/formacion-trabajo/iniciativas-formacion-trabajo/ofertas-formacion-comunidades-autonomas.html',
   madrid: 'https://oficinaempleo.comunidad.madrid/BuscadorCursosPublico/',
   fundae: 'https://experienciafundae.es/formacion-subvencionada',
@@ -222,7 +229,7 @@ function ComoFunciona() {
       <main className="pub-ancho pub-info">
         <section>
           <h2>¿Son gratis?</h2>
-          <p>El SEPE describe su formación subvencionada con Fundae como cursos "100% gratuitos, financiados con fondos públicos". En Cursenda, cada academia publica sus cursos y responde de lo que anuncia: confirma con ella las condiciones del tuyo antes de matricularte.</p>
+          <p>El SEPE describe su formación subvencionada con Fundae como cursos "100% gratuitos, financiados con fondos públicos". En Cursenda, cada centro publica sus cursos y responde de lo que anuncia: confirma con él las condiciones del tuyo antes de matricularte.</p>
           <Fuente href={FUENTES.sepeFundae}>SEPE, formación subvencionada con Fundae</Fuente>
         </section>
 
@@ -277,7 +284,7 @@ function ComoFunciona() {
         </section>
 
         <section>
-          <h2>Qué preguntar a la academia</h2>
+          <h2>Qué preguntar al centro</h2>
           <ul>
             <li>Qué convocatoria financia el curso.</li>
             <li>Si cumples los requisitos y qué documentos tienes que llevar.</li>
@@ -293,45 +300,44 @@ function ComoFunciona() {
 }
 
 // Familias profesionales oficiales (Repertorio Nacional de Certificados de Profesionalidad, SEPE)
-const FAMILIAS: { codigo: string; nombre: string; icono: React.ComponentType<{ size?: number }> }[] = [
-  { codigo: 'ADG', nombre: 'Administración y gestión', icono: Briefcase },
-  { codigo: 'AFD', nombre: 'Actividades físicas y deportivas', icono: Dumbbell },
-  { codigo: 'AGA', nombre: 'Agraria', icono: Sprout },
-  { codigo: 'ARG', nombre: 'Artes gráficas', icono: Printer },
-  { codigo: 'ART', nombre: 'Artes y artesanías', icono: Palette },
-  { codigo: 'COM', nombre: 'Comercio y marketing', icono: ShoppingCart },
-  { codigo: 'ELE', nombre: 'Electricidad y electrónica', icono: Zap },
-  { codigo: 'ENA', nombre: 'Energía y agua', icono: Droplets },
-  { codigo: 'EOC', nombre: 'Edificación y obra civil', icono: HardHat },
-  { codigo: 'FME', nombre: 'Fabricación mecánica', icono: Cog },
-  { codigo: 'HOT', nombre: 'Hostelería y turismo', icono: UtensilsCrossed },
-  { codigo: 'IEX', nombre: 'Industrias extractivas', icono: Pickaxe },
-  { codigo: 'IFC', nombre: 'Informática y comunicaciones', icono: Monitor },
-  { codigo: 'IMA', nombre: 'Instalación y mantenimiento', icono: Wrench },
-  { codigo: 'IMP', nombre: 'Imagen personal', icono: Scissors },
-  { codigo: 'IMS', nombre: 'Imagen y sonido', icono: Clapperboard },
-  { codigo: 'INA', nombre: 'Industrias alimentarias', icono: Wheat },
-  { codigo: 'MAM', nombre: 'Madera, mueble y corcho', icono: Trees },
-  { codigo: 'MAP', nombre: 'Marítimo pesquera', icono: Ship },
-  { codigo: 'QUI', nombre: 'Química', icono: FlaskConical },
-  { codigo: 'SAN', nombre: 'Sanidad', icono: HeartPulse },
-  { codigo: 'SEA', nombre: 'Seguridad y medioambiente', icono: ShieldCheck },
-  { codigo: 'SSC', nombre: 'Servicios socioculturales y a la comunidad', icono: HandHeart },
-  { codigo: 'TCP', nombre: 'Textil, confección y piel', icono: Shirt },
-  { codigo: 'TMV', nombre: 'Transporte y mantenimiento de vehículos', icono: Car },
-  { codigo: 'VIC', nombre: 'Vidrio y cerámica', icono: Wine }
+const FAMILIAS: { codigo: string; nombre: string }[] = [
+  { codigo: 'ADG', nombre: 'Administración y gestión' },
+  { codigo: 'AFD', nombre: 'Actividades físicas y deportivas' },
+  { codigo: 'AGA', nombre: 'Agraria' },
+  { codigo: 'ARG', nombre: 'Artes gráficas' },
+  { codigo: 'ART', nombre: 'Artes y artesanías' },
+  { codigo: 'COM', nombre: 'Comercio y marketing' },
+  { codigo: 'ELE', nombre: 'Electricidad y electrónica' },
+  { codigo: 'ENA', nombre: 'Energía y agua' },
+  { codigo: 'EOC', nombre: 'Edificación y obra civil' },
+  { codigo: 'FME', nombre: 'Fabricación mecánica' },
+  { codigo: 'HOT', nombre: 'Hostelería y turismo' },
+  { codigo: 'IEX', nombre: 'Industrias extractivas' },
+  { codigo: 'IFC', nombre: 'Informática y comunicaciones' },
+  { codigo: 'IMA', nombre: 'Instalación y mantenimiento' },
+  { codigo: 'IMP', nombre: 'Imagen personal' },
+  { codigo: 'IMS', nombre: 'Imagen y sonido' },
+  { codigo: 'INA', nombre: 'Industrias alimentarias' },
+  { codigo: 'MAM', nombre: 'Madera, mueble y corcho' },
+  { codigo: 'MAP', nombre: 'Marítimo pesquera' },
+  { codigo: 'QUI', nombre: 'Química' },
+  { codigo: 'SAN', nombre: 'Sanidad' },
+  { codigo: 'SEA', nombre: 'Seguridad y medioambiente' },
+  { codigo: 'SSC', nombre: 'Servicios socioculturales y a la comunidad' },
+  { codigo: 'TCP', nombre: 'Textil, confección y piel' },
+  { codigo: 'TMV', nombre: 'Transporte y mantenimiento de vehículos' },
+  { codigo: 'VIC', nombre: 'Vidrio y cerámica' }
 ];
 const OTRA_FORMACION = 'Otra formación';
 const NOMBRES_FAMILIAS = [...FAMILIAS.map(f => f.nombre), OTRA_FORMACION];
 // El código del certificado indica la familia: SSCS0208 es de SSC
 const familiaDelTitulo = (titulo: string) => FAMILIAS.find(f => f.codigo === titulo.match(/^([A-Z]{3})[A-Z]\d{4}\b/)?.[1])?.nombre;
 
-// Foto si la hay; si no, el icono de la familia
+// Foto si la hay; si no, el nombre del sector
 function ImagenFamilia({ categoria, className }: { categoria: string; className?: string }) {
   const foto = getCourseImage(categoria);
   if (foto) return <img className={className} src={foto} alt="" loading="lazy" style={{ objectPosition: FOCO_CATEGORIA[categoria] }} />;
-  const Icono = FAMILIAS.find(f => f.nombre === categoria)?.icono || GraduationCap;
-  return <span className={`pub-icono-familia ${className || ''}`}><Icono size={30} /></span>;
+  return <span className={`pub-icono-familia ${className || ''}`}>{categoria}</span>;
 }
 
 // Los cursos se piden una vez y los comparten el buscador y la página
@@ -374,10 +380,10 @@ function BuscadorCursos() {
       onKeyDown={(e) => { if (e.key === 'Escape') setAbierto(false); }}>
       <Search size={18} aria-hidden="true" />
       <input aria-label="Buscar cursos" placeholder="¿Qué quieres aprender?" value={texto} onFocus={() => setAbierto(true)} onChange={(e) => { setTexto(e.target.value); setAbierto(true); }} />
-      {abierto && (lista.length > 0 || familias.length > 0 || q) && (
+      {abierto && (q || window.innerWidth > 700) && (lista.length > 0 || familias.length > 0 || q) && (
         <div className="pub-sugerencias">
-          {familias.length > 0 && <p className="pub-sugerencias-titulo">Familias</p>}
-          {familias.map(f => <button type="button" key={f.codigo} onClick={() => ir(`/cursos?categoria=${encodeURIComponent(f.nombre)}`)}><span className="pub-sugerencia-icono"><f.icono size={18} /></span><span>{f.nombre}</span></button>)}
+          {familias.length > 0 && <p className="pub-sugerencias-titulo">Sectores</p>}
+          {familias.map(f => <button type="button" key={f.codigo} onClick={() => ir(`/cursos?categoria=${encodeURIComponent(f.nombre)}`)}><span>{f.nombre}</span></button>)}
           {lista.length > 0 && <p className="pub-sugerencias-titulo">{q ? 'Cursos' : 'Los más vistos'}</p>}
           {lista.map(c => (
             <button type="button" key={c.id} onClick={() => ir(`/curso/${c.id}`)}>
@@ -394,32 +400,33 @@ function BuscadorCursos() {
 
 function MenuExplorar() {
   const [abierto, setAbierto] = useState(false);
+  const [todos, setTodos] = useState(false);
   const { cursos } = useCursosPublicos();
   const cuantos = (nombre: string) => cursos.filter(c => c.categoria === nombre).length;
-  const cerrar = () => setAbierto(false);
+  const conCursos = FAMILIAS.filter(f => cuantos(f.nombre) > 0);
+  const vistos = todos || conCursos.length === 0 ? FAMILIAS : conCursos;
+  const cerrar = () => { setAbierto(false); setTodos(false); };
   return (
     <div className="pub-explorar" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) cerrar(); }} onKeyDown={(e) => { if (e.key === 'Escape') cerrar(); }}>
-      <button type="button" className="pub-explorar-boton" aria-expanded={abierto} onClick={() => setAbierto(!abierto)}>Explorar <ChevronDown size={16} /></button>
+      <button type="button" className="pub-explorar-boton" aria-expanded={abierto} onClick={() => abierto ? cerrar() : setAbierto(true)}>Explorar <ChevronDown size={16} /></button>
       {abierto && (
         <div className="pub-explorar-panel">
           <div>
-            <p className="pub-explorar-titulo">Familias profesionales</p>
+            <p className="pub-explorar-titulo">Sectores</p>
             <div className="pub-explorar-familias">
-              {FAMILIAS.map(f => (
+              {vistos.map(f => (
                 <Link key={f.codigo} to={`/cursos?categoria=${encodeURIComponent(f.nombre)}`} onClick={cerrar}>
-                  <f.icono size={16} /><span>{f.nombre}</span>{cuantos(f.nombre) > 0 && <em>{cuantos(f.nombre)}</em>}
+                  <span>{f.nombre}</span>{cuantos(f.nombre) > 0 && <em>{cuantos(f.nombre)}</em>}
                 </Link>
               ))}
             </div>
+            {!todos && vistos !== FAMILIAS && <button type="button" className="pub-enlace pub-explorar-mas" onClick={() => setTodos(true)}>Ver todos los sectores</button>}
           </div>
           <div>
             <p className="pub-explorar-titulo">Tu situación</p>
             <Link to="/cursos?situacion=Desempleados" onClick={cerrar}>Estoy en paro</Link>
             <Link to="/cursos?situacion=Ocupados" onClick={cerrar}>Estoy trabajando</Link>
-            <p className="pub-explorar-titulo">Más</p>
             <Link to="/cursos" onClick={cerrar}>Todos los cursos</Link>
-            <Link to="/academias" onClick={cerrar}>Academias</Link>
-            <Link to="/como-funciona" onClick={cerrar}>Cómo funcionan los cursos</Link>
           </div>
         </div>
       )}
@@ -430,18 +437,12 @@ function MenuExplorar() {
 function CabeceraPublica() {
   return (
     <header className="pub-cabecera">
-      <div className="pub-cabecera-arriba">
-        <div className="pub-ancho">
-          <span>Para alumnos</span>
-          <Link to="/centros">Para academias</Link>
-        </div>
-      </div>
       <div className="pub-cabecera-principal pub-ancho">
         <Logo />
         <MenuExplorar />
         <BuscadorCursos />
         <nav>
-          <Link to="/academias" className="pub-solo-ancho">Academias</Link>
+          <Link to="/centros-de-formacion" className="pub-solo-ancho">Centros</Link>
           <Link to="/como-funciona" className="pub-solo-ancho">Cómo funciona</Link>
           <Link to="/centros/login" className="pub-boton-borde">Entrar</Link>
         </nav>
@@ -465,8 +466,8 @@ function PiePublico() {
             <Link to="/como-funciona">Cómo funcionan</Link>
           </div>
           <div>
-            <strong>Academias</strong>
-            <Link to="/academias">Academias en Cursenda</Link>
+            <strong>Centros</strong>
+            <Link to="/centros-de-formacion">Centros en Cursenda</Link>
             <Link to="/centros">Publicar mis cursos</Link>
             <Link to="/centros/login">Entrar al panel</Link>
           </div>
@@ -510,7 +511,7 @@ function useAcademias() {
 function LogoAcademia({ academia, grande }: { academia: { nombre: string; logo?: string | null }; grande?: boolean }) {
   return academia.logo
     ? <img className={`pub-logo-academia ${grande ? 'grande' : ''}`} src={`/logos/${academia.logo}`} alt={`Logo de ${academia.nombre}`} />
-    : <span className={`pub-logo-academia pub-logo-letra ${grande ? 'grande' : ''}`} aria-hidden="true"><Building size={grande ? 34 : 22} /></span>;
+    : <span className={`pub-logo-academia pub-logo-letra ${grande ? 'grande' : ''}`} aria-hidden="true">{academia.nombre.charAt(0)}</span>;
 }
 
 function AlumnosHome() {
@@ -562,7 +563,7 @@ function AlumnosHome() {
                   <strong>{titulosCortos[nombre]}</strong>
                   <span className="pub-franja-mas"><span>
                     <span className="pub-franja-curso">{siguiente ? (lista.length === 1 ? tituloSinCodigo(siguiente.titulo) : `${lista.length} cursos. El próximo: ${tituloSinCodigo(siguiente.titulo)}`) : nombre}</span>
-                    <span className="pub-franja-ver">{lista.length ? 'Ver los cursos' : 'Ver esta familia'}</span>
+                    <span className="pub-franja-ver">{lista.length ? 'Ver los cursos' : 'Ver este sector'}</span>
                   </span></span>
                 </span>
               </Link>
@@ -589,17 +590,15 @@ function AlumnosHome() {
 
       <section className="pub-fondo">
         <div className="pub-ancho pub-bloque">
-          <div className="pub-bloque-cabeza"><h2>Explora por familia profesional</h2></div>
-          <p className="pub-bloque-texto">Los certificados oficiales se organizan en 26 familias profesionales. <a href={FUENTES.familias} target="_blank" rel="noopener noreferrer">Fuente: SEPE</a></p>
-          <div className="pub-familias">
+          <div className="pub-bloque-cabeza"><h2>¿Qué quieres aprender?</h2></div>
+          <div className={`pub-familias ${todasFamilias ? "todas" : ""}`}>
             {familiasVistas.map(f => (
               <Link key={f.codigo} to={`/cursos?categoria=${encodeURIComponent(f.nombre)}`}>
-                <span className="pub-familia-icono"><f.icono size={20} /></span>
                 <span>{f.nombre}{conCursos(f.nombre) > 0 && <small>{conCursos(f.nombre) === 1 ? '1 curso' : `${conCursos(f.nombre)} cursos`}</small>}</span>
               </Link>
             ))}
           </div>
-          {!todasFamilias && <p className="pub-ver-todos"><button type="button" className="pub-boton pub-boton-claro" onClick={() => setTodasFamilias(true)}>Ver las 26 familias</button></p>}
+          {!todasFamilias && <p className="pub-ver-todos"><button type="button" className="pub-boton pub-boton-claro" onClick={() => setTodasFamilias(true)}>Ver más</button></p>}
         </div>
       </section>
 
@@ -614,55 +613,46 @@ function AlumnosHome() {
           <ol className="pub-pasos">
             <li><strong>Elige un curso</strong><span>Busca por lo que quieres aprender, por familia o por localidad.</span></li>
             <li><strong>Deja tus datos</strong><span>Pedir plaza es gratis y no te compromete a nada.</span></li>
-            <li><strong>La academia te llama</strong><span>Te confirma si cumples los requisitos y qué documentos necesitas.</span></li>
+            <li><strong>El centro te llama</strong><span>Te confirma si cumples los requisitos y qué documentos necesitas.</span></li>
           </ol>
         </div>
       </section>
 
       {academias.length > 0 && (
         <section className="pub-ancho pub-bloque">
-          <div className="pub-bloque-cabeza"><h2>Academias en Cursenda</h2><Link to="/academias">Ver todas</Link></div>
+          <div className="pub-bloque-cabeza"><h2>Centros en Cursenda</h2><Link to="/centros-de-formacion">Ver todas</Link></div>
           <div className="pub-academias-logos">
-            {academias.slice(0, 8).map(a => <Link key={a.id} to={`/academia/${a.id}`}><LogoAcademia academia={a} /><span>{a.nombre}</span></Link>)}
+            {academias.slice(0, 8).map(a => <Link key={a.id} to={`/centro-de-formacion/${a.id}`}><LogoAcademia academia={a} /><span>{a.nombre}</span></Link>)}
           </div>
         </section>
       )}
 
       <section className="pub-ancho pub-preguntas-portada">
         <h2 className="pub-titulo">Preguntas frecuentes</h2>
-        <details className="pub-pregunta"><summary>¿Tengo que pagar algo?</summary><p>Son cursos subvencionados: el SEPE describe los de su formación con Fundae como "100% gratuitos, financiados con fondos públicos". Confirma con la academia las condiciones del tuyo antes de matricularte.</p></details>
-        <details className="pub-pregunta"><summary>¿Puedo apuntarme si estoy trabajando?</summary><p>Depende de la convocatoria de cada curso. En cada ficha verás a quién va dirigido, y la academia te confirma si cumples los requisitos.</p></details>
-        <details className="pub-pregunta"><summary>¿Qué pasa cuando pido plaza?</summary><p>La academia recibe tus datos y te llama. Pedir plaza no te compromete a nada.</p></details>
-        <details className="pub-pregunta"><summary>¿Cursenda pertenece al SEPE?</summary><p>No. Es un portal independiente donde las academias publican sus cursos.</p></details>
+        <details className="pub-pregunta"><summary>¿Tengo que pagar algo?</summary><p>Son cursos subvencionados: el SEPE describe los de su formación con Fundae como "100% gratuitos, financiados con fondos públicos". Confirma con el centro las condiciones del tuyo antes de matricularte.</p></details>
+        <details className="pub-pregunta"><summary>¿Puedo apuntarme si estoy trabajando?</summary><p>Depende de la convocatoria de cada curso. En cada ficha verás a quién va dirigido, y el centro te confirma si cumples los requisitos.</p></details>
+        <details className="pub-pregunta"><summary>¿Qué pasa cuando pido plaza?</summary><p>El centro recibe tus datos y te llama. Pedir plaza no te compromete a nada.</p></details>
+        <details className="pub-pregunta"><summary>¿Cursenda pertenece al SEPE?</summary><p>No. Es un portal independiente donde los centros publican sus cursos.</p></details>
         <p className="pub-ver-todos"><Link to="/como-funciona">Toda la información, con fuentes oficiales</Link></p>
       </section>
 
-      <section className="pub-academias">
-        <div className="pub-ancho pub-academias-simple">
-          <div>
-            <h2>¿Tienes una academia?</h2>
-            <p>Publica tus cursos y recibe aquí a la gente que pide plaza, con su teléfono.</p>
-          </div>
-          <Link to="/centros" className="pub-boton">Ver cómo funciona</Link>
-        </div>
-      </section>
       <PiePublico />
     </div>
   );
 }
 
 function AcademiasPublicas() {
-  useTitulo('Academias · Cursenda');
+  useTitulo('Centros de formación · Cursenda');
   const { academias, listo } = useAcademias();
   return (
     <div className="pub">
       <CabeceraPublica />
-      <div className="pub-arriba"><div className="pub-ancho pub-lista-cabeza"><h1>Academias en Cursenda</h1><p className="pub-info-entrada">Los centros que publican aquí sus cursos.</p></div></div>
+      <div className="pub-arriba"><div className="pub-ancho pub-lista-cabeza"><h1>Centros en Cursenda</h1><p className="pub-info-entrada">Los centros que publican aquí sus cursos.</p></div></div>
       <main className="pub-ancho pub-bloque">
         {listo && academias.length === 0 && <p className="pub-aviso">Todavía no hay academias publicando cursos. <Link to="/centros">¿Tienes una?</Link></p>}
         <div className="pub-academias-lista">
           {academias.map(a => (
-            <Link key={a.id} to={`/academia/${a.id}`}>
+            <Link key={a.id} to={`/centro-de-formacion/${a.id}`}>
               <LogoAcademia academia={a} grande />
               <span><strong>{a.nombre}</strong><small>{a.cursos === 1 ? '1 curso' : `${a.cursos} cursos`}</small></span>
             </Link>
@@ -791,9 +781,9 @@ function AlumnosLista() {
                 </fieldset>
               )}
               <fieldset>
-                <legend>Familia profesional</legend>
-                <select className="pub-select" aria-label="Familia profesional" value={categoria} onChange={(e) => cambiarParam('categoria', e.target.value)}>
-                  <option value="">Todas las familias</option>
+                <legend>Sector</legend>
+                <select className="pub-select" aria-label="Sector" value={categoria} onChange={(e) => cambiarParam('categoria', e.target.value)}>
+                  <option value="">Todos los sectores</option>
                   {NOMBRES_FAMILIAS.map(f => <option key={f} value={f}>{f}{cursos.some(c => c.categoria === f) ? ` (${cursos.filter(c => c.categoria === f).length})` : ''}</option>)}
                 </select>
               </fieldset>
@@ -923,7 +913,7 @@ function AlumnosDetalle() {
         <div className="pub-ancho">
           <Link to={`/cursos?categoria=${encodeURIComponent(curso.categoria)}`} className="pub-volver">{curso.categoria}</Link>
           <h1>{tituloSinCodigo(curso.titulo)}</h1>
-          <p>{codigo ? `Certificado de profesionalidad ${codigo}. ` : ''}{curso.es_demo ? `Lo imparte ${curso.centro_nombre}.` : <>Lo imparte <Link to={`/academia/${curso.centro_id}`} className="pub-compartir">{curso.centro_nombre}</Link>.</>}</p>
+          <p>{codigo ? `Certificado de profesionalidad ${codigo}. ` : ''}{curso.es_demo ? `Lo imparte ${curso.centro_nombre}.` : <>Lo imparte <Link to={`/centro-de-formacion/${curso.centro_id}`} className="pub-compartir">{curso.centro_nombre}</Link>.</>}</p>
           <p><a href={enlaceCompartir} target="_blank" rel="noopener noreferrer" className="pub-compartir">Compartir por WhatsApp</a></p>
         </div>
       </section>
@@ -945,6 +935,9 @@ function AlumnosDetalle() {
           <div><dt>Para</dt><dd>{dirigidoA[curso.dirigido_a] || curso.dirigido_a}</dd></div>
         </dl>
 
+        {!submitSuccess && libres > 0 && (
+          <div className="pub-barra-movil"><span>{textoPlazas(curso)}</span><a href="#pedir" className="pub-boton pub-boton-pedir">Pedir plaza</a></div>
+        )}
         <div className="pub-detalle">
           <div>
             <section id="de-que-trata">
@@ -1027,10 +1020,6 @@ function AlumnosDetalle() {
           {parecidos.map(c => <FilaCurso key={c.id} curso={c} />)}
         </section>
       )}
-
-      {!submitSuccess && libres > 0 && (
-        <div className="pub-barra-movil"><span>{textoPlazas(curso)}</span><a href="#pedir" className="pub-boton pub-boton-pedir">Pedir plaza</a></div>
-      )}
       <PiePublico />
     </div>
   );
@@ -1043,20 +1032,21 @@ const FUNCIONES_PANEL = [
   { titulo: 'Contactas en un clic', texto: 'Abres WhatsApp o el correo con un mensaje ya escrito a partir de tus plantillas.' },
   { titulo: 'Apuntas cómo va cada una', texto: 'Llamado, interesado, matriculado o descartado, con tus notas guardadas en su ficha.' },
   { titulo: 'Trabajas con tu equipo', texto: 'Invitas a tus compañeros con su propia cuenta y eliges qué puede hacer cada uno.' },
-  { titulo: 'Pones los cursos en tu web', texto: 'Copias un código y tus cursos salen también en la web de tu academia.' },
+  { titulo: 'Pones los cursos en tu web', texto: 'Copias un código y tus cursos salen también en la web de tu centro.' },
   { titulo: 'Sacas tus datos', texto: 'Descargas las solicitudes en un archivo CSV que se abre con Excel.' },
   { titulo: 'Ves qué funciona', texto: 'Visitas y solicitudes de cada curso, para saber cuáles necesitan más gente.' }
 ];
 
 const PREGUNTAS_ACADEMIAS = [
+  { pregunta: '¿Cuánto cuesta?', respuesta: 'El primer mes es gratis. Al crear tu cuenta verás los planes y sus precios en tu panel, antes de tener que pagar nada.' },
   { pregunta: '¿Necesito tarjeta para probarlo?', respuesta: 'No. El primer mes es gratis y no se pide ningún dato de pago. Solo pones la tarjeta si decides seguir.' },
   { pregunta: '¿Qué pasa cuando termina el mes gratis?', respuesta: 'Eliges un plan desde tu panel y todo sigue igual. Si no lo haces, tus cursos dejan de mostrarse, pero tus datos se guardan por si decides volver.' },
   { pregunta: '¿Tiene permanencia?', respuesta: 'No. Se paga mes a mes y puedes darte de baja cuando quieras desde tu panel.' },
-  { pregunta: '¿Quién ve las solicitudes?', respuesta: 'Solo tu academia. Entran tú y las personas de tu equipo a las que invites, cada una con su contraseña.' }
+  { pregunta: '¿Quién ve las solicitudes?', respuesta: 'Solo tu centro. Entran tú y las personas de tu equipo a las que invites, cada una con su contraseña.' }
 ];
 
 function LandingCentros() {
-  useTitulo('Cursenda para academias · Recibe solicitudes para tus cursos');
+  useTitulo('Cursenda para centros · Recibe solicitudes para tus cursos');
   const { ajustes } = useAjustes();
   const [nombreCentro, setNombreCentro] = useState('');
   const [contacto, setContacto] = useState('');
@@ -1101,7 +1091,6 @@ function LandingCentros() {
         <header className="pub-barra">
           <Logo light={true} />
           <nav>
-            <a href="#precios" className="pub-solo-ancho">Precios</a>
             <Link to="/" className="pub-solo-ancho">Ver los cursos</Link>
             <Link to="/centros/login">Entrar</Link>
           </nav>
@@ -1126,30 +1115,6 @@ function LandingCentros() {
         </div>
       </section>
 
-      <section className="pub-aca-precios" id="precios">
-        <div className="pub-ancho">
-          <h2>Precios</h2>
-          <p>El primer mes es gratis en cualquier plan. Los precios no incluyen IVA.</p>
-          <div className="pub-aca-planes">
-            <div>
-              <h3>Starter</h3>
-              <p className="pub-aca-precio">{ajustes.precio_starter} € <span>al mes</span></p>
-              <p>Hasta 5 cursos activos a la vez.</p>
-            </div>
-            <div>
-              <h3>Pro</h3>
-              <p className="pub-aca-precio">{ajustes.precio_pro} € <span>al mes</span></p>
-              <p>Cursos activos sin límite.</p>
-            </div>
-            <div>
-              <h3>Varios centros</h3>
-              <p className="pub-aca-precio">A medida</p>
-              <p>Si tienes una red de centros, pide acceso y lo hablamos.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section className="pub-ancho pub-aca-seccion pub-aca-final">
         <div>
           <h2 className="pub-titulo">Preguntas</h2>
@@ -1170,9 +1135,9 @@ function LandingCentros() {
           ) : (
             <form onSubmit={handleDemoSubmit}>
               <h2>Prueba un mes gratis</h2>
-              <p>Déjanos tus datos y te enviamos un enlace para crear la cuenta de tu academia.</p>
+              <p>Déjanos tus datos y te enviamos un enlace para crear la cuenta de tu centro.</p>
               {error && <p className="pub-error" role="alert">{error}</p>}
-              <label>Nombre de la academia<input required value={nombreCentro} onChange={(e) => setNombreCentro(e.target.value)} /></label>
+              <label>Nombre del centro<input required value={nombreCentro} onChange={(e) => setNombreCentro(e.target.value)} /></label>
               <label>Tu nombre<input required autoComplete="name" value={contacto} onChange={(e) => setContacto(e.target.value)} /></label>
               <label>Correo<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
               <label>Teléfono<input required type="tel" autoComplete="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
@@ -1233,7 +1198,7 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
           <Logo />
         </div>
         <h2 className="auth-title">Entrar al panel</h2>
-        <p className="auth-subtitle">Para academias que publican sus cursos en Cursenda.</p>
+        <p className="auth-subtitle">Para centros que publican sus cursos en Cursenda.</p>
 
         <form onSubmit={handleSubmit}>
           {error && (
@@ -1367,7 +1332,7 @@ function RecuperarCentros() {
           // Vista activación de cuenta por invitación
           <div>
             <h2 className="auth-title">Activa tu cuenta</h2>
-            <p className="auth-subtitle">Pon los datos de tu academia para entrar al panel.</p>
+            <p className="auth-subtitle">Pon los datos de tu centro para entrar al panel.</p>
 
             {activationSuccess ? (
               <div style={{ textAlign: 'center', padding: '1rem 0' }}>
@@ -1540,7 +1505,7 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
             <h2>Qué datos recogemos y para qué</h2>
             <ul>
               <li><strong>Si pide plaza en un curso:</strong> nombre, email y teléfono. Los usamos para hacérselos llegar al centro que imparte el curso, que se pondrá en contacto con usted. A partir de ese momento el centro también es responsable del tratamiento de sus datos para gestionar su matrícula.</li>
-              <li><strong>Si es una academia y pide acceso:</strong> nombre del centro, persona de contacto, email y teléfono, para contactarle y enseñarle la plataforma.</li>
+              <li><strong>Si es un centro y pide acceso:</strong> nombre del centro, persona de contacto, email y teléfono, para contactarle y enseñarle la plataforma.</li>
               <li><strong>Si tiene cuenta de centro:</strong> los datos de su cuenta y de su equipo, para darle acceso al panel y prestarle el servicio.</li>
             </ul>
 
@@ -1551,7 +1516,7 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
             <p>Las solicitudes de plaza se guardan mientras el centro las necesite para gestionar la matrícula y, como máximo, 2 años. Las solicitudes de demo, hasta 1 año si no se contrata el servicio. Los datos de cuentas, mientras la cuenta esté activa.</p>
 
             <h2>Quién más los ve</h2>
-            <p>Si pide plaza, el centro de formación del curso. Si una academia contrata un plan, el pago lo gestiona Stripe, que recibe los datos de facturación y de la tarjeta. No vendemos datos ni los usamos para publicidad. La web está alojada en un servidor propio en la Unión Europea.</p>
+            <p>Si pide plaza, el centro de formación del curso. Si un centro contrata un plan, el pago lo gestiona Stripe, que recibe los datos de facturación y de la tarjeta. No vendemos datos ni los usamos para publicidad. La web está alojada en un servidor propio en la Unión Europea.</p>
 
             <h2>Sus derechos</h2>
             <p>Puede pedir ver, corregir o borrar sus datos, oponerse a su uso, limitarlo o llevárselos a otro sitio escribiendo a {d.email}. Si cree que no los tratamos bien, puede reclamar ante la Agencia Española de Protección de Datos (www.aepd.es).</p>
@@ -1596,7 +1561,7 @@ function NoEncontrada() {
         <p className="auth-subtitle">El enlace está mal o el curso ya no está publicado.</p>
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.5rem', flexWrap: 'wrap' }}>
           <Link to="/cursos" className="btn btn-primary btn-sm">Ver los cursos</Link>
-          <Link to="/centros" className="btn btn-secondary btn-sm">Soy una academia</Link>
+          <Link to="/centros" className="btn btn-secondary btn-sm">Soy un centro</Link>
         </div>
       </div>
     </div>
@@ -1744,7 +1709,7 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
 
         {invitacion === null && (
           <div style={{ textAlign: 'center' }}>
-            <p className="auth-subtitle">Esta invitación no es válida o ya ha caducado. Pide a la persona responsable de tu academia que te envíe otra.</p>
+            <p className="auth-subtitle">Esta invitación no es válida o ya ha caducado. Pide a la persona responsable de tu centro que te envíe otra.</p>
           </div>
         )}
 
@@ -1815,7 +1780,7 @@ function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { u
           <strong>Tu mes de prueba ha terminado.</strong>{' '}
           {esPropietario
             ? 'Tus cursos no se muestran en la web y el panel queda bloqueado hasta que contrates un plan. Tus datos siguen guardados.'
-            : 'Pide a la persona responsable de tu academia que contrate un plan para seguir usando Cursenda.'}
+            : 'Pide a la persona responsable de tu centro que contrate un plan para seguir usando Cursenda.'}
         </span>
               </div>
     );
@@ -1873,6 +1838,7 @@ function EnlaceModal({ titulo, texto, enlace, onClose }: { titulo: string; texto
 
 function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const { ajustes, setAjustes } = useAjustes();
+  const cargarPrecios = usePrecios();
   const [verArchivados, setVerArchivados] = useState(false);
   const [formAjustes, setFormAjustes] = useState<Ajustes>(ajustes);
   const [ajustesEstado, setAjustesEstado] = useState('');
@@ -1887,7 +1853,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Modal Academias
+  // Modal Centros
   const [showAcademiaModal, setShowAcademiaModal] = useState(false);
   const [selectedAcademia, setSelectedAcademia] = useState<any>(null);
   const [formAcademiaNombre, setFormAcademiaNombre] = useState('');
@@ -2024,7 +1990,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
       const res = await fetch(`${API_BASE}/admin/ajustes`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cambios)
+        body: JSON.stringify(Object.fromEntries(Object.entries(cambios).map(([clave, valor]) => [clave, valor === AJUSTES_INICIALES[clave as keyof Ajustes] ? '' : valor])))
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2032,6 +1998,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
         return;
       }
       setAjustes({ ...AJUSTES_INICIALES, ...data });
+      cargarPrecios();
       setAjustesEstado('guardado');
     } catch (err) {
       setAjustesEstado('No se ha podido conectar. Vuelve a intentarlo.');
@@ -2046,6 +2013,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     });
     if (res.ok) {
       setAjustes({ ...AJUSTES_INICIALES, ...(await res.json()) });
+      cargarPrecios();
       loadData();
     } else alert('No se ha podido cambiar.');
   };
@@ -2149,7 +2117,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
         loadData();
       } else {
         const errData = await res.json();
-        setFormAcademiaError(errData.error || 'Error al guardar la academia');
+        setFormAcademiaError(errData.error || 'Error al guardar el centro');
       }
     } catch (err) {
       setFormAcademiaError('No se ha podido conectar. Vuelve a intentarlo.');
@@ -2157,7 +2125,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   };
 
   const handleDeleteAcademia = async (id: number) => {
-    if (!window.confirm('¿Eliminar esta academia con todos sus cursos y solicitudes? No se puede deshacer.')) {
+    if (!window.confirm('¿Eliminar este centro con todos sus cursos y solicitudes? No se puede deshacer.')) {
       return;
     }
     try {
@@ -2166,7 +2134,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
         loadData();
       } else {
         const errData = await res.json();
-        alert(errData.error || 'Error al eliminar la academia');
+        alert(errData.error || 'Error al eliminar el centro');
       }
     } catch (err) {
       console.error(err);
@@ -2293,7 +2261,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
   const MENU: { id: typeof tab; texto: string; icono: React.ReactNode; aviso?: number }[] = [
     { id: 'inicio', texto: 'Resumen', icono: <BarChart3 size={18} /> },
-    { id: 'academias', texto: 'Academias', icono: <Building size={18} /> },
+    { id: 'academias', texto: 'Centros', icono: <Building size={18} /> },
     { id: 'cursos', texto: 'Cursos', icono: <BookOpen size={18} /> },
     { id: 'solicitudes', texto: 'Solicitudes', icono: <Users size={18} /> },
     { id: 'demos', texto: 'Peticiones de acceso', icono: <Mail size={18} />, aviso: demosNuevas.length },
@@ -2348,12 +2316,12 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                   </section>
                   <section>
                     <h2>Cuenta demo</h2>
-                    <p className="admin-vacio">Se pone como nueva sola cada noche a las 4:00. Reiníciala antes de enseñarla en una academia.</p>
+                    <p className="admin-vacio">Se pone como nueva sola cada noche a las 4:00. Reiníciala antes de enseñarla en un centro.</p>
                     <div className="admin-acciones" style={{ justifyContent: 'flex-start' }}>
                       <button type="button" onClick={handleReiniciarDemo} className="btn btn-secondary btn-sm">Reiniciar demo</button>
                       <button type="button" onClick={handleCursosEjemplo} className="btn btn-secondary btn-sm">{ajustes.demo_oculta ? 'Mostrar cursos de ejemplo en la web' : 'Quitar cursos de ejemplo de la web'}</button>
                     </div>
-                    <p className="admin-dato" style={{ marginTop: '0.5rem' }}>{ajustes.demo_oculta ? 'Ahora no salen en la web. La cuenta demo los sigue teniendo para enseñarla.' : 'Ahora salen en la web, marcados como ejemplo, hasta que una academia real publique cursos.'}</p>
+                    <p className="admin-dato" style={{ marginTop: '0.5rem' }}>{ajustes.demo_oculta ? 'Ahora no salen en la web. La cuenta demo los sigue teniendo para enseñarla.' : 'Ahora salen en la web, marcados como ejemplo, hasta que un centro real publique cursos.'}</p>
                   </section>
                 </div>
               </div>
@@ -2362,13 +2330,13 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
             {tab === 'academias' && (
               <div>
                 <div className="admin-cabecera">
-                  <h1 className="admin-titulo">Academias</h1>
-                  <input className="form-control" aria-label="Buscar academia" placeholder="Buscar academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
-                  <button type="button" onClick={() => handleOpenAcademiaModal()} className="btn btn-primary"><Plus size={16} /><span>Nueva academia</span></button>
+                  <h1 className="admin-titulo">Centros</h1>
+                  <input className="form-control" aria-label="Buscar centro" placeholder="Buscar centro" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                  <button type="button" onClick={() => handleOpenAcademiaModal()} className="btn btn-primary"><Plus size={16} /><span>Nuevo centro</span></button>
                 </div>
                 <div className="table-container">
                   <table>
-                    <thead><tr><th>Academia</th><th>Contacto</th><th>Plan</th><th>Situación</th><th></th></tr></thead>
+                    <thead><tr><th>Centro</th><th>Contacto</th><th>Plan</th><th>Situación</th><th></th></tr></thead>
                     <tbody>
                       {academiasVistas.map(a => (
                         <tr key={a.id}>
@@ -2397,7 +2365,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
               <div>
                 <div className="admin-cabecera">
                   <h1 className="admin-titulo">Cursos</h1>
-                  <input className="form-control" aria-label="Buscar curso" placeholder="Buscar curso o academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                  <input className="form-control" aria-label="Buscar curso" placeholder="Buscar curso o centro" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
                   <button type="button" className="btn btn-secondary" onClick={() => setVerArchivados(!verArchivados)}>{verArchivados ? 'Ver activos' : `Archivados (${cursos.filter(c => c.archivado).length})`}</button>
                 </div>
                 <div className="table-container">
@@ -2435,12 +2403,12 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
               <div>
                 <div className="admin-cabecera">
                   <h1 className="admin-titulo">Solicitudes</h1>
-                  <input className="form-control" aria-label="Buscar solicitud" placeholder="Buscar persona, curso o academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                  <input className="form-control" aria-label="Buscar solicitud" placeholder="Buscar persona, curso o centro" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
                   <button type="button" className="btn btn-secondary" onClick={() => setVerArchivados(!verArchivados)}>{verArchivados ? 'Ver activas' : `Archivadas (${solicitudes.filter(s => s.archivada).length})`}</button>
                 </div>
                 <div className="table-container">
                   <table>
-                    <thead><tr><th>Persona</th><th>Curso</th><th>Academia</th><th>Fecha</th><th></th></tr></thead>
+                    <thead><tr><th>Persona</th><th>Curso</th><th>Centro</th><th>Fecha</th><th></th></tr></thead>
                     <tbody>
                       {solicitudesVistas.map(s => (
                         <tr key={s.id}>
@@ -2466,10 +2434,10 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
             {tab === 'demos' && (
               <div>
                 <h1 className="admin-titulo">Peticiones de acceso</h1>
-                <p className="admin-intro">Academias que han rellenado el formulario para probar Cursenda. Al crear la cuenta empieza su mes gratis y te doy un enlace para que se lo envíes.</p>
+                <p className="admin-intro">Centros que han rellenado el formulario para probar Cursenda. Al crear la cuenta empieza su mes gratis y te doy un enlace para que se lo envíes.</p>
                 <div className="table-container">
                   <table>
-                    <thead><tr><th>Academia</th><th>Contacto</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+                    <thead><tr><th>Centro</th><th>Contacto</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
                     <tbody>
                       {demos.map(d => (
                         <tr key={d.id}>
@@ -2532,7 +2500,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                   {campoAjuste('portada_texto', 'Texto', true)}
                 </section>
                 <section>
-                  <h2>Página para academias</h2>
+                  <h2>Página para centros</h2>
                   {campoAjuste('academias_titulo', 'Titular')}
                   {campoAjuste('academias_texto', 'Texto', true)}
                 </section>
@@ -2581,13 +2549,13 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3 className="modal-title">{selectedAcademia ? 'Editar academia' : 'Nueva academia'}</h3>
+              <h3 className="modal-title">{selectedAcademia ? 'Editar centro' : 'Nuevo centro'}</h3>
               <button type="button" aria-label="Cerrar" onClick={() => setShowAcademiaModal(false)} className="btn-close-modal"><X size={18} /></button>
             </div>
             <form onSubmit={handleSaveAcademia}>
               <div className="admin-modal-cuerpo">
                 {formAcademiaError && <div className="alert-box alert-error" role="alert">{formAcademiaError}</div>}
-                <div className="form-group"><label className="form-label" htmlFor="ac-nombre">Nombre de la academia *</label><input id="ac-nombre" required className="form-control" value={formAcademiaNombre} onChange={(e) => setFormAcademiaNombre(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="ac-nombre">Nombre del centro *</label><input id="ac-nombre" required className="form-control" value={formAcademiaNombre} onChange={(e) => setFormAcademiaNombre(e.target.value)} /></div>
                 <div className="form-group"><label className="form-label" htmlFor="ac-email">Correo de acceso *</label><input id="ac-email" required type="email" className="form-control" value={formAcademiaEmail} onChange={(e) => setFormAcademiaEmail(e.target.value)} /></div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="ac-plan">Plan</label>
@@ -2646,6 +2614,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
 function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void }) {
   const { ajustes } = useAjustes();
+  usePrecios();
   if (user?.rol === 'admin') {
     return <DashboardAdmin user={user} onLogout={onLogout} />;
   }
@@ -3411,7 +3380,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <div>
                 <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Mis cursos</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Publica y pausa los cursos de tu academia.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Publica y pausa los cursos de tu centro.</p>
               </div>
               {puedeEditar && (
                 <button onClick={() => handleOpenCursoModal()} className="btn btn-primary">
@@ -3928,7 +3897,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <div>
                 <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Equipo</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Las personas que pueden entrar al panel de tu academia.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Las personas que pueden entrar al panel de tu centro.</p>
               </div>
             </div>
 
@@ -4084,9 +4053,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Configuración</h1>
 
             <div className="table-container" style={{ padding: '2.5rem', maxWidth: '800px', margin: '0 auto' }}>
-              <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Datos de tu academia</h3>
+              <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Datos de tu centro</h3>
               <div className="config-logo">
-                {logoAcademia ? <img src={`/logos/${logoAcademia}`} alt="Logo de tu academia" /> : <span><Building size={28} /></span>}
+                {logoAcademia ? <img src={`/logos/${logoAcademia}`} alt="Logo de tu centro" /> : <span><Building size={28} /></span>}
                 <div>
                   <label className="btn btn-secondary btn-sm">
                     {logoAcademia ? 'Cambiar el logo' : 'Subir el logo'}
@@ -4128,7 +4097,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 }
               }}>
                 <div className="form-group">
-                  <label className="form-label">Nombre de la academia</label>
+                  <label className="form-label">Nombre del centro</label>
                   <input 
                     type="text" 
                     className="form-control" 
@@ -4569,8 +4538,8 @@ function App() {
         <Route path="/" element={<AlumnosHome />} />
         <Route path="/cursos" element={<AlumnosLista />} />
         <Route path="/como-funciona" element={<ComoFunciona />} />
-        <Route path="/academias" element={<AcademiasPublicas />} />
-        <Route path="/academia/:id" element={<AcademiaPublica />} />
+        <Route path="/centros-de-formacion" element={<AcademiasPublicas />} />
+        <Route path="/centro-de-formacion/:id" element={<AcademiaPublica />} />
         <Route path="/curso/:id" element={<AlumnosDetalle />} />
 
         {/* Centros */}

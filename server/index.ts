@@ -482,10 +482,22 @@ app.post('/api/auth/register-invitation', async (req, res) => {
 app.get('/api/public/ajustes', async (req, res) => {
   try {
     const db = await getDatabase();
-    const filas = await db.all('SELECT clave, valor FROM ajustes');
+    // Los precios no salen aquí: solo los ven los centros con cuenta
+    const filas = await db.all("SELECT clave, valor FROM ajustes WHERE clave NOT LIKE 'precio_%'");
     res.json(Object.fromEntries(filas.map((f: any) => [f.clave, f.valor])));
   } catch (err) {
     res.status(500).json({ error: 'Error al cargar los ajustes' });
+  }
+});
+
+// Precios de los planes, solo con sesión iniciada
+app.get('/api/precios', authenticateToken, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const filas = await db.all("SELECT clave, valor FROM ajustes WHERE clave LIKE 'precio_%'");
+    res.json({ precio_starter: '79', precio_pro: '149', ...Object.fromEntries(filas.map((f: any) => [f.clave, f.valor])) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar los precios' });
   }
 });
 
@@ -550,7 +562,7 @@ app.get('/api/public/academias', async (req, res) => {
       GROUP BY centros.id ORDER BY cursos DESC, centros.nombre
     `));
   } catch (err) {
-    res.status(500).json({ error: 'Error al cargar las academias' });
+    res.status(500).json({ error: 'Error al cargar los centros' });
   }
 });
 
@@ -1421,7 +1433,7 @@ app.get('/api/admin/centros', authenticateAdmin, async (req, res) => {
     const list = await db.all(`SELECT ${CAMPOS_CENTRO} FROM centros ORDER BY id DESC`);
     res.json(list);
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener las academias' });
+    res.status(500).json({ error: 'Error al obtener los centros' });
   }
 });
 
@@ -1458,7 +1470,7 @@ app.post('/api/admin/centros', authenticateAdmin, async (req, res) => {
     const newCentro = await db.get('SELECT id, nombre, email, plan, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [result.lastID]);
     res.status(201).json(newCentro);
   } catch (err) {
-    res.status(500).json({ error: 'Error al crear la academia' });
+    res.status(500).json({ error: 'Error al crear el centro' });
   }
 });
 
@@ -1471,7 +1483,7 @@ app.put('/api/admin/centros/:id', authenticateAdmin, async (req, res) => {
     const db = await getDatabase();
     const centro = await db.get('SELECT * FROM centros WHERE id = ?', [id]);
     if (!centro) {
-      return res.status(404).json({ error: 'Academia no encontrada' });
+      return res.status(404).json({ error: 'Centro no encontrado' });
     }
 
     await db.run(`
@@ -1491,7 +1503,7 @@ app.put('/api/admin/centros/:id', authenticateAdmin, async (req, res) => {
     const updated = await db.get('SELECT id, nombre, email, plan, fecha_renovacion, nombre_contacto, telefono, rol FROM centros WHERE id = ?', [id]);
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar la academia' });
+    res.status(500).json({ error: 'Error al actualizar el centro' });
   }
 });
 
@@ -1508,13 +1520,13 @@ app.delete('/api/admin/centros/:id', authenticateAdmin, async (req: any, res) =>
 
     const centro = await db.get('SELECT id FROM centros WHERE id = ?', [id]);
     if (!centro) {
-      return res.status(404).json({ error: 'Academia no encontrada' });
+      return res.status(404).json({ error: 'Centro no encontrado' });
     }
 
     await db.run('DELETE FROM centros WHERE id = ?', [id]);
-    res.json({ success: true, message: 'Academia eliminada con éxito' });
+    res.json({ success: true, message: 'Centro eliminado con éxito' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al eliminar la academia' });
+    res.status(500).json({ error: 'Error al eliminar el centro' });
   }
 });
 
@@ -1683,9 +1695,9 @@ app.post('/api/admin/centros/:id/ampliar-prueba', authenticateAdmin, async (req,
   try {
     const db = await getDatabase();
     const centro = await db.get("SELECT id, stripe_subscription_id FROM centros WHERE id = ? AND (rol IS NULL OR rol != 'admin')", [req.params.id]);
-    if (!centro) return res.status(404).json({ error: 'Academia no encontrada' });
+    if (!centro) return res.status(404).json({ error: 'Centro no encontrado' });
     if (centro.stripe_subscription_id) {
-      return res.status(400).json({ error: 'Esta academia ya paga con Stripe; la prueba se cambia desde Stripe.' });
+      return res.status(400).json({ error: 'Este centro ya paga con Stripe; la prueba se cambia desde Stripe.' });
     }
     await db.run(`
       UPDATE centros SET suscripcion_estado = 'prueba', aviso_prueba = 0,
@@ -1811,7 +1823,7 @@ app.post('/api/admin/centros/:id/enlace-recuperacion', authenticateAdmin, async 
   try {
     const db = await getDatabase();
     const centro = await db.get('SELECT id FROM centros WHERE id = ?', [req.params.id]);
-    if (!centro) return res.status(404).json({ error: 'Academia no encontrada' });
+    if (!centro) return res.status(404).json({ error: 'Centro no encontrado' });
     res.json({ enlace: await crearEnlaceRecuperacion(req, 'centro', centro.id) });
   } catch (err) {
     res.status(500).json({ error: 'Error al crear el enlace' });
@@ -1925,16 +1937,16 @@ function paginaHtml(meta: Meta) {
 
 const META_PORTADA: Meta = {
   titulo: 'Cursenda · Cursos gratis subvencionados',
-  descripcion: 'Cursos gratuitos subvencionados con dinero público que publican las academias. Pide plaza y la academia te llama.',
+  descripcion: 'Cursos gratuitos subvencionados con dinero público que publican los centros de formación. Pide plaza y el centro te llama.',
   ruta: '/'
 };
 
 async function metaDe(ruta: string): Promise<Meta> {
-  if (ruta === '/academias') {
-    return { titulo: 'Academias · Cursenda', descripcion: 'Las academias que publican sus cursos subvencionados en Cursenda.', ruta };
+  if (ruta === '/centros-de-formacion') {
+    return { titulo: 'Centros de formación · Cursenda', descripcion: 'Los centros que publican sus cursos subvencionados en Cursenda.', ruta };
   }
 
-  const academia = ruta.match(/^\/academia\/(\d+)$/);
+  const academia = ruta.match(/^\/centro-de-formacion\/(\d+)$/);
   if (academia) {
     const db = await getDatabase();
     const a = await db.get(`SELECT centros.nombre FROM centros JOIN cursos ON cursos.centro_id = centros.id AND cursos.estado = 'publicado'
@@ -1952,7 +1964,7 @@ async function metaDe(ruta: string): Promise<Meta> {
 
   if (ruta === '/centros') {
     return {
-      titulo: 'Cursenda para academias · Recibe solicitudes para tus cursos',
+      titulo: 'Cursenda para centros · Recibe solicitudes para tus cursos',
       descripcion: 'Publica tus cursos subvencionados y recibe en un panel a la gente que pide plaza, con su teléfono. El primer mes es gratis y sin tarjeta.',
       ruta,
       imagen: '/images/og-centros.jpg'
@@ -2014,7 +2026,7 @@ app.get('/sitemap.xml', async (req, res) => {
   try {
     const db = await getDatabase();
     const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`);
-    const rutas = ['/', '/cursos', '/como-funciona', '/academias', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
+    const rutas = ['/', '/cursos', '/como-funciona', '/centros-de-formacion', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
     const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
   } catch (err) {
