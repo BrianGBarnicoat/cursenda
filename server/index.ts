@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
 import { getDatabase, verifyPassword, hashPassword } from './db.js';
 import { reiniciarDemo, programarReinicioDemo } from './demo.js';
-import { familiaDe } from './familias.js';
+import { familiaDe, slugSector, NOMBRES_SECTORES } from './familias.js';
 import { avisoContrasena, avisoPeticionAcceso, avisoPrueba, avisoSolicitud } from './correo.js';
 import { ACCESO_SQL, VISIBLE_SQL, PLANES_DE_PAGO, pagosConfigurados, modoPruebaStripe, crearCheckout, crearPortal, handleWebhook } from './pagos.js';
 import crypto from 'crypto';
@@ -1908,7 +1908,7 @@ function leerPlantilla() {
   return plantillaHtml;
 }
 
-type Meta = { titulo: string; descripcion: string; ruta: string; imagen?: string; tipo?: string; jsonld?: any; noindex?: boolean; estado?: number };
+type Meta = { titulo: string; descripcion: string; ruta: string; imagen?: string; tipo?: string; jsonld?: any; noindex?: boolean; estado?: number; enlaces?: { texto: string; ruta: string }[] };
 
 function paginaHtml(meta: Meta) {
   const web = ALLOWED_ORIGINS[0];
@@ -1923,27 +1923,48 @@ function paginaHtml(meta: Meta) {
     `<meta property="og:description" content="${escapeHtml(meta.descripcion)}" />`,
     `<meta property="og:url" content="${escapeHtml(url)}" />`,
     `<meta property="og:image" content="${escapeHtml(imagen)}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     meta.noindex ? '<meta name="robots" content="noindex" />' : '',
     // El JSON va escapado para que no pueda cerrar la etiqueta <script>
-    meta.jsonld ? `<script type="application/ld+json">${JSON.stringify(meta.jsonld).replace(/</g, '\\u003c')}</script>` : ''
+    ...(meta.jsonld ? [meta.jsonld].flat() : []).map((d: any) => `<script type="application/ld+json">${JSON.stringify(d).replace(/</g, '\\u003c')}</script>`)
   ].filter(Boolean).join('\n    ');
 
   return leerPlantilla()
     .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(meta.titulo)}</title>`)
     .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${escapeHtml(meta.descripcion)}" />`)
-    .replace('</head>', `    ${etiquetas}\n  </head>`);
+    .replace('</head>', `    ${etiquetas}\n  </head>`)
+    .replace('<div id="root"></div>', `<div id="root"></div>\n    <noscript><h1>${escapeHtml(meta.titulo)}</h1><p>${escapeHtml(meta.descripcion)}</p>${(meta.enlaces || []).map(e => `<p><a href="${escapeHtml(e.ruta)}">${escapeHtml(e.texto)}</a></p>`).join('')}</noscript>`);
 }
 
 const META_PORTADA: Meta = {
-  titulo: 'Cursenda · Cursos gratis subvencionados',
+  titulo: 'Cursos gratis subvencionados | Cursenda',
   descripcion: 'Cursos gratuitos subvencionados con dinero público que publican los centros de formación. Pide plaza y el centro te llama.',
-  ruta: '/'
+  ruta: '/',
+  jsonld: [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'Cursenda',
+      url: `${ALLOWED_ORIGINS[0]}/`,
+      inLanguage: 'es-ES',
+      potentialAction: { '@type': 'SearchAction', target: `${ALLOWED_ORIGINS[0]}/cursos?q={busqueda}`, 'query-input': 'required name=busqueda' }
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: 'Cursenda',
+      url: `${ALLOWED_ORIGINS[0]}/`,
+      logo: `${ALLOWED_ORIGINS[0]}/logo/logo.png`,
+      description: 'Portal independiente donde los centros de formación publican sus cursos subvencionados.'
+    }
+  ]
 };
 
 async function metaDe(ruta: string): Promise<Meta> {
   if (ruta === '/centros-de-formacion') {
-    return { titulo: 'Centros de formación · Cursenda', descripcion: 'Los centros que publican sus cursos subvencionados en Cursenda.', ruta };
+    return { titulo: 'Centros de formación | Cursenda', descripcion: 'Los centros de formación que publican sus cursos subvencionados en Cursenda.', ruta };
   }
 
   const academia = ruta.match(/^\/centro-de-formacion\/(\d+)$/);
@@ -1951,20 +1972,37 @@ async function metaDe(ruta: string): Promise<Meta> {
     const db = await getDatabase();
     const a = await db.get(`SELECT centros.nombre FROM centros JOIN cursos ON cursos.centro_id = centros.id AND cursos.estado = 'publicado'
       WHERE centros.id = ? AND centros.es_demo IS NOT 1 AND ${VISIBLE_SQL}`, [academia[1]]);
-    if (a) return { titulo: `${a.nombre} · Cursenda`, descripcion: `Cursos de ${a.nombre} publicados en Cursenda.`, ruta };
+    if (a) return { titulo: `${a.nombre} | Cursenda`, descripcion: `Cursos de ${a.nombre} publicados en Cursenda.`, ruta };
   }
 
   if (ruta === '/como-funciona') {
-    return { titulo: 'Cómo funcionan los cursos subvencionados · Cursenda', descripcion: 'Quién puede apuntarse, qué es un certificado profesional y qué requisitos pide cada nivel, con enlaces a las fuentes oficiales.', ruta };
+    return { titulo: 'Cómo funcionan los cursos subvencionados | Cursenda', descripcion: 'Quién puede apuntarse, qué es un certificado profesional y qué requisitos pide cada nivel, con enlaces a las fuentes oficiales.', ruta };
+  }
+
+  const sector = ruta.match(/^\/cursos\/([a-z0-9-]+)$/);
+  if (sector) {
+    const nombre = NOMBRES_SECTORES.find(n => slugSector(n) === sector[1]);
+    if (!nombre) return { titulo: 'Página no encontrada | Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
+    const db = await getDatabase();
+    const lista = await db.all(`SELECT cursos.id, cursos.titulo FROM cursos JOIN centros ON cursos.centro_id = centros.id
+      WHERE cursos.categoria = ? AND cursos.estado = 'publicado' AND centros.es_demo IS NOT 1 AND ${VISIBLE_SQL}`, [nombre]);
+    return {
+      titulo: `Cursos gratis de ${nombre.toLowerCase()} | Cursenda`,
+      descripcion: recortar(`Cursos subvencionados de ${nombre.toLowerCase()} que publican los centros de formación. Consulta fechas y plazas, y pide plaza gratis.`),
+      ruta,
+      // Sin cursos reales no se ofrece a Google: sería una página vacía
+      noindex: lista.length === 0,
+      enlaces: lista.map((c: any) => ({ texto: c.titulo, ruta: `/curso/${c.id}` }))
+    };
   }
 
   if (ruta === '/cursos') {
-    return { titulo: 'Cursos gratis · Cursenda', descripcion: 'Todos los cursos gratuitos publicados en Cursenda, por oficio, modalidad y fecha de inicio.', ruta };
+    return { titulo: 'Cursos gratis | Cursenda', descripcion: 'Todos los cursos gratuitos publicados en Cursenda, por sector, modalidad, localidad y fecha de inicio.', ruta };
   }
 
   if (ruta === '/centros') {
     return {
-      titulo: 'Cursenda para centros · Recibe solicitudes para tus cursos',
+      titulo: 'Publica tus cursos subvencionados | Cursenda para centros',
       descripcion: 'Publica tus cursos subvencionados y recibe en un panel a la gente que pide plaza, con su teléfono. El primer mes es gratis y sin tarjeta.',
       ruta,
       imagen: '/images/og-centros.jpg'
@@ -1973,49 +2011,66 @@ async function metaDe(ruta: string): Promise<Meta> {
 
   const legal: Record<string, string> = { '/legal/aviso-legal': 'Aviso legal', '/legal/privacidad': 'Política de privacidad', '/legal/cookies': 'Política de cookies' };
   if (legal[ruta]) {
-    return { titulo: `${legal[ruta]} · Cursenda`, descripcion: `${legal[ruta]} de Cursenda.`, ruta };
+    return { titulo: `${legal[ruta]} | Cursenda`, descripcion: `${legal[ruta]} de Cursenda.`, ruta };
   }
 
   if (ruta.startsWith('/centros/')) {
-    return { titulo: 'Entrar al panel · Cursenda', descripcion: 'Panel de gestión de cursos y solicitudes para centros de formación.', ruta, noindex: true };
+    return { titulo: 'Entrar al panel | Cursenda', descripcion: 'Panel de gestión de cursos y solicitudes para centros de formación.', ruta, noindex: true };
   }
 
   const curso = ruta.match(/^\/curso\/(\d+)$/);
   if (curso) {
     const db = await getDatabase();
     const c = await db.get(`
-      SELECT cursos.*, centros.nombre as centro_nombre FROM cursos JOIN centros ON cursos.centro_id = centros.id
+      SELECT cursos.*, centros.nombre as centro_nombre, centros.es_demo FROM cursos JOIN centros ON cursos.centro_id = centros.id
       WHERE cursos.id = ? AND cursos.estado = 'publicado' AND ${VISIBLE_SQL}
     `, [curso[1]]);
     if (c) {
       const modos: Record<string, string> = { Online: 'Online', Presencial: 'Onsite', Mixta: 'Blended' };
+      const nombre = c.titulo.replace(/^[A-Z]{4}\d{4}\s*[-–]\s*/, '');
+      const dondeTitulo = c.modalidad === 'Online' ? 'online' : `en ${c.localidad}`;
+      const web = ALLOWED_ORIGINS[0];
       return {
-        titulo: `${c.titulo} · Curso gratis en ${c.localidad} · Cursenda`,
-        descripcion: recortar(`Curso 100% subvencionado de ${c.duracion_horas} horas (${c.modalidad.toLowerCase()}) impartido por ${c.centro_nombre}. ${c.descripcion}`),
+        titulo: `${nombre}: curso gratis ${dondeTitulo} | Cursenda`,
+        descripcion: recortar(`Curso subvencionado de ${c.duracion_horas} horas, ${c.modalidad === 'Online' ? 'online' : `${c.modalidad === 'Mixta' ? 'mixto' : 'presencial'} en ${c.localidad}`}. Lo imparte ${c.centro_nombre}. Empieza: ${c.fecha_inicio}.`),
         ruta,
         tipo: 'article',
+        // Los cursos de ejemplo no son reales: Google no debe ofrecerlos
+        noindex: !!c.es_demo,
         imagen: `/images/og/${IMAGENES_CATEGORIA[c.categoria] || 'generica'}.jpg`,
-        jsonld: {
-          '@context': 'https://schema.org',
-          '@type': 'Course',
-          name: c.titulo,
-          description: recortar(c.descripcion, 500),
-          provider: { '@type': 'Organization', name: c.centro_nombre },
-          offers: { '@type': 'Offer', price: 0, priceCurrency: 'EUR', category: 'Free' },
-          hasCourseInstance: {
-            '@type': 'CourseInstance',
-            courseMode: modos[c.modalidad] || c.modalidad,
-            location: c.localidad,
-            courseWorkload: `PT${c.duracion_horas}H`
+        jsonld: c.es_demo ? undefined : [
+          {
+            '@context': 'https://schema.org',
+            '@type': 'Course',
+            name: nombre,
+            description: recortar(c.descripcion, 500),
+            provider: { '@type': 'Organization', name: c.centro_nombre },
+            offers: { '@type': 'Offer', price: 0, priceCurrency: 'EUR', category: 'Free' },
+            hasCourseInstance: {
+              '@type': 'CourseInstance',
+              courseMode: modos[c.modalidad] || c.modalidad,
+              ...(c.modalidad === 'Online' ? {} : { location: c.localidad }),
+              courseWorkload: `PT${c.duracion_horas}H`
+            }
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: 'Cursos', item: `${web}/cursos` },
+              { '@type': 'ListItem', position: 2, name: c.categoria, item: `${web}/cursos/${slugSector(c.categoria)}` },
+              { '@type': 'ListItem', position: 3, name: nombre }
+            ]
           }
-        }
+        ],
+        enlaces: [{ texto: `Más cursos de ${c.categoria}`, ruta: `/cursos/${slugSector(c.categoria)}` }]
       };
     }
-    return { titulo: 'Curso no disponible · Cursenda', descripcion: 'Este curso ya no está disponible.', ruta, noindex: true, estado: 404 };
+    return { titulo: 'Curso no disponible | Cursenda', descripcion: 'Este curso ya no está disponible.', ruta, noindex: true, estado: 404 };
   }
 
   if (ruta === '/') return META_PORTADA;
-  return { titulo: 'Página no encontrada · Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
+  return { titulo: 'Página no encontrada | Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
 }
 
 app.get('/robots.txt', (req, res) => {
@@ -2025,8 +2080,13 @@ app.get('/robots.txt', (req, res) => {
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const db = await getDatabase();
-    const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`);
-    const rutas = ['/', '/cursos', '/como-funciona', '/centros-de-formacion', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
+    const reales = await db.all(`SELECT cursos.id, cursos.categoria, cursos.centro_id FROM cursos JOIN centros ON cursos.centro_id = centros.id
+      WHERE cursos.estado = 'publicado' AND centros.es_demo IS NOT 1 AND ${VISIBLE_SQL}`);
+    const rutas = ['/', '/cursos', '/como-funciona', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies',
+      ...(reales.length ? ['/centros-de-formacion'] : []),
+      ...[...new Set(reales.map((c: any) => `/cursos/${slugSector(c.categoria)}`))],
+      ...[...new Set(reales.map((c: any) => `/centro-de-formacion/${c.centro_id}`))],
+      ...reales.map((c: any) => `/curso/${c.id}`)];
     const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
   } catch (err) {

@@ -3263,3 +3263,9 @@ tr:last-child td {
   .pub-pie-columnas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 16px; }
   .pub-pie-columnas > div:first-child { grid-column: 1 / -1; }
 }
+
+/* Logo en vector */
+.logo-marca { display: block; height: 26px; width: auto; color: var(--primary); }
+.logo-light .logo-marca { color: var(--white); }
+.sidebar .logo-marca { color: var(--white); height: 28px; }
+.pub-pie .logo-marca { height: 24px; }

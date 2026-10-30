@@ -19,3 +19,7 @@ export function familiaDe(titulo: string, categoria: string) {
   const codigo = String(titulo || '').match(/^([A-Z]{3})[A-Z]\d{4}\b/)?.[1];
   return (codigo && FAMILIAS[codigo]) || ANTIGUAS[categoria] || categoria;
 }
+
+// Dirección limpia de cada sector: "Hostelería y turismo" es hosteleria-y-turismo
+export const slugSector = (nombre: string) => nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+export const NOMBRES_SECTORES = [...Object.values(FAMILIAS), OTRA_FORMACION];
