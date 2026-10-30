@@ -3016,9 +3016,9 @@ tr:last-child td {
 .admin-guardar { display: flex; align-items: center; gap: 14px; position: sticky; bottom: 0; padding: 12px 0; background: var(--white); }
 .admin-error { color: var(--error-text); }
 
-/* Las tablas de los paneles pasan a tarjetas en el móvil */
+/* Las tablas de los paneles pasan a tarjetas si no caben */
 .enlace-telefono { color: var(--primary); text-decoration: underline; }
-@media (max-width: 760px) {
+@media (max-width: 1100px) {
   .dashboard-layout .table-container { overflow: visible; }
   .dashboard-layout .table-container table,
   .dashboard-layout .table-container tbody,
@@ -3051,3 +3051,21 @@ tr:last-child td {
 .pub-info td:first-child { font-weight: 600; white-space: nowrap; }
 .pub .pub-fuente { color: var(--pub-suave); font-size: 15px; margin: 6px 0 0; }
 .dashboard-layout .table-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Las tablas de los paneles caben sin desplazarse de lado */
+.dashboard-layout .dashboard-grid { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); }
+.dashboard-layout .table-container td:first-child { min-width: 0; }
+.dashboard-layout .table-container table { min-width: 0; width: 100%; }
+.dashboard-layout .table-container th, .dashboard-layout .table-container td { padding-left: 1rem; padding-right: 1rem; }
+.dashboard-layout .badge { text-transform: none; letter-spacing: 0; font-size: .8125rem; font-weight: 600; }
+.center-profile-plan { color: rgba(255,255,255,.65); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: .8125rem; }
+.dashboard-layout td .admin-acciones, .dashboard-layout td .acciones-curso { flex-wrap: wrap; }
+.dashboard-layout .student-row-cell { flex-wrap: nowrap; }
+.dashboard-layout .student-row-cell > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 1200px) { .dashboard-layout .dashboard-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1100px) {
+  .dashboard-content div[style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .dashboard-layout .table-container table[style] { min-width: 0 !important; }
+}
+.dashboard-layout .table-container td { overflow-wrap: break-word; }
+@media (min-width: 1280px) { .dashboard-layout td .admin-acciones { flex-wrap: nowrap; } }

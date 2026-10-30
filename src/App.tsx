@@ -10,8 +10,6 @@ import {
   Mail, 
   CheckCircle, 
   X, 
-  Play, 
-  Pause, 
   Edit, 
   Check, 
   BarChart3,
@@ -21,8 +19,6 @@ import {
   Shield,
   Globe,
   Building,
-  Archive,
-  RotateCcw,
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -1436,19 +1432,6 @@ const formatFechaHora = (valor: string) => {
   return `${d.toLocaleDateString('es-ES')} ${d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
 };
 
-// "hace 5 min", "hace 3 h", "hace 2 días"...
-const haceCuanto = (valor: string) => {
-  const d = parseFecha(valor);
-  if (isNaN(d.getTime())) return '';
-  const min = Math.max(1, Math.round((Date.now() - d.getTime()) / 60000));
-  if (min < 60) return `hace ${min} min`;
-  const horas = Math.round(min / 60);
-  if (horas < 24) return `hace ${horas} h`;
-  const dias = Math.round(horas / 24);
-  if (dias < 30) return `hace ${dias} ${dias === 1 ? 'día' : 'días'}`;
-  return `el ${d.toLocaleDateString('es-ES')}`;
-};
-
 // Planes (los mismos precios que en la página para centros)
 const planesCon = (ajustes: Ajustes) => [
   { id: 'starter', nombre: 'Starter', precio: `${ajustes.precio_starter} € / mes + IVA`, descripcion: 'Hasta 5 cursos activos a la vez.' },
@@ -1535,20 +1518,6 @@ function EnlaceModal({ titulo, texto, enlace, onClose }: { titulo: string; texto
     </div>
   );
 }
-
-const getInitials = (nombre: string) => {
-  const parts = nombre.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return nombre.substring(0, 2).toUpperCase();
-};
-
-const getAvatarBg = (nombre: string) => {
-  const charCode = nombre.charCodeAt(0) || 0;
-  const colors = ['#0C3B33', '#082A24', '#C9962E', '#2E5C53', '#5E3E0C'];
-  return colors[charCode % colors.length];
-};
 
 function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const { ajustes, setAjustes } = useAjustes();
@@ -2065,12 +2034,11 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                 </div>
                 <div className="table-container">
                   <table>
-                    <thead><tr><th>Curso</th><th>Dónde</th><th>Plazas libres</th><th>Estado</th><th></th></tr></thead>
+                    <thead><tr><th>Curso</th><th>Plazas libres</th><th>Estado</th><th></th></tr></thead>
                     <tbody>
                       {cursosVistos.map(c => (
                         <tr key={c.id}>
-                          <td><strong>{c.titulo}</strong><div className="admin-dato">{c.centro_nombre}</div></td>
-                          <td>{c.modalidad}<div className="admin-dato">{c.localidad}</div></td>
+                          <td><strong>{c.titulo}</strong><div className="admin-dato">{c.centro_nombre}. {c.modalidad}, {c.localidad}.</div></td>
                           <td>{Math.max(0, c.plazas - c.plazas_cubiertas)} de {c.plazas}</td>
                           <td>{c.archivado ? 'Archivado' : c.estado === 'publicado' ? 'Publicado' : 'Pausado'}</td>
                           <td>
@@ -2088,7 +2056,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                           </td>
                         </tr>
                       ))}
-                      {cursosVistos.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay cursos.</td></tr>}
+                      {cursosVistos.length === 0 && <tr><td colSpan={4} className="admin-vacio">No hay cursos.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -2903,7 +2871,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
   // Contar solicitudes sin gestionar
   const countNuevas = solicitudes.filter(sol => !sol.gestionado && !sol.archivada).length;
-  const solicitudesActivas = solicitudes.filter(sol => !sol.archivada);
   const cursosArchivados = cursos.filter(c => c.archivado);
   const cursosVistos = cursos.filter(c => verCursosArchivados ? c.archivado : !c.archivado);
 
@@ -3019,11 +2986,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         <div className="sidebar-bottom">
           <div className="center-profile-summary">
             <div className="center-profile-name">{user?.nombre || 'Mi Centro'}</div>
-            {esPropietario ? (
-              <div className="center-profile-plan">Suscripción: {user?.plan || 'Starter'}</div>
-            ) : (
-              <div className="center-profile-plan">{user?.usuario?.nombre} · {ROL_TEXTO[rolUsuario]}</div>
-            )}
+            {!esPropietario && <div className="center-profile-plan">{user?.usuario?.nombre}, {ROL_TEXTO[rolUsuario]}</div>}
           </div>
           <button onClick={handleLogoutClick} className="btn-logout">
             <X size={16} />
@@ -3076,7 +3039,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               </div>
             </div>
 
-            <div className="dashboard-grid">
+            <div>
               {/* Tabla de Cursos */}
               <div className="table-container">
                 <div className="table-header">
@@ -3097,9 +3060,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   <table>
                     <thead>
                       <tr>
-                        <th>Título</th>
-                        <th>Localidad</th>
-                        <th>Inicio</th>
+                        <th>Curso</th>
                         <th>Solicitudes</th>
                         <th>Estado</th>
                         <th>Acciones</th>
@@ -3108,9 +3069,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     <tbody>
                       {cursosVistos.map((c) => (
                         <tr key={c.id}>
-                          <td style={{ fontWeight: '600', color: 'var(--primary)' }}>{c.titulo}</td>
-                          <td>{c.localidad}</td>
-                          <td>{c.fecha_inicio}</td>
+                          <td>
+                            <div style={{ fontWeight: '600', color: 'var(--primary)' }}>{c.titulo}</div>
+                            <div className="admin-dato">{c.localidad}. Empieza: {c.fecha_inicio}</div>
+                          </td>
                           <td><strong>{c.solicitudes_count || 0}</strong></td>
                           <td>
                             <span className={`badge ${c.estado === 'publicado' ? 'badge-published' : 'badge-paused'}`}>
@@ -3118,31 +3080,13 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                             </span>
                           </td>
                           <td>
-                            <div style={{ display: puedeEditar ? 'flex' : 'none', gap: '0.5rem' }}>
+                            <div className="acciones-curso" style={{ display: puedeEditar ? 'flex' : 'none', gap: '0.5rem' }}>
                               {c.archivado ? (
-                                <button type="button" onClick={() => handleArchivarCurso(c, false)} className="btn btn-secondary btn-sm" title="Recuperar del archivo" aria-label="Recuperar del archivo" style={{ display: 'flex', alignItems: 'center' }}>
-                                  <RotateCcw size={14} />
-                                </button>
+                                <button type="button" onClick={() => handleArchivarCurso(c, false)} className="btn btn-secondary btn-sm">Recuperar</button>
                               ) : (<>
-                              <button 
-                                onClick={() => handleToggleCursoEstado(c.id)} 
-                                className="btn btn-secondary btn-sm"
-                                title={c.estado === 'publicado' ? 'Pausar publicación' : 'Publicar curso'}
-                                style={{ display: 'flex', alignItems: 'center' }}
-                              >
-                                {c.estado === 'publicado' ? <Pause size={14} /> : <Play size={14} />}
-                              </button>
-                              <button 
-                                onClick={() => handleOpenCursoModal(c)} 
-                                className="btn btn-secondary btn-sm"
-                                title="Editar curso"
-                                style={{ display: 'flex', alignItems: 'center' }}
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button type="button" onClick={() => handleArchivarCurso(c, true)} className="btn btn-secondary btn-sm" title="Archivar curso" aria-label="Archivar curso" style={{ display: 'flex', alignItems: 'center' }}>
-                                <Archive size={14} />
-                              </button>
+                                <button type="button" onClick={() => handleToggleCursoEstado(c.id)} className="btn btn-secondary btn-sm">{c.estado === 'publicado' ? 'Pausar' : 'Publicar'}</button>
+                                <button type="button" onClick={() => handleOpenCursoModal(c)} className="btn btn-secondary btn-sm">Editar</button>
+                                <button type="button" onClick={() => handleArchivarCurso(c, true)} className="btn btn-secondary btn-sm">Archivar</button>
                               </>)}
                             </div>
                           </td>
@@ -3153,22 +3097,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 )}
               </div>
 
-              {/* Feed de Actividad Reciente */}
-              <div className="activity-card">
-                <h3 className="activity-title">Últimas solicitudes</h3>
-                <ul className="activity-feed-list">
-                  {solicitudesActivas.length === 0 && <li className="activity-item"><div className="activity-text">Todavía no hay solicitudes.</div></li>}
-                  {solicitudesActivas.slice(0, 5).map((s) => (
-                    <li key={s.id} className="activity-item">
-                      <div className="activity-dot"></div>
-                      <div>
-                        <div className="activity-text">{s.nombre}: {s.curso_titulo}</div>
-                        <span className="activity-time">{haceCuanto(s.fecha_creacion)}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
             </div>
           </div>
         )}
@@ -3245,20 +3173,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                       .map((s) => (
                       <tr key={s.id} style={!s.gestionado ? { backgroundColor: 'rgba(201, 150, 46, 0.03)' } : undefined}>
                         <td>
-                          <div className="student-row-cell">
-                            <div 
-                              className="student-avatar" 
-                              style={{ backgroundColor: getAvatarBg(s.nombre) }}
-                            >
-                              {getInitials(s.nombre)}
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: '600' }}>{s.nombre}</div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.125rem' }}>
-                                <Phone size={10} style={{ display: 'inline', marginRight: '4px' }} /> <a href={`tel:${s.telefono}`} className="enlace-telefono">{s.telefono}</a> | <Mail size={10} style={{ display: 'inline', marginRight: '4px' }} /> {s.email}
-                              </div>
-                            </div>
-                          </div>
+                          <div style={{ fontWeight: '600' }}>{s.nombre}</div>
+                          <div className="admin-dato"><a href={`tel:${s.telefono}`} className="enlace-telefono">{s.telefono}</a></div>
+                          <div className="admin-dato">{s.email}</div>
                         </td>
                         <td style={{ color: 'var(--primary)' }}>{s.curso_titulo}</td>
                         <td>{new Date(s.fecha_creacion).toLocaleDateString('es-ES')}</td>
@@ -3442,7 +3359,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--lines-light)' }}>
                   <span>Plan:</span>
-                  <strong style={{ textTransform: 'uppercase', color: 'var(--accent)' }}>{user?.plan || 'starter'}</strong>
+                  <strong style={{ textTransform: 'capitalize' }}>{user?.plan || 'starter'}</strong>
                 </div>
 
                 {user?.tiene_suscripcion ? (
