@@ -3008,3 +3008,10 @@ tr:last-child td {
   .admin-columnas, .admin-dos { grid-template-columns: minmax(0, 1fr); }
   .admin-acciones { justify-content: flex-start; }
 }
+.admin-ajustes { max-width: 760px; }
+.admin-ajustes section { margin-bottom: 2rem; }
+.admin-ajustes h2 { font-size: 1.25rem; color: var(--primary); padding-bottom: 8px; margin-bottom: 14px; border-bottom: 2px solid var(--primary); }
+.admin-ajustes .admin-intro { margin: 0 0 14px; }
+.admin-aviso { padding: 10px 12px; background: var(--warning-bg); color: var(--text); border-radius: 4px; }
+.admin-guardar { display: flex; align-items: center; gap: 14px; position: sticky; bottom: 0; padding: 12px 0; background: var(--white); }
+.admin-error { color: var(--error-text); }

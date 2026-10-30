@@ -134,6 +134,11 @@ export async function getDatabase(): Promise<Database> {
   await db.run("UPDATE centros SET suscripcion_estado = 'prueba', prueba_hasta = datetime('now', '+30 days') WHERE prueba_hasta IS NULL AND (rol IS NULL OR rol != 'admin')");
 
   await db.exec(`
+    CREATE TABLE IF NOT EXISTS ajustes (
+      clave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS solicitudes_demo (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nombre_centro TEXT NOT NULL,

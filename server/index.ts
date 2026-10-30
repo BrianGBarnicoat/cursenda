@@ -473,6 +473,18 @@ app.post('/api/auth/register-invitation', async (req, res) => {
 // --- Endpoints de Cursos (Público y Privado) ---
 
 // Obtener todos los cursos publicados (Vista alumnos con filtros)
+// Textos, precios y datos legales que se cambian desde el panel de administrador.
+// Solo se guarda lo cambiado; lo demás lo pone la web por defecto.
+app.get('/api/public/ajustes', async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const filas = await db.all('SELECT clave, valor FROM ajustes');
+    res.json(Object.fromEntries(filas.map((f: any) => [f.clave, f.valor])));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cargar los ajustes' });
+  }
+});
+
 app.get('/api/public/cursos', async (req, res) => {
   const { search, categoria, modalidad } = req.query;
 
@@ -1535,6 +1547,45 @@ app.get('/api/admin/solicitudes', authenticateAdmin, async (req, res) => {
 });
 
 // Ampliar la prueba gratis de un centro (por defecto 30 días más desde hoy o desde su fin)
+const AJUSTES_EDITABLES: Record<string, number> = {
+  portada_titulo: 120, portada_texto: 400, academias_titulo: 120, academias_texto: 500, pie_texto: 300,
+  precio_starter: 5, precio_pro: 5,
+  legal_titular: 200, legal_nif: 30, legal_domicilio: 300, legal_email: 200
+};
+
+app.put('/api/admin/ajustes', authenticateAdmin, async (req, res) => {
+  const cambios = req.body || {};
+  const claves = Object.keys(cambios);
+  for (const clave of claves) {
+    const valor = String(cambios[clave] ?? '').trim();
+    if (!(clave in AJUSTES_EDITABLES)) return res.status(400).json({ error: `Ajuste no válido: ${clave}` });
+    if (valor.length > AJUSTES_EDITABLES[clave]) return res.status(400).json({ error: `El campo ${clave} es demasiado largo` });
+    if (clave.startsWith('precio_') && valor && !/^\d+$/.test(valor)) return res.status(400).json({ error: 'El precio tiene que ser un número entero' });
+    if (clave === 'legal_email' && valor && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) return res.status(400).json({ error: 'El correo no es válido' });
+  }
+
+  try {
+    const db = await getDatabase();
+    const antes = Object.fromEntries((await db.all('SELECT clave, valor FROM ajustes')).map((f: any) => [f.clave, f.valor]));
+    let legalCambiado = false;
+    for (const clave of claves) {
+      const valor = String(cambios[clave] ?? '').trim();
+      if (clave.startsWith('legal_') && valor !== (antes[clave] ?? '')) legalCambiado = true;
+      // Vacío: vuelve al texto por defecto
+      if (valor) await db.run('INSERT INTO ajustes (clave, valor) VALUES (?, ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor', [clave, valor]);
+      else await db.run('DELETE FROM ajustes WHERE clave = ?', [clave]);
+    }
+    if (legalCambiado) {
+      const hoy = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Madrid' });
+      await db.run("INSERT INTO ajustes (clave, valor) VALUES ('legal_actualizado', ?) ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor", [hoy]);
+    }
+    const filas = await db.all('SELECT clave, valor FROM ajustes');
+    res.json(Object.fromEntries(filas.map((f: any) => [f.clave, f.valor])));
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar los ajustes' });
+  }
+});
+
 app.delete('/api/admin/solicitudes/:id', authenticateAdmin, async (req, res) => {
   try {
     const db = await getDatabase();

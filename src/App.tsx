@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext, createContext } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { 
   BookOpen, 
@@ -92,6 +92,26 @@ const useTitulo = (titulo?: string | null) => {
   }, [titulo]);
 };
 
+// --- AJUSTES DE LA WEB ---
+// Lo que se puede cambiar desde el panel de administrador. Esto es lo que sale si no se ha cambiado nada.
+const AJUSTES_INICIALES = {
+  portada_titulo: 'Aprende un oficio con un curso gratis',
+  portada_texto: 'Cursos subvencionados con dinero público que publican las academias. Pides plaza aquí y la academia te llama.',
+  academias_titulo: 'Recibe a la gente que quiere plaza en tus cursos',
+  academias_texto: 'Publicas tus cursos subvencionados y te llegan las solicitudes a un panel, con su teléfono, para que las llames.',
+  pie_texto: 'Cursenda es un portal independiente. No pertenece al SEPE ni a ninguna administración pública.',
+  precio_starter: '79',
+  precio_pro: '149',
+  legal_titular: '',
+  legal_nif: '',
+  legal_domicilio: '',
+  legal_email: 'info@cursenda.es',
+  legal_actualizado: '29 de octubre de 2026'
+};
+type Ajustes = typeof AJUSTES_INICIALES;
+const AjustesContexto = createContext<{ ajustes: Ajustes; setAjustes: (a: Ajustes) => void }>({ ajustes: AJUSTES_INICIALES, setAjustes: () => {} });
+const useAjustes = () => useContext(AjustesContexto);
+
 // --- PORTAL ALUMNOS ---
 
 // Foto de cada categoría. Solo salen las categorías que tienen cursos publicados.
@@ -167,10 +187,11 @@ function CabeceraPublica() {
 }
 
 function PiePublico() {
+  const { ajustes } = useAjustes();
   return (
     <footer className="pub-pie">
       <div className="pub-ancho">
-        <p>Cursenda es un portal independiente. No pertenece al SEPE ni a ninguna administración pública.</p>
+        <p>{ajustes.pie_texto}</p>
         <nav>
           <Link to="/legal/aviso-legal">Aviso legal</Link>
           <Link to="/legal/privacidad">Privacidad</Link>
@@ -211,6 +232,7 @@ function AvisoCursos({ estado }: { estado: string }) {
 
 function AlumnosHome() {
   useTitulo('Cursenda · Cursos gratis subvencionados');
+  const { ajustes } = useAjustes();
   const navigate = useNavigate();
   const { cursos, estado } = useCursosPublicos();
   const [busqueda, setBusqueda] = useState('');
@@ -239,9 +261,9 @@ function AlumnosHome() {
       <div className="pub-arriba">
         <CabeceraPublica />
         <div className="pub-portada pub-ancho">
-          <h1>Aprende un oficio con un curso gratis</h1>
+          <h1>{ajustes.portada_titulo}</h1>
           <div>
-            <p>Cursos subvencionados con dinero público que publican las academias. Pides plaza aquí y la academia te llama.</p>
+            <p>{ajustes.portada_texto}</p>
             <form className="pub-buscador" onSubmit={(e) => { e.preventDefault(); navigate(`/cursos?q=${encodeURIComponent(busqueda.trim())}`); }}>
               <input aria-label="Qué quieres estudiar" placeholder="Qué quieres estudiar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
               <button type="submit">Buscar</button>
@@ -290,7 +312,7 @@ function AlumnosHome() {
         <div className="pub-ancho">
           <div>
             <h2>¿Tienes una academia?</h2>
-            <p>Publica tus cursos y recibe aquí a la gente que pide plaza, con su teléfono. El primer mes es gratis y luego cuesta desde 79 € al mes más IVA.</p>
+            <p>Publica tus cursos y recibe aquí a la gente que pide plaza, con su teléfono. El primer mes es gratis y luego cuesta desde {ajustes.precio_starter} € al mes más IVA.</p>
             <p className="pub-academias-enlaces"><Link to="/centros">Ver cómo funciona</Link><Link to="/centros/login">Entrar al panel</Link></p>
           </div>
           <div className="pub-ficha">
@@ -584,6 +606,7 @@ const PREGUNTAS_ACADEMIAS = [
 
 function LandingCentros() {
   useTitulo('Cursenda para academias · Recibe solicitudes para tus cursos');
+  const { ajustes } = useAjustes();
   const [nombreCentro, setNombreCentro] = useState('');
   const [contacto, setContacto] = useState('');
   const [email, setEmail] = useState('');
@@ -633,8 +656,8 @@ function LandingCentros() {
           </nav>
         </header>
         <div className="pub-ancho pub-aca-portada">
-          <h1>Recibe a la gente que quiere plaza en tus cursos</h1>
-          <p>Publicas tus cursos subvencionados y te llegan las solicitudes a un panel, con su teléfono, para que las llames.</p>
+          <h1>{ajustes.academias_titulo}</h1>
+          <p>{ajustes.academias_texto}</p>
           <p className="pub-aca-acciones"><a href="#acceso" className="pub-boton pub-boton-pedir">Probar un mes gratis</a><Link to="/centros/login">Ya tengo cuenta</Link></p>
           <img className="pub-aca-panel" src="/images/panel-solicitudes.jpg" alt="Panel de Cursenda con la lista de solicitudes de plaza" width="1600" height="1000" />
         </div>
@@ -659,12 +682,12 @@ function LandingCentros() {
           <div className="pub-aca-planes">
             <div>
               <h3>Starter</h3>
-              <p className="pub-aca-precio">79 € <span>al mes</span></p>
+              <p className="pub-aca-precio">{ajustes.precio_starter} € <span>al mes</span></p>
               <p>Hasta 5 cursos activos a la vez.</p>
             </div>
             <div>
               <h3>Pro</h3>
-              <p className="pub-aca-precio">149 € <span>al mes</span></p>
+              <p className="pub-aca-precio">{ajustes.precio_pro} € <span>al mes</span></p>
               <p>Cursos activos sin límite.</p>
             </div>
             <div>
@@ -1004,17 +1027,10 @@ function RecuperarCentros() {
 // --- PÁGINAS LEGALES ---
 // Datos del titular de la web. Lo que esté vacío no se muestra.
 // Hay que rellenarlos antes de empezar a cobrar.
-const DATOS_LEGALES = {
-  titular: '',
-  nif: '',
-  domicilio: '',
-  email: 'info@cursenda.es',
-  dominio: 'cursenda.es',
-  actualizado: '29 de octubre de 2026'
-};
 
 function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' }) {
-  const d = DATOS_LEGALES;
+  const { ajustes } = useAjustes();
+  const d = { titular: ajustes.legal_titular, nif: ajustes.legal_nif, domicilio: ajustes.legal_domicilio, email: ajustes.legal_email, dominio: 'cursenda.es', actualizado: ajustes.legal_actualizado };
   const titulos = { 'aviso-legal': 'Aviso legal', privacidad: 'Política de privacidad', cookies: 'Política de cookies' };
 
   useEffect(() => {
@@ -1331,9 +1347,9 @@ const haceCuanto = (valor: string) => {
 };
 
 // Planes (los mismos precios que en la página para centros)
-const PLANES = [
-  { id: 'starter', nombre: 'Starter', precio: '79 € / mes + IVA', descripcion: 'Hasta 5 cursos activos a la vez.' },
-  { id: 'pro', nombre: 'Pro', precio: '149 € / mes + IVA', descripcion: 'Cursos activos sin límite.' },
+const planesCon = (ajustes: Ajustes) => [
+  { id: 'starter', nombre: 'Starter', precio: `${ajustes.precio_starter} € / mes + IVA`, descripcion: 'Hasta 5 cursos activos a la vez.' },
+  { id: 'pro', nombre: 'Pro', precio: `${ajustes.precio_pro} € / mes + IVA`, descripcion: 'Cursos activos sin límite.' },
   { id: 'custom', nombre: 'Custom', precio: 'A medida', descripcion: 'Para redes de varios centros.' }
 ];
 
@@ -1432,7 +1448,11 @@ const getAvatarBg = (nombre: string) => {
 };
 
 function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
-  const [tab, setTab] = useState<'inicio' | 'academias' | 'cursos' | 'solicitudes' | 'demos' | 'recuperaciones'>('inicio');
+  const { ajustes, setAjustes } = useAjustes();
+  const [formAjustes, setFormAjustes] = useState<Ajustes>(ajustes);
+  const [ajustesEstado, setAjustesEstado] = useState('');
+  useEffect(() => { setFormAjustes(ajustes); }, [ajustes]);
+  const [tab, setTab] = useState<'inicio' | 'academias' | 'cursos' | 'solicitudes' | 'demos' | 'recuperaciones' | 'ajustes'>('inicio');
   const [academias, setAcademias] = useState<any[]>([]);
   const [demos, setDemos] = useState<any[]>([]);
   const [recuperaciones, setRecuperaciones] = useState<any[]>([]);
@@ -1571,6 +1591,37 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
   // Crear/Editar Academia
   // Deja pasar el mes gratis desde la petición del formulario y da el enlace para enviárselo
+  const handleGuardarAjustes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAjustesEstado('');
+    const { legal_actualizado, ...cambios } = formAjustes;
+    try {
+      const res = await fetch(`${API_BASE}/admin/ajustes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cambios)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAjustesEstado(data.error || 'No se han podido guardar los cambios.');
+        return;
+      }
+      setAjustes({ ...AJUSTES_INICIALES, ...data });
+      setAjustesEstado('guardado');
+    } catch (err) {
+      setAjustesEstado('No se ha podido conectar. Vuelve a intentarlo.');
+    }
+  };
+
+  const campoAjuste = (clave: keyof Ajustes, etiqueta: string, largo = false) => (
+    <div className="form-group">
+      <label className="form-label" htmlFor={`aj-${clave}`}>{etiqueta}</label>
+      {largo
+        ? <textarea id={`aj-${clave}`} rows={3} className="form-control" value={formAjustes[clave]} onChange={(e) => setFormAjustes({ ...formAjustes, [clave]: e.target.value })} />
+        : <input id={`aj-${clave}`} className="form-control" value={formAjustes[clave]} onChange={(e) => setFormAjustes({ ...formAjustes, [clave]: e.target.value })} />}
+    </div>
+  );
+
   const handleCrearCuentaDemo = async (d: any) => {
     if (!window.confirm(`¿Crear la cuenta de ${d.nombre_centro}? Empieza hoy su mes gratis.`)) return;
     const res = await fetch(`${API_BASE}/admin/demos/${d.id}/crear-cuenta`, { method: 'POST' });
@@ -1757,7 +1808,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const totalCursosPublicados = cursos.filter(c => c.estado === 'publicado').length;
   const academiasPagando = academiasReales.filter(a => a.suscripcion_estado === 'activa');
   // Sin IVA. Custom es a medida y no se suma.
-  const ingresosMes = academiasPagando.reduce((suma, a) => suma + (a.plan === 'pro' ? 149 : a.plan === 'starter' ? 79 : 0), 0);
+  const ingresosMes = academiasPagando.reduce((suma, a) => suma + (a.plan === 'pro' ? Number(ajustes.precio_pro) : a.plan === 'starter' ? Number(ajustes.precio_starter) : 0), 0);
   const demosNuevas = demos.filter(d => (d.estado || 'nueva') === 'nueva');
   const recuperacionesPendientes = recuperaciones.filter(r => !r.atendida);
   const diasDePrueba = (a: any) => {
@@ -1799,7 +1850,8 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     { id: 'cursos', texto: 'Cursos', icono: <BookOpen size={18} /> },
     { id: 'solicitudes', texto: 'Solicitudes', icono: <Users size={18} /> },
     { id: 'demos', texto: 'Peticiones de acceso', icono: <Mail size={18} />, aviso: demosNuevas.length },
-    { id: 'recuperaciones', texto: 'Contraseñas', icono: <Shield size={18} />, aviso: recuperacionesPendientes.length }
+    { id: 'recuperaciones', texto: 'Contraseñas', icono: <Shield size={18} />, aviso: recuperacionesPendientes.length },
+    { id: 'ajustes', texto: 'Textos y datos', icono: <Settings size={18} /> }
   ];
 
   return (
@@ -2008,6 +2060,48 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                 </div>
               </div>
             )}
+            {tab === 'ajustes' && (
+              <form onSubmit={handleGuardarAjustes} className="admin-ajustes">
+                <h1 className="admin-titulo">Textos y datos</h1>
+                <p className="admin-intro">Lo que cambies aquí se ve en la web al guardar. Si dejas un campo vacío, vuelve el texto por defecto.</p>
+                <section>
+                  <h2>Portada</h2>
+                  {campoAjuste('portada_titulo', 'Titular')}
+                  {campoAjuste('portada_texto', 'Texto', true)}
+                </section>
+                <section>
+                  <h2>Página para academias</h2>
+                  {campoAjuste('academias_titulo', 'Titular')}
+                  {campoAjuste('academias_texto', 'Texto', true)}
+                </section>
+                <section>
+                  <h2>Precios</h2>
+                  <p className="admin-intro admin-aviso">Esto cambia los precios que se ven en la web. Lo que se cobra está en Stripe: si cambias un precio aquí, cámbialo también allí.</p>
+                  <div className="admin-dos">
+                    {campoAjuste('precio_starter', 'Starter, € al mes sin IVA')}
+                    {campoAjuste('precio_pro', 'Pro, € al mes sin IVA')}
+                  </div>
+                </section>
+                <section>
+                  <h2>Datos legales</h2>
+                  <p className="admin-intro">Salen en el aviso legal y la política de privacidad. Hay que rellenarlos antes de empezar a cobrar.</p>
+                  {campoAjuste('legal_titular', 'Titular (nombre o empresa)')}
+                  <div className="admin-dos">
+                    {campoAjuste('legal_nif', 'NIF o CIF')}
+                    {campoAjuste('legal_email', 'Correo de contacto')}
+                  </div>
+                  {campoAjuste('legal_domicilio', 'Domicilio')}
+                </section>
+                <section>
+                  <h2>Pie de página</h2>
+                  {campoAjuste('pie_texto', 'Texto', true)}
+                </section>
+                <div className="admin-guardar">
+                  <button type="submit" className="btn btn-primary">Guardar cambios</button>
+                  {ajustesEstado === 'guardado' ? <span role="status">Guardado</span> : ajustesEstado && <span role="alert" className="admin-error">{ajustesEstado}</span>}
+                </div>
+              </form>
+            )}
           </>
         )}
       </main>
@@ -2036,7 +2130,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                 <div className="form-group">
                   <label className="form-label" htmlFor="ac-plan">Plan</label>
                   <select id="ac-plan" className="form-control" value={formAcademiaPlan} onChange={(e) => setFormAcademiaPlan(e.target.value)}>
-                    {PLANES.map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.precio})</option>)}
+                    {planesCon(ajustes).map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.precio})</option>)}
                   </select>
                 </div>
                 <div className="form-group"><label className="form-label" htmlFor="ac-contacto">Persona de contacto</label><input id="ac-contacto" className="form-control" value={formAcademiaContacto} onChange={(e) => setFormAcademiaContacto(e.target.value)} /></div>
@@ -2089,6 +2183,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 }
 
 function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void }) {
+  const { ajustes } = useAjustes();
   if (user?.rol === 'admin') {
     return <DashboardAdmin user={user} onLogout={onLogout} />;
   }
@@ -3205,13 +3300,13 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     </p>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
-                      {PLANES.map((pl) => (
+                      {planesCon(ajustes).map((pl) => (
                         <div key={pl.id} style={{ border: `1px solid ${pl.id === 'pro' ? 'var(--accent)' : 'var(--lines)'}`, padding: '1rem', borderRadius: '8px', display: 'flex', flexDirection: 'column' }}>
                           <h5 style={{ margin: 0, color: 'var(--primary)', fontSize: '0.875rem' }}>Plan {pl.nombre}</h5>
                           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0', flex: 1 }}>{pl.descripcion}</p>
                           <div style={{ fontWeight: 'bold', fontSize: '0.875rem', margin: '0.5rem 0' }}>{pl.precio}</div>
                           {pl.id === 'custom' ? (
-                            <a href={`mailto:${DATOS_LEGALES.email}?subject=Plan%20Custom%20Cursenda`} className="btn btn-secondary btn-sm" style={{ width: '100%', textAlign: 'center' }}>Contactar</a>
+                            <a href={`mailto:${ajustes.legal_email}?subject=Plan%20Custom%20Cursenda`} className="btn btn-secondary btn-sm" style={{ width: '100%', textAlign: 'center' }}>Contactar</a>
                           ) : (
                             <button type="button" disabled={pagoCargando || !pagos?.configurado} onClick={() => handleContratar(pl.id)} className={`btn ${pl.id === 'pro' ? 'btn-primary' : 'btn-secondary'} btn-sm`} style={{ width: '100%' }}>
                               Contratar {pl.nombre}
@@ -3222,7 +3317,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     </div>
                     {pagos && !pagos.configurado && (
                       <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
-                        El pago con tarjeta todavía no está activo. Para contratar, escríbenos a <a href={`mailto:${DATOS_LEGALES.email}`}>{DATOS_LEGALES.email}</a>.
+                        El pago con tarjeta todavía no está activo. Para contratar, escríbenos a <a href={`mailto:${ajustes.legal_email}`}>{ajustes.legal_email}</a>.
                       </p>
                     )}
                   </>
@@ -3903,6 +3998,13 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
 // --- APP COMPONENT WITH ROUTING ---
 function App() {
+  const [ajustes, setAjustes] = useState<Ajustes>(AJUSTES_INICIALES);
+  useEffect(() => {
+    fetch(`${API_BASE}/public/ajustes`)
+      .then(res => res.ok ? res.json() : {})
+      .then(datos => setAjustes({ ...AJUSTES_INICIALES, ...datos }))
+      .catch(() => {});
+  }, []);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -3943,6 +4045,7 @@ function App() {
   }
 
   return (
+    <AjustesContexto.Provider value={{ ajustes, setAjustes }}>
     <BrowserRouter>
       <Routes>
         {/* Alumnos */}
@@ -3969,6 +4072,7 @@ function App() {
         />
       </Routes>
     </BrowserRouter>
+    </AjustesContexto.Provider>
   );
 }
 
