@@ -3034,3 +3034,20 @@ tr:last-child td {
 /* Páginas legales con el estilo de la web */
 .legal-page, .legal-page h1, .legal-page h2 { font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-weight: 600; }
 .legal-page { font-weight: 400; }
+
+/* Cómo funciona */
+.pub-info-entrada { color: var(--pub-claro); max-width: 62ch; }
+.pub-info { padding-top: 12px; padding-bottom: 56px; max-width: 820px; margin-left: auto; margin-right: auto; }
+.pub-info section { padding: 26px 0; border-bottom: 1px solid var(--pub-linea); }
+.pub-info h2 { font-size: 26px; color: var(--primary); margin-bottom: 8px; }
+.pub-info h3 { font-size: 19px; margin: 18px 0 8px; }
+.pub-info p { margin-bottom: 10px; max-width: 66ch; }
+.pub-info ul { margin: 0 0 12px 20px; }
+.pub-info li { margin-bottom: 6px; }
+.pub-info a:not(.pub-boton) { text-decoration: underline; }
+.pub-info table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+.pub-info th, .pub-info td { padding: 11px 12px; border-bottom: 1px solid var(--pub-linea); text-align: left; vertical-align: top; }
+.pub-info th { background: var(--pub-fondo); font-weight: 600; }
+.pub-info td:first-child { font-weight: 600; white-space: nowrap; }
+.pub .pub-fuente { color: var(--pub-suave); font-size: 15px; margin: 6px 0 0; }
+.dashboard-layout .table-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }

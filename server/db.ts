@@ -120,7 +120,9 @@ export async function getDatabase(): Promise<Database> {
     'ALTER TABLE centros ADD COLUMN prueba_hasta DATETIME',
     'ALTER TABLE facturas ADD COLUMN stripe_invoice_id TEXT',
     'ALTER TABLE facturas ADD COLUMN url TEXT',
-    'ALTER TABLE centros ADD COLUMN es_demo INTEGER DEFAULT 0'
+    'ALTER TABLE centros ADD COLUMN es_demo INTEGER DEFAULT 0',
+    'ALTER TABLE cursos ADD COLUMN archivado INTEGER DEFAULT 0',
+    'ALTER TABLE solicitudes ADD COLUMN archivada INTEGER DEFAULT 0'
   ];
   for (const sql of columnasPago) {
     try {

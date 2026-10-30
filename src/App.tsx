@@ -21,6 +21,8 @@ import {
   Shield,
   Globe,
   Building,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -180,6 +182,7 @@ function CabeceraPublica() {
       <Logo light={true} />
       <nav>
         <Link to="/cursos" className="pub-solo-ancho">Cursos</Link>
+        <Link to="/como-funciona">Cómo funciona</Link>
         <Link to="/centros">Soy una academia</Link>
       </nav>
     </header>
@@ -193,6 +196,7 @@ function PiePublico() {
       <div className="pub-ancho">
         <p>{ajustes.pie_texto}</p>
         <nav>
+          <Link to="/como-funciona">Cómo funciona</Link>
           <Link to="/legal/aviso-legal">Aviso legal</Link>
           <Link to="/legal/privacidad">Privacidad</Link>
           <Link to="/legal/cookies">Cookies</Link>
@@ -228,6 +232,105 @@ function AvisoCursos({ estado }: { estado: string }) {
     return <p className="pub-aviso">No se han podido cargar los cursos. <button type="button" className="pub-enlace" onClick={() => window.location.reload()}>Volver a intentarlo</button></p>;
   }
   return <p className="pub-aviso">Ahora mismo no hay cursos publicados.</p>;
+}
+
+const FUENTES = {
+  sepeFundae: 'https://sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2025%2FSeptiembre%2F&detail=formacion-subvencionada-sepe-colaboracion-fundae',
+  sepe45: 'https://www.sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2026%2FMarzo%2F&detail=proximos-cursos-gratuitos-desempleados-45-o-mas-anios-edad',
+  sepeAutonomias: 'https://www.sepe.es/HomeSepe/es/formacion-trabajo/iniciativas-formacion-trabajo/ofertas-formacion-comunidades-autonomas.html',
+  madrid: 'https://oficinaempleo.comunidad.madrid/BuscadorCursosPublico/',
+  fundae: 'https://experienciafundae.es/formacion-subvencionada',
+  boe: 'https://www.boe.es/buscar/act.php?id=BOE-A-2023-16889',
+  todofp: 'https://www.todofp.es/que-estudiar/grados-c.html'
+};
+const Fuente = ({ href, children }: { href: string; children: React.ReactNode }) => (
+  <p className="pub-fuente">Fuente: <a href={href} target="_blank" rel="noopener noreferrer">{children}</a></p>
+);
+
+// Solo datos con fuente oficial. Revisar cuando cambie la normativa y actualizar la fecha.
+function ComoFunciona() {
+  useTitulo('Cómo funcionan los cursos subvencionados · Cursenda');
+  return (
+    <div className="pub">
+      <div className="pub-arriba">
+        <CabeceraPublica />
+        <div className="pub-ancho pub-lista-cabeza">
+          <h1>Cómo funcionan los cursos subvencionados</h1>
+          <p className="pub-info-entrada">Lo básico, con enlaces a las fuentes oficiales. Cursenda no es un organismo público: lo que vale para cada curso es lo que diga su convocatoria.</p>
+        </div>
+      </div>
+
+      <main className="pub-ancho pub-info">
+        <section>
+          <h2>¿Son gratis?</h2>
+          <p>El SEPE describe su formación subvencionada con Fundae como cursos "100% gratuitos, financiados con fondos públicos". En Cursenda, cada academia publica sus cursos y responde de lo que anuncia: confirma con ella las condiciones del tuyo antes de matricularte.</p>
+          <Fuente href={FUENTES.sepeFundae}>SEPE, formación subvencionada con Fundae</Fuente>
+        </section>
+
+        <section>
+          <h2>¿Quién puede apuntarse?</h2>
+          <p>Depende de cada convocatoria. En su formación subvencionada con Fundae, el SEPE indica que va dirigida a:</p>
+          <ul>
+            <li>Trabajadores en activo.</li>
+            <li>Autónomos y trabajadores de la economía social.</li>
+            <li>Personas desempleadas, inscritas como demandantes de empleo.</li>
+            <li>Personas en situación de ERTE o ERE.</li>
+            <li>Trabajadores de la administración pública.</li>
+          </ul>
+          <p>Otros cursos son para grupos concretos, como los que el SEPE anuncia para personas desempleadas de 45 años o más.</p>
+          <Fuente href={FUENTES.sepeFundae}>SEPE, formación subvencionada con Fundae</Fuente>
+          <Fuente href={FUENTES.sepe45}>SEPE, cursos para desempleados de 45 años o más</Fuente>
+        </section>
+
+        <section>
+          <h2>¿Quién los organiza?</h2>
+          <p>Además de la formación estatal, cada comunidad autónoma tiene su propia oferta de cursos. El SEPE publica un mapa con los enlaces de todas.</p>
+          <Fuente href={FUENTES.sepeAutonomias}>SEPE, oferta de formación de las comunidades autónomas</Fuente>
+        </section>
+
+        <section>
+          <h2>¿Qué es un certificado profesional?</h2>
+          <p>Es la acreditación oficial que se obtiene al superar un curso de Grado C del Sistema de Formación Profesional. Tiene validez profesional y académica en toda España y lo expiden el Ministerio y los órganos responsables de las comunidades autónomas. Incluye un período de formación en empresa.</p>
+          <p>Muchos cursos siguen usando el nombre anterior, certificado de profesionalidad, y un código como IFCD0210. No todos los cursos subvencionados dan certificado: compruébalo en cada uno.</p>
+          <h3>Qué se pide para entrar</h3>
+          <div className="pub-info-tabla">
+            <table>
+              <thead><tr><th>Nivel</th><th>Requisitos</th></tr></thead>
+              <tbody>
+                <tr><td>Nivel 1</td><td>Sin requisitos académicos ni profesionales, aunque hay que tener las habilidades de comunicación suficientes para aprender.</td></tr>
+                <tr><td>Nivel 2</td><td>Graduado en ESO o equivalente, un certificado profesional de nivel 2, un certificado de competencia incluido en la oferta o un certificado profesional de nivel 1 de la misma familia.</td></tr>
+                <tr><td>Nivel 3</td><td>Título de Técnico o Técnico Superior, Bachiller o equivalente, un certificado profesional de nivel 3, un certificado de competencia incluido en la oferta o un certificado profesional de nivel 2 de la misma familia.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Si no tienes esos requisitos para los niveles 2 o 3, la administración debe comprobar que tienes los conocimientos previos, con pruebas o comprobaciones. Estos cursos se dirigen sobre todo a personas trabajadoras y a jóvenes mayores de 18 años; excepcionalmente, a mayores de 16 que hayan dejado los estudios.</p>
+          <Fuente href={FUENTES.boe}>BOE, Real Decreto 659/2023, artículos 67, 69, 70, 75 y 76</Fuente>
+          <Fuente href={FUENTES.todofp}>TodoFP, Ministerio de Educación: Grados C</Fuente>
+        </section>
+
+        <section>
+          <h2>Dónde buscar en las webs oficiales</h2>
+          <ul>
+            <li><a href={FUENTES.madrid} target="_blank" rel="noopener noreferrer">Buscador de cursos de la Comunidad de Madrid</a></li>
+            <li><a href={FUENTES.sepeAutonomias} target="_blank" rel="noopener noreferrer">Ofertas de todas las comunidades autónomas, en el SEPE</a></li>
+            <li><a href={FUENTES.fundae} target="_blank" rel="noopener noreferrer">Formación subvencionada en Experiencia Fundae</a></li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Qué preguntar a la academia</h2>
+          <ul>
+            <li>Qué convocatoria financia el curso.</li>
+            <li>Si cumples los requisitos y qué documentos tienes que llevar.</li>
+            <li>Si al terminar recibes un certificado oficial y de qué tipo.</li>
+          </ul>
+          <p><Link to="/cursos" className="pub-boton">Ver los cursos</Link></p>
+        </section>
+        <p className="pub-fuente">Información revisada el 30 de octubre de 2026. Si hay diferencias, vale lo que digan las fuentes oficiales.</p>
+      </main>
+      <PiePublico />
+    </div>
+  );
 }
 
 function AlumnosHome() {
@@ -1449,6 +1552,7 @@ const getAvatarBg = (nombre: string) => {
 
 function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const { ajustes, setAjustes } = useAjustes();
+  const [verArchivados, setVerArchivados] = useState(false);
   const [formAjustes, setFormAjustes] = useState<Ajustes>(ajustes);
   const [ajustesEstado, setAjustesEstado] = useState('');
   useEffect(() => { setFormAjustes(ajustes); }, [ajustes]);
@@ -1648,6 +1752,16 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     loadData();
   };
 
+  const handleArchivar = async (tipo: 'cursos' | 'solicitudes', id: number, archivar: boolean) => {
+    const res = await fetch(`${API_BASE}/admin/${tipo}/${id}/archivar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivar })
+    });
+    if (res.ok) loadData();
+    else alert('No se ha podido cambiar.');
+  };
+
   const handleDeleteSolicitud = async (s: any) => {
     if (!window.confirm(`¿Eliminar la solicitud de ${s.nombre}? No se puede deshacer.`)) return;
     const res = await fetch(`${API_BASE}/admin/solicitudes/${s.id}`, { method: 'DELETE' });
@@ -1824,10 +1938,10 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     return !texto.trim() || campos.some(c => limpio(c).includes(limpio(texto.trim())));
   };
   const academiasVistas = academiasReales.filter(a => contiene(busqueda, a.nombre, a.email, a.nombre_contacto, a.telefono));
-  const cursosVistos = cursos.filter(c => contiene(busqueda, c.titulo, c.centro_nombre, c.localidad, c.categoria));
-  const solicitudesVistas = solicitudes.filter(s => contiene(busqueda, s.nombre, s.email, s.telefono, s.curso_titulo, s.centro_nombre));
+  const cursosVistos = cursos.filter(c => !!c.archivado === verArchivados && contiene(busqueda, c.titulo, c.centro_nombre, c.localidad, c.categoria));
+  const solicitudesVistas = solicitudes.filter(s => !!s.archivada === verArchivados && contiene(busqueda, s.nombre, s.email, s.telefono, s.curso_titulo, s.centro_nombre));
 
-  const irA = (destino: typeof tab) => { setTab(destino); setBusqueda(''); };
+  const irA = (destino: typeof tab) => { setTab(destino); setBusqueda(''); setVerArchivados(false); };
   const estadoAcademia = (a: any) => {
     if (a.es_demo) return 'Cuenta demo';
     if (enPrueba(a)) {
@@ -1888,7 +2002,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                   <button type="button" onClick={() => irA('academias')}><span>Pagando</span><strong>{academiasPagando.length}</strong></button>
                   <div><span>Ingresos al mes, sin IVA</span><strong>{ingresosMes} €</strong></div>
                   <button type="button" onClick={() => irA('cursos')}><span>Cursos publicados</span><strong>{totalCursosPublicados}</strong></button>
-                  <button type="button" onClick={() => irA('solicitudes')}><span>Solicitudes</span><strong>{solicitudes.length}</strong></button>
+                  <button type="button" onClick={() => irA('solicitudes')}><span>Solicitudes</span><strong>{solicitudes.filter(s => !s.archivada).length}</strong></button>
                 </div>
                 <div className="admin-columnas">
                   <section>
@@ -1947,6 +2061,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                 <div className="admin-cabecera">
                   <h1 className="admin-titulo">Cursos</h1>
                   <input className="form-control" aria-label="Buscar curso" placeholder="Buscar curso o academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                  <button type="button" className="btn btn-secondary" onClick={() => setVerArchivados(!verArchivados)}>{verArchivados ? 'Ver activos' : `Archivados (${cursos.filter(c => c.archivado).length})`}</button>
                 </div>
                 <div className="table-container">
                   <table>
@@ -1957,12 +2072,17 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                           <td><strong>{c.titulo}</strong><div className="admin-dato">{c.centro_nombre}</div></td>
                           <td>{c.modalidad}<div className="admin-dato">{c.localidad}</div></td>
                           <td>{Math.max(0, c.plazas - c.plazas_cubiertas)} de {c.plazas}</td>
-                          <td>{c.estado === 'publicado' ? 'Publicado' : 'Pausado'}</td>
+                          <td>{c.archivado ? 'Archivado' : c.estado === 'publicado' ? 'Publicado' : 'Pausado'}</td>
                           <td>
                             <div className="admin-acciones">
                               {c.estado === 'publicado' && <a href={`/curso/${c.id}`} target="_blank" rel="noopener" className="btn btn-secondary btn-sm">Ver</a>}
-                              <button type="button" onClick={() => handleEstadoCurso(c)} className="btn btn-secondary btn-sm">{c.estado === 'publicado' ? 'Pausar' : 'Publicar'}</button>
-                              <button type="button" onClick={() => handleOpenCursoModal(c)} className="btn btn-secondary btn-sm">Editar</button>
+                              {c.archivado ? (
+                                <button type="button" onClick={() => handleArchivar('cursos', c.id, false)} className="btn btn-secondary btn-sm">Recuperar</button>
+                              ) : (<>
+                                <button type="button" onClick={() => handleEstadoCurso(c)} className="btn btn-secondary btn-sm">{c.estado === 'publicado' ? 'Pausar' : 'Publicar'}</button>
+                                <button type="button" onClick={() => handleOpenCursoModal(c)} className="btn btn-secondary btn-sm">Editar</button>
+                                <button type="button" onClick={() => handleArchivar('cursos', c.id, true)} className="btn btn-secondary btn-sm">Archivar</button>
+                              </>)}
                               <button type="button" onClick={() => handleDeleteCurso(c.id)} className="btn btn-secondary btn-sm admin-borrar">Eliminar</button>
                             </div>
                           </td>
@@ -1980,6 +2100,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                 <div className="admin-cabecera">
                   <h1 className="admin-titulo">Solicitudes</h1>
                   <input className="form-control" aria-label="Buscar solicitud" placeholder="Buscar persona, curso o academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                  <button type="button" className="btn btn-secondary" onClick={() => setVerArchivados(!verArchivados)}>{verArchivados ? 'Ver activas' : `Archivadas (${solicitudes.filter(s => s.archivada).length})`}</button>
                 </div>
                 <div className="table-container">
                   <table>
@@ -1991,7 +2112,12 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                           <td>{s.curso_titulo}</td>
                           <td>{s.centro_nombre}</td>
                           <td>{formatFechaHora(s.fecha_creacion)}</td>
-                          <td><button type="button" onClick={() => handleDeleteSolicitud(s)} className="btn btn-secondary btn-sm admin-borrar">Eliminar</button></td>
+                          <td>
+                            <div className="admin-acciones">
+                              <button type="button" onClick={() => handleArchivar('solicitudes', s.id, !s.archivada)} className="btn btn-secondary btn-sm">{s.archivada ? 'Recuperar' : 'Archivar'}</button>
+                              <button type="button" onClick={() => handleDeleteSolicitud(s)} className="btn btn-secondary btn-sm admin-borrar">Eliminar</button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                       {solicitudesVistas.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay solicitudes.</td></tr>}
@@ -2252,7 +2378,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
   // Filtros de leads
   const [solicitudSearch, setSolicitudSearch] = useState('');
-  const [solicitudStatusFilter, setSolicitudStatusFilter] = useState<'todos' | 'nuevos' | 'gestionados'>('todos');
+  const [solicitudStatusFilter, setSolicitudStatusFilter] = useState<'todos' | 'nuevos' | 'gestionados' | 'archivadas'>('todos');
+  const [verCursosArchivados, setVerCursosArchivados] = useState(false);
 
   // Formulario Curso
   const [formTitulo, setFormTitulo] = useState('');
@@ -2775,7 +2902,30 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   };
 
   // Contar solicitudes sin gestionar
-  const countNuevas = solicitudes.filter(sol => !sol.gestionado).length;
+  const countNuevas = solicitudes.filter(sol => !sol.gestionado && !sol.archivada).length;
+  const solicitudesActivas = solicitudes.filter(sol => !sol.archivada);
+  const cursosArchivados = cursos.filter(c => c.archivado);
+  const cursosVistos = cursos.filter(c => verCursosArchivados ? c.archivado : !c.archivado);
+
+  const handleArchivarCurso = async (c: any, archivar: boolean) => {
+    const res = await fetch(`${API_BASE}/cursos/${c.id}/archivar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivar })
+    });
+    if (res.ok) { loadCursos(); loadStats(); }
+    else alert('No se ha podido cambiar el curso.');
+  };
+
+  const handleArchivarSolicitud = async (s: any, archivar: boolean) => {
+    const res = await fetch(`${API_BASE}/solicitudes/${s.id}/archivar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archivar })
+    });
+    if (res.ok) loadSolicitudes();
+    else alert('No se ha podido cambiar la solicitud.');
+  };
 
   const solicitudesPorMes = () => {
     const hoy = new Date();
@@ -2930,13 +3080,18 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               {/* Tabla de Cursos */}
               <div className="table-container">
                 <div className="table-header">
-                  <h3 className="table-title">Tus cursos</h3>
+                  <h3 className="table-title">{verCursosArchivados ? 'Cursos archivados' : 'Tus cursos'}</h3>
+                  {(verCursosArchivados || cursosArchivados.length > 0) && (
+                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => setVerCursosArchivados(!verCursosArchivados)}>
+                      {verCursosArchivados ? 'Volver a tus cursos' : `Ver archivados (${cursosArchivados.length})`}
+                    </button>
+                  )}
                 </div>
                 
-                {cursos.length === 0 ? (
+                {cursosVistos.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '3rem' }}>
                     <BookOpen size={32} style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }} />
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Todavía no tienes cursos. Publica el primero.</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{verCursosArchivados ? 'No hay cursos archivados.' : 'Todavía no tienes cursos. Publica el primero.'}</p>
                   </div>
                 ) : (
                   <table>
@@ -2951,7 +3106,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                       </tr>
                     </thead>
                     <tbody>
-                      {cursos.map((c) => (
+                      {cursosVistos.map((c) => (
                         <tr key={c.id}>
                           <td style={{ fontWeight: '600', color: 'var(--primary)' }}>{c.titulo}</td>
                           <td>{c.localidad}</td>
@@ -2959,11 +3114,16 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                           <td><strong>{c.solicitudes_count || 0}</strong></td>
                           <td>
                             <span className={`badge ${c.estado === 'publicado' ? 'badge-published' : 'badge-paused'}`}>
-                              {c.estado === 'publicado' ? 'Publicado' : 'Pausado'}
+                              {c.archivado ? 'Archivado' : c.estado === 'publicado' ? 'Publicado' : 'Pausado'}
                             </span>
                           </td>
                           <td>
                             <div style={{ display: puedeEditar ? 'flex' : 'none', gap: '0.5rem' }}>
+                              {c.archivado ? (
+                                <button type="button" onClick={() => handleArchivarCurso(c, false)} className="btn btn-secondary btn-sm" title="Recuperar del archivo" aria-label="Recuperar del archivo" style={{ display: 'flex', alignItems: 'center' }}>
+                                  <RotateCcw size={14} />
+                                </button>
+                              ) : (<>
                               <button 
                                 onClick={() => handleToggleCursoEstado(c.id)} 
                                 className="btn btn-secondary btn-sm"
@@ -2980,6 +3140,10 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                               >
                                 <Edit size={14} />
                               </button>
+                              <button type="button" onClick={() => handleArchivarCurso(c, true)} className="btn btn-secondary btn-sm" title="Archivar curso" aria-label="Archivar curso" style={{ display: 'flex', alignItems: 'center' }}>
+                                <Archive size={14} />
+                              </button>
+                              </>)}
                             </div>
                           </td>
                         </tr>
@@ -2993,8 +3157,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               <div className="activity-card">
                 <h3 className="activity-title">Últimas solicitudes</h3>
                 <ul className="activity-feed-list">
-                  {solicitudes.length === 0 && <li className="activity-item"><div className="activity-text">Todavía no hay solicitudes.</div></li>}
-                  {solicitudes.slice(0, 5).map((s) => (
+                  {solicitudesActivas.length === 0 && <li className="activity-item"><div className="activity-text">Todavía no hay solicitudes.</div></li>}
+                  {solicitudesActivas.slice(0, 5).map((s) => (
                     <li key={s.id} className="activity-item">
                       <div className="activity-dot"></div>
                       <div>
@@ -3034,8 +3198,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   style={{ width: '160px' }}
                 >
                   <option value="todos">Todas</option>
-                  <option value="nuevos">Sólo Nuevos</option>
-                  <option value="gestionados">Sólo Gestionados</option>
+                  <option value="nuevos">Nuevas</option>
+                  <option value="gestionados">Gestionadas</option>
+                  <option value="archivadas">Archivadas</option>
                 </select>
               </div>
 
@@ -3071,6 +3236,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                                               s.email.toLowerCase().includes(solicitudSearch.toLowerCase()) || 
                                               s.telefono.includes(solicitudSearch) ||
                                               s.curso_titulo.toLowerCase().includes(solicitudSearch.toLowerCase());
+                        if (solicitudStatusFilter === 'archivadas') return matchesSearch && s.archivada;
+                        if (s.archivada) return false;
                         if (solicitudStatusFilter === 'nuevos') return matchesSearch && !s.gestionado;
                         if (solicitudStatusFilter === 'gestionados') return matchesSearch && s.gestionado;
                         return matchesSearch;
@@ -3162,6 +3329,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                             >
                               Contactar
                             </button>
+                            <button type="button" onClick={() => handleArchivarSolicitud(s, !s.archivada)} className="btn btn-secondary btn-sm">{s.archivada ? 'Recuperar' : 'Archivar'}</button>
                           </div>
                         </td>
                       </tr>
@@ -4051,6 +4219,7 @@ function App() {
         {/* Alumnos */}
         <Route path="/" element={<AlumnosHome />} />
         <Route path="/cursos" element={<AlumnosLista />} />
+        <Route path="/como-funciona" element={<ComoFunciona />} />
         <Route path="/curso/:id" element={<AlumnosDetalle />} />
 
         {/* Centros */}

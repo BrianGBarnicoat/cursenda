@@ -702,6 +702,19 @@ app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async
 });
 
 // Pausar/Reanudar curso
+// Archivar: el curso sale de la web y deja de contar como activo. Al recuperarlo vuelve pausado.
+app.post('/api/cursos/:id/archivar', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
+  const archivar = req.body?.archivar !== false;
+  try {
+    const db = await getDatabase();
+    const r = await db.run(`UPDATE cursos SET archivado = ?, estado = 'pausado' WHERE id = ? AND centro_id = ?`, [archivar ? 1 : 0, req.params.id, req.centro.id]);
+    if (!r.changes) return res.status(404).json({ error: 'Curso no encontrado' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al archivar el curso' });
+  }
+});
+
 app.post('/api/cursos/:id/toggle-estado', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
 
@@ -711,6 +724,10 @@ app.post('/api/cursos/:id/toggle-estado', authenticateToken, puedeEditar, requie
 
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado' });
+    }
+
+    if (curso.archivado) {
+      return res.status(400).json({ error: 'Recupera el curso del archivo antes de publicarlo.' });
     }
 
     const nuevoEstado = curso.estado === 'publicado' ? 'pausado' : 'publicado';
@@ -803,6 +820,18 @@ app.get('/api/solicitudes', authenticateToken, requiereAcceso, async (req: any, 
 });
 
 // Marcar solicitud como gestionada
+app.post('/api/solicitudes/:id/archivar', authenticateToken, requiereAcceso, async (req: any, res) => {
+  const archivar = req.body?.archivar !== false;
+  try {
+    const db = await getDatabase();
+    const r = await db.run(`UPDATE solicitudes SET archivada = ? WHERE id = ? AND curso_id IN (SELECT id FROM cursos WHERE centro_id = ?)`, [archivar ? 1 : 0, req.params.id, req.centro.id]);
+    if (!r.changes) return res.status(404).json({ error: 'Solicitud no encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al archivar la solicitud' });
+  }
+});
+
 app.post('/api/solicitudes/:id/gestionado', authenticateToken, requiereAcceso, async (req: any, res) => {
   const { id } = req.params;
   const { gestionado } = req.body;
@@ -1586,6 +1615,26 @@ app.put('/api/admin/ajustes', authenticateAdmin, async (req, res) => {
   }
 });
 
+app.post('/api/admin/cursos/:id/archivar', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    await db.run(`UPDATE cursos SET archivado = ?, estado = 'pausado' WHERE id = ?`, [req.body?.archivar !== false ? 1 : 0, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al archivar el curso' });
+  }
+});
+
+app.post('/api/admin/solicitudes/:id/archivar', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    await db.run('UPDATE solicitudes SET archivada = ? WHERE id = ?', [req.body?.archivar !== false ? 1 : 0, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al archivar la solicitud' });
+  }
+});
+
 app.delete('/api/admin/solicitudes/:id', authenticateAdmin, async (req, res) => {
   try {
     const db = await getDatabase();
@@ -1799,6 +1848,10 @@ const META_PORTADA: Meta = {
 };
 
 async function metaDe(ruta: string): Promise<Meta> {
+  if (ruta === '/como-funciona') {
+    return { titulo: 'Cómo funcionan los cursos subvencionados · Cursenda', descripcion: 'Quién puede apuntarse, qué es un certificado profesional y qué requisitos pide cada nivel, con enlaces a las fuentes oficiales.', ruta };
+  }
+
   if (ruta === '/cursos') {
     return { titulo: 'Cursos gratis · Cursenda', descripcion: 'Todos los cursos gratuitos publicados en Cursenda, por oficio, modalidad y fecha de inicio.', ruta };
   }
@@ -1867,7 +1920,7 @@ app.get('/sitemap.xml', async (req, res) => {
   try {
     const db = await getDatabase();
     const cursos = await db.all(`SELECT cursos.id FROM cursos JOIN centros ON cursos.centro_id = centros.id WHERE cursos.estado = 'publicado' AND ${VISIBLE_SQL}`);
-    const rutas = ['/', '/cursos', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
+    const rutas = ['/', '/cursos', '/como-funciona', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies', ...cursos.map((c: any) => `/curso/${c.id}`)];
     const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
   } catch (err) {
