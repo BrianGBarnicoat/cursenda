@@ -2908,3 +2908,53 @@ tr:last-child td {
   .pub-franja, .pub-franja img, .pub-franja-mas, .pub-oficio img, .pub-curso-portada img, .pub-gracias { animation: none; transition: none; }
   .pub-franja.activa img { transform: none; }
 }
+
+/* --- PÁGINA PARA ACADEMIAS --- */
+.pub a.pub-boton-pedir { width: auto; }
+.pub-aca-portada { padding-top: 26px; }
+.pub-aca-portada h1 { font-size: 54px; line-height: 1.04; letter-spacing: -.025em; max-width: 19ch; }
+.pub-aca-portada > p { color: var(--pub-claro); font-size: 19px; margin-top: 14px; max-width: 56ch; }
+.pub .pub-aca-acciones { display: flex; align-items: center; gap: 20px; margin: 22px 0 36px; }
+.pub .pub-aca-acciones a:not(.pub-boton) { color: var(--white); text-decoration: underline; font-size: 16px; }
+.pub-aca-panel { display: block; width: 100%; height: auto; border-radius: 6px 6px 0 0; animation: pub-sube .9s cubic-bezier(.22,.8,.25,1) both; }
+.pub-aca-seccion { padding-top: 26px; padding-bottom: 56px; }
+.pub-aca-funciones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 56px; }
+.pub-aca-funciones > div { padding: 18px 0; border-bottom: 1px solid var(--pub-linea); }
+.pub-aca-funciones h3 { font-size: 19px; }
+.pub-aca-funciones p { color: var(--pub-suave); margin-top: 3px; }
+.pub-aca-precios { background: var(--pub-fondo); padding: 48px 0; }
+.pub-aca-precios h2 { font-size: 30px; color: var(--primary); }
+.pub-aca-precios > .pub-ancho > p { color: var(--pub-suave); margin-top: 6px; }
+.pub-aca-planes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
+.pub-aca-planes > div { background: var(--white); border: 1px solid var(--pub-linea); border-radius: 4px; padding: 22px; }
+.pub-aca-planes h3 { font-size: 19px; }
+.pub .pub-aca-precio { font-size: 34px; font-weight: 600; color: var(--primary); margin: 4px 0 8px; line-height: 1.2; }
+.pub-aca-precio span { font-size: 16px; font-weight: 400; color: var(--pub-suave); }
+.pub-aca-planes p { color: var(--pub-suave); }
+.pub-aca-final { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 56px; align-items: start; padding-top: 18px; }
+.pub-aca-final .pub-pedir { margin-top: 30px; scroll-margin-top: 16px; position: static; }
+.pub-aca-final .pub-pedir h2 { font-size: 24px; color: var(--primary); margin-bottom: 6px; }
+.pub-pregunta { border-bottom: 1px solid var(--pub-linea); }
+.pub-pregunta summary { padding: 15px 0; font-weight: 600; cursor: pointer; }
+.pub-pregunta p { padding-bottom: 16px; color: var(--pub-suave); max-width: 60ch; }
+
+/* --- ENTRAR, CONTRASEÑA E INVITACIONES --- */
+.auth-container { background: var(--primary); font-family: 'Schibsted Grotesk', system-ui, sans-serif; padding: 16px; }
+.auth-card { border: 0; border-radius: 6px; box-shadow: none; padding: 2.25rem 2rem; }
+.auth-title, .auth-card h4 { font-family: inherit; font-weight: 600; }
+.auth-title { font-size: 1.625rem; letter-spacing: -.01em; }
+.auth-subtitle { font-size: 1rem; color: #566760; margin-bottom: 1.5rem; }
+.auth-card .form-label { font-size: 1rem; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text); }
+.auth-card .form-control { font-size: 1rem; padding: 11px 12px; border: 1px solid #9FB0A9; border-radius: 4px; }
+.auth-card .btn { font-size: 1rem; border-radius: 4px; padding: 11px 18px; }
+.auth-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: .9375rem; }
+.auth-link { color: var(--primary); font-weight: 500; text-decoration: underline; }
+
+@media (max-width: 900px) {
+  .pub-aca-portada { padding-top: 10px; }
+  .pub-aca-portada h1 { font-size: 36px; }
+  .pub-aca-portada > p { font-size: 17px; }
+  .pub-aca-funciones, .pub-aca-planes, .pub-aca-final { grid-template-columns: minmax(0, 1fr); }
+  .pub-aca-final { gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .pub-aca-panel { animation: none; } }

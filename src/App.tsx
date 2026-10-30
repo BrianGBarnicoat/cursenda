@@ -14,7 +14,6 @@ import {
   Pause, 
   Edit, 
   Check, 
-  HelpCircle, 
   BarChart3,
   Calendar,
   Settings,
@@ -564,79 +563,44 @@ function AlumnosDetalle() {
 }
 
 // --- PORTAL COMERCIAL (Landing Centros) ---
+const FUNCIONES_PANEL = [
+  { titulo: 'Publicas tus cursos', texto: 'Con fechas, horas, plazas y a quién van dirigidos. Puedes pausarlos cuando se llenen.' },
+  { titulo: 'Recibes las solicitudes', texto: 'Cada persona que pide plaza te llega con su nombre, teléfono, correo y el curso que quiere.' },
+  { titulo: 'Contactas en un clic', texto: 'Abres WhatsApp o el correo con un mensaje ya escrito a partir de tus plantillas.' },
+  { titulo: 'Apuntas cómo va cada una', texto: 'Llamado, interesado, matriculado o descartado, con tus notas guardadas en su ficha.' },
+  { titulo: 'Trabajas con tu equipo', texto: 'Invitas a tus compañeros con su propia cuenta y eliges qué puede hacer cada uno.' },
+  { titulo: 'Pones los cursos en tu web', texto: 'Copias un código y tus cursos salen también en la web de tu academia.' },
+  { titulo: 'Sacas tus datos', texto: 'Descargas las solicitudes en un archivo CSV que se abre con Excel.' },
+  { titulo: 'Ves qué funciona', texto: 'Visitas y solicitudes de cada curso, para saber cuáles necesitan más gente.' }
+];
+
+const PREGUNTAS_ACADEMIAS = [
+  { pregunta: '¿Necesito tarjeta para probarlo?', respuesta: 'No. El primer mes es gratis y no se pide ningún dato de pago. Solo pones la tarjeta si decides seguir.' },
+  { pregunta: '¿Qué pasa cuando termina el mes gratis?', respuesta: 'Eliges un plan desde tu panel y todo sigue igual. Si no lo haces, tus cursos dejan de mostrarse, pero tus datos se guardan por si decides volver.' },
+  { pregunta: '¿Tiene permanencia?', respuesta: 'No. Se paga mes a mes y puedes darte de baja cuando quieras desde tu panel.' },
+  { pregunta: '¿Quién ve las solicitudes?', respuesta: 'Solo tu academia. Entran tú y las personas de tu equipo a las que invites, cada una con su contraseña.' }
+];
+
 function LandingCentros() {
-  useTitulo('Cursenda para centros · Llene las plazas de sus cursos subvencionados');
+  useTitulo('Cursenda para academias · Recibe solicitudes para tus cursos');
   const [nombreCentro, setNombreCentro] = useState('');
   const [contacto, setContacto] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
   const [rgpd, setRgpd] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
-  // Estados para Demostración Interactiva (Búsqueda Inteligente)
-  const [demoSearch, setDemoSearch] = useState('');
-  const [demoFilter, setDemoFilter] = useState('Informática');
-  const demoCourses = [
-    { code: 'IFCD0210', title: 'Desarrollo de Aplicaciones con Tecnologías Web', cat: 'Informática', duration: '510h', mode: 'Online', desc: 'Curso de programación web oficial.' },
-    { code: 'SANT0208', title: 'Atención Sociosanitaria a Personas Dependientes', cat: 'Sanidad', duration: '450h', mode: 'Presencial', desc: 'Certificado oficial obligatorio para residencias.' },
-    { code: 'COML0309', title: 'Organización y Gestión de Almacenes', cat: 'Logística', duration: '390h', mode: 'Presencial', desc: 'Gestión logística y control de stock ERP.' },
-    { code: 'HOTR0608', title: 'Servicios de Restaurante y Sumillería', cat: 'Hostelería', duration: '580h', mode: 'Presencial', desc: 'Coctelería, sumillería y gestión de sala.' },
-    { code: 'ADGD0210', title: 'Creación y Gestión de Microempresas', cat: 'Administración', duration: '520h', mode: 'Mixta', desc: 'Dirección de Pymes y contabilidad oficial.' }
-  ];
-  
-  // Estado para Simulador ROI
-  const [vacantes, setVacantes] = useState(10);
-  const [subvencion, setSubvencion] = useState(1800);
-
-  // Estado para Mapa Interactivo de España
-  const [selectedRegion, setSelectedRegion] = useState<'madrid' | 'cataluna' | 'andalucia' | 'valencia' | 'paisvasco'>('madrid');
-  const regionDetails = {
-    madrid: { name: 'Comunidad de Madrid', leads: 1842, category: 'Informática (42%)', density: 'Muy Alta' },
-    cataluna: { name: 'Cataluña', leads: 1495, category: 'Sanidad (38%)', density: 'Alta' },
-    andalucia: { name: 'Andalucía', leads: 2105, category: 'Hostelería (45%)', density: 'Muy Alta' },
-    valencia: { name: 'Comunidad Valenciana', leads: 980, category: 'Logística (35%)', density: 'Media-Alta' },
-    paisvasco: { name: 'País Vasco', leads: 760, category: 'Informática (40%)', density: 'Media' }
-  };
-
-  // Observer para revelar elementos al hacer scroll
+  // Si llega con /centros#acceso, baja hasta el formulario
   useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-        }
-      });
-    }, { threshold: 0.1 });
-
-    const elements = document.querySelectorAll('.reveal, .reveal-scale, .reveal-left');
-    elements.forEach(el => observer.observe(el));
-
-    return () => {
-      elements.forEach(el => observer.unobserve(el));
-      observer.disconnect();
-    };
-  }, [selectedRegion, activeFaq]);
-
-  const toggleFaq = (index: number) => {
-    setActiveFaq(activeFaq === index ? null : index);
-  };
+    if (window.location.hash) document.querySelector(window.location.hash)?.scrollIntoView();
+  }, []);
 
   const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!nombreCentro.trim() || !contacto.trim() || !email.trim() || !telefono.trim()) {
-      setError('Por favor, rellene todos los campos obligatorios.');
-      return;
-    }
-
-    if (!rgpd) {
-      setError('Debe aceptar la política de privacidad y protección de datos.');
-      return;
-    }
-
+    setEnviando(true);
     try {
       const res = await fetch(`${API_BASE}/public/demo`, {
         method: 'POST',
@@ -647,510 +611,113 @@ function LandingCentros() {
         setSuccess(true);
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'No se pudo enviar la solicitud. Inténtelo de nuevo.');
+        setError(data.error || 'No se ha podido enviar. Vuelve a intentarlo.');
       }
     } catch (err) {
-      setError('Error de red. Inténtelo de nuevo.');
+      setError('No se ha podido enviar. Comprueba tu conexión y vuelve a intentarlo.');
+    } finally {
+      setEnviando(false);
     }
   };
 
   return (
-    <div>
-      <nav className="landing-navbar">
-        <Logo />
-        <ul className="landing-nav-links">
-          <li><a href="#como-funciona" className="landing-nav-link">Cómo funciona</a></li>
-          <li><a href="#planes" className="landing-nav-link">Planes</a></li>
-          <li><a href="#faq" className="landing-nav-link">Preguntas frecuentes</a></li>
-        </ul>
-        <Link to="/centros/login" className="btn btn-primary btn-sm">Acceso Centros</Link>
-      </nav>
-
-      <header className="centros-hero">
-        <div className="centros-hero-texto">
-          <h1>Llene las plazas vacías de sus cursos subvencionados</h1>
-          <p>Publique sus cursos en Cursenda y reciba en su panel a los alumnos interesados, con su teléfono y su email, en cuanto piden plaza.</p>
-          <div className="centros-hero-acciones">
-            <a href="#demo" className="btn btn-accent">Probar 30 días gratis</a>
-            <a href="#planes" className="btn btn-secondary">Ver precios</a>
-          </div>
-          <ul className="centros-hero-garantias">
-            <li><Check size={16} /> Sin tarjeta para probar</li>
-            <li><Check size={16} /> Sin permanencia</li>
-            <li><Shield size={16} /> Datos en servidores de la UE</li>
-          </ul>
+    <div className="pub">
+      <div className="pub-arriba">
+        <header className="pub-barra">
+          <Logo light={true} />
+          <nav>
+            <a href="#precios" className="pub-solo-ancho">Precios</a>
+            <Link to="/" className="pub-solo-ancho">Ver los cursos</Link>
+            <Link to="/centros/login">Entrar</Link>
+          </nav>
+        </header>
+        <div className="pub-ancho pub-aca-portada">
+          <h1>Recibe a la gente que quiere plaza en tus cursos</h1>
+          <p>Publicas tus cursos subvencionados y te llegan las solicitudes a un panel, con su teléfono, para que las llames.</p>
+          <p className="pub-aca-acciones"><a href="#acceso" className="pub-boton pub-boton-pedir">Probar un mes gratis</a><Link to="/centros/login">Ya tengo cuenta</Link></p>
+          <img className="pub-aca-panel" src="/images/panel-solicitudes.jpg" alt="Panel de Cursenda con la lista de solicitudes de plaza" width="1600" height="1000" />
         </div>
-        <div className="centros-hero-panel" aria-hidden="true">
-          <img src="/images/panel-solicitudes.webp" alt="" width="1600" height="1000" />
-          <div className="centros-hero-aviso">
-            <span className="centros-hero-aviso-punto"></span>
+      </div>
+
+      <section className="pub-ancho pub-aca-seccion" id="como-funciona">
+        <h2 className="pub-titulo">Lo que puedes hacer en el panel</h2>
+        <div className="pub-aca-funciones">
+          {FUNCIONES_PANEL.map(f => (
+            <div key={f.titulo}>
+              <h3>{f.titulo}</h3>
+              <p>{f.texto}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="pub-aca-precios" id="precios">
+        <div className="pub-ancho">
+          <h2>Precios</h2>
+          <p>El primer mes es gratis en cualquier plan. Los precios no incluyen IVA.</p>
+          <div className="pub-aca-planes">
             <div>
-              <strong>Nueva solicitud de plaza</strong>
-              <span>Laura Fernández · IFCD0210 Desarrollo Web</span>
+              <h3>Starter</h3>
+              <p className="pub-aca-precio">79 € <span>al mes</span></p>
+              <p>Hasta 5 cursos activos a la vez.</p>
             </div>
-          </div>
-        </div>
-      </header>
-
-      <div id="como-funciona" className="landing-section">
-        <h2 className="landing-section-title">Cómo funciona Cursenda</h2>
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="feature-icon-container"><BookOpen size={32} /></div>
-            <h3>1. Publique sus cursos</h3>
-            <p>Suba el título, modalidad, localidad y descripción de los cursos gratuitos que tiene programados.</p>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon-container"><Users size={32} /></div>
-            <h3>2. Reciba las solicitudes</h3>
-            <p>Los alumnos interesados piden plaza en la ficha del curso y a usted le llegan al momento su nombre, teléfono y email.</p>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon-container"><CheckCircle size={32} /></div>
-            <h3>3. Cierre sus matrículas</h3>
-            <p>Contacte rápido a los alumnos desde el panel de control privado de su centro y complete su expediente.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SECCIÓN: DEMO INTERACTIVA Y ROI */}
-      <div className="landing-section reveal" style={{ borderTop: '1px solid var(--lines)', padding: '5rem 2rem' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          
-          <h2 style={{ fontSize: '2.25rem', color: 'var(--primary)', textAlign: 'center', marginBottom: '1rem', letterSpacing: '-0.03em' }}>Herramientas de Venta y Simulación</h2>
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginBottom: '4rem', maxWidth: '600px', margin: '0 auto' }}>
-            Pruebe el potencial de Cursenda. Compruebe la demanda de alumnos en su zona y calcule el impacto económico de cubrir sus plazas vacantes.
-          </p>
-
-          <div className="sales-tools-grid">
-            
-            {/* CALCULADORA DE ROI */}
-            <div className="table-container reveal-scale" style={{ padding: '2.5rem' }}>
-              <h3 style={{ color: 'var(--primary)', fontSize: '1.25rem', marginBottom: '1.5rem' }}>Simulador de Retorno (ROI)</h3>
-              
-              <div className="form-group" style={{ marginBottom: '1.75rem' }}>
-                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Plazas vacías al año:</span>
-                  <strong style={{ color: 'var(--accent)' }}>{vacantes} alumnos</strong>
-                </label>
-                <input 
-                  type="range" 
-                  min="2" 
-                  max="50" 
-                  value={vacantes} 
-                  onChange={(e) => setVacantes(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: 'var(--accent)' }}
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '2rem' }}>
-                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Subvención media por alumno del SEPE:</span>
-                  <strong style={{ color: 'var(--accent)' }}>{subvencion} €</strong>
-                </label>
-                <input 
-                  type="range" 
-                  min="500" 
-                  max="4500" 
-                  step="100"
-                  value={subvencion} 
-                  onChange={(e) => setSubvencion(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: 'var(--accent)' }}
-                />
-              </div>
-
-              <div style={{ borderTop: '1px solid var(--lines)', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9375rem' }}>
-                  <span>Ingresos perdidos actuales por vacantes:</span>
-                  <strong style={{ color: 'var(--error-text)' }}>{(vacantes * subvencion).toLocaleString('es-ES')} €</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9375rem' }}>
-                  <span>Coste anual de Cursenda (Plan Starter):</span>
-                  <strong>948 €</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', color: 'var(--primary)', borderTop: '1px solid var(--lines)', paddingTop: '1rem' }}>
-                  <span>Ingreso neto recuperado:</span>
-                  <strong style={{ color: 'var(--success-text)', fontSize: '1.5rem', fontWeight: '800' }}>{Math.max(0, (vacantes * subvencion) - 948).toLocaleString('es-ES')} €</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* DEMO BÚSQUEDA INTELIGENTE */}
-            <div className="table-container reveal-scale stagger-1" style={{ padding: '2.5rem' }}>
-              <h3 style={{ color: 'var(--primary)', fontSize: '1.25rem', marginBottom: '0.5rem' }}>Demostración de Búsqueda Inteligente</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Simulación interactiva de cómo los alumnos encuentran sus cursos.</p>
-
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                {['Informática', 'Sanidad', 'Logística', 'Hostelería'].map((cat) => (
-                  <button 
-                    key={cat} 
-                    type="button"
-                    className="btn btn-secondary btn-sm" 
-                    style={demoFilter === cat ? { backgroundColor: 'var(--primary)', color: 'var(--white)', borderColor: 'var(--primary)', borderRadius: '16px' } : { borderRadius: '16px' }}
-                    onClick={() => {
-                      setDemoFilter(cat);
-                      setDemoSearch('');
-                    }}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="Escriba un código oficial (Ej: IFCD0210)..."
-                  value={demoSearch}
-                  onChange={(e) => {
-                    setDemoSearch(e.target.value);
-                    setDemoFilter('');
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '180px', overflowY: 'auto' }}>
-                {demoCourses
-                  .filter(c => {
-                    if (demoSearch) {
-                      return c.code.toLowerCase().includes(demoSearch.toLowerCase()) || c.title.toLowerCase().includes(demoSearch.toLowerCase());
-                    }
-                    return c.cat === demoFilter;
-                  })
-                  .map((c) => (
-                    <div key={c.code} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', border: '1px solid var(--lines)', borderRadius: '6px', backgroundColor: '#FAF9F6', fontSize: '0.8125rem' }}>
-                      <div>
-                        <strong>{c.code}</strong> - {c.title}
-                        <div style={{ color: 'var(--text-muted)', marginTop: '0.25rem', fontSize: '0.75rem' }}>{c.desc}</div>
-                      </div>
-                      <span className="badge badge-published" style={{ alignSelf: 'center' }}>{c.mode}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-          </div>
-
-          {/* MAPA INTERACTIVO DE DEMANDA EN ESPAÑA */}
-          <div className="table-container sales-map-grid reveal stagger-2">
             <div>
-              <h3 style={{ color: 'var(--primary)', fontSize: '1.5rem', marginBottom: '1rem' }}>Mapa de Demanda Estudiantil <span className="badge badge-paused" style={{ fontSize: '0.6875rem', verticalAlign: 'middle' }}>Ejemplo</span></h3>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '2rem', lineHeight: '1.5' }}>
-                Así verá la demanda por zonas cuando tenga sus cursos publicados. Las cifras de este ejemplo son ilustrativas.</p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  {['madrid', 'cataluna', 'andalucia'].map((reg) => (
-                    <button 
-                      key={reg}
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      style={selectedRegion === reg ? { backgroundColor: 'var(--primary)', color: 'var(--white)', borderColor: 'var(--primary)' } : {}}
-                      onClick={() => setSelectedRegion(reg as any)}
-                    >
-                      {regionDetails[reg as keyof typeof regionDetails].name}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  {['valencia', 'paisvasco'].map((reg) => (
-                    <button 
-                      key={reg}
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      style={selectedRegion === reg ? { backgroundColor: 'var(--primary)', color: 'var(--white)', borderColor: 'var(--primary)' } : {}}
-                      onClick={() => setSelectedRegion(reg as any)}
-                    >
-                      {regionDetails[reg as keyof typeof regionDetails].name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--lines)', paddingTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontSize: '0.875rem' }}>
-                <div>
-                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Candidatos (ejemplo)</span>
-                  <strong style={{ fontSize: '1.5rem', color: 'var(--accent)', fontWeight: '800' }}>{regionDetails[selectedRegion].leads.toLocaleString('es-ES')} alumnos</strong>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase' }}>Categoría Estrella</span>
-                  <strong style={{ fontSize: '1.125rem', color: 'var(--primary)', fontWeight: '700' }}>{regionDetails[selectedRegion].category}</strong>
-                </div>
-              </div>
+              <h3>Pro</h3>
+              <p className="pub-aca-precio">149 € <span>al mes</span></p>
+              <p>Cursos activos sin límite.</p>
             </div>
-
-            {/* SVG GRÁFICO DEL MAPA DE ESPAÑA SIMPLIFICADO */}
-            <div style={{ display: 'flex', justifyContent: 'center', backgroundColor: '#FAF9F6', padding: '2rem', borderRadius: '8px', border: '1px solid var(--lines)', overflow: 'hidden' }}>
-              <svg viewBox="0 0 400 300" style={{ width: '100%', height: 'auto', maxHeight: '250px' }}>
-                <path d="M 50,80 L 100,50 L 150,30 L 250,20 L 320,40 L 350,100 L 320,180 L 260,250 L 180,280 L 100,270 L 60,200 L 30,120 Z" fill="#E2E0D8" opacity="0.3" stroke="var(--lines)" strokeWidth="2" strokeDasharray="4 4" />
-                
-                <line x1="200" y1="130" x2="310" y2="90" stroke="var(--lines)" strokeWidth="1" />
-                <line x1="200" y1="130" x2="200" y2="240" stroke="var(--lines)" strokeWidth="1" />
-                <line x1="200" y1="130" x2="290" y2="180" stroke="var(--lines)" strokeWidth="1" />
-                <line x1="200" y1="130" x2="220" y2="40" stroke="var(--lines)" strokeWidth="1" />
-
-                {/* NODO MADRID */}
-                <circle 
-                  cx="200" cy="130" r={selectedRegion === 'madrid' ? 18 : 12} 
-                  fill={selectedRegion === 'madrid' ? 'var(--accent)' : 'var(--primary)'} 
-                  style={{ cursor: 'pointer', transition: 'all 0.3s ease' }} 
-                  onClick={() => setSelectedRegion('madrid')}
-                />
-                <text x="200" y="160" textAnchor="middle" style={{ fontSize: '10px', fontWeight: '700', fill: 'var(--primary)', pointerEvents: 'none' }}>Madrid</text>
-
-                {/* NODO BARCELONA */}
-                <circle 
-                  cx="310" cy="90" r={selectedRegion === 'cataluna' ? 18 : 12} 
-                  fill={selectedRegion === 'cataluna' ? 'var(--accent)' : 'var(--primary)'} 
-                  style={{ cursor: 'pointer', transition: 'all 0.3s ease' }} 
-                  onClick={() => setSelectedRegion('cataluna')}
-                />
-                <text x="310" y="70" textAnchor="middle" style={{ fontSize: '10px', fontWeight: '700', fill: 'var(--primary)', pointerEvents: 'none' }}>Barcelona</text>
-
-                {/* NODO ANDALUCIA */}
-                <circle 
-                  cx="200" cy="240" r={selectedRegion === 'andalucia' ? 18 : 12} 
-                  fill={selectedRegion === 'andalucia' ? 'var(--accent)' : 'var(--primary)'} 
-                  style={{ cursor: 'pointer', transition: 'all 0.3s ease' }} 
-                  onClick={() => setSelectedRegion('andalucia')}
-                />
-                <text x="200" y="270" textAnchor="middle" style={{ fontSize: '10px', fontWeight: '700', fill: 'var(--primary)', pointerEvents: 'none' }}>Sevilla</text>
-
-                {/* NODO VALENCIA */}
-                <circle 
-                  cx="290" cy="180" r={selectedRegion === 'valencia' ? 18 : 12} 
-                  fill={selectedRegion === 'valencia' ? 'var(--accent)' : 'var(--primary)'} 
-                  style={{ cursor: 'pointer', transition: 'all 0.3s ease' }} 
-                  onClick={() => setSelectedRegion('valencia')}
-                />
-                <text x="300" y="200" textAnchor="middle" style={{ fontSize: '10px', fontWeight: '700', fill: 'var(--primary)', pointerEvents: 'none' }}>Valencia</text>
-
-                {/* NODO PAIS VASCO */}
-                <circle 
-                  cx="220" cy="40" r={selectedRegion === 'paisvasco' ? 18 : 12} 
-                  fill={selectedRegion === 'paisvasco' ? 'var(--accent)' : 'var(--primary)'} 
-                  style={{ cursor: 'pointer', transition: 'all 0.3s ease' }} 
-                  onClick={() => setSelectedRegion('paisvasco')}
-                />
-                <text x="220" y="25" textAnchor="middle" style={{ fontSize: '10px', fontWeight: '700', fill: 'var(--primary)', pointerEvents: 'none' }}>Bilbao</text>
-              </svg>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <div id="planes" className="landing-section reveal" style={{ backgroundColor: '#FAF9F6', padding: '5rem 2rem', borderTop: '1px solid var(--lines)', borderBottom: '1px solid var(--lines)', maxWidth: '100%' }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          <h2 className="landing-section-title">Planes flexibles para su centro</h2>
-          <div className="pricing-grid">
-            <div className="price-card reveal-scale stagger-1">
-              <div className="price-name">Plan Starter</div>
-              <div className="price-amount">79€ <span>/ mes + IVA</span></div>
-              <ul className="price-features">
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Hasta 5 cursos activos</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Gestión de leads e historial</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Exportación CSV</li>
-                <li className="price-feature disabled"><X size={16} style={{ color: 'var(--error-text)' }} /> Estadísticas detalladas</li>
-              </ul>
-              <Link to="/centros/login" className="btn btn-secondary" style={{ marginTop: 'auto' }}>Comenzar ahora</Link>
-            </div>
-
-            <div className="price-card popular reveal-scale stagger-2">
-              <div className="popular-badge">Recomendado</div>
-              <div className="price-name">Plan Pro</div>
-              <div className="price-amount">149€ <span>/ mes + IVA</span></div>
-              <ul className="price-features">
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Cursos activos ilimitados</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Gestión de leads e historial</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Exportación CSV</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Estadísticas detalladas de visitas</li>
-              </ul>
-              <Link to="/centros/login" className="btn btn-primary" style={{ marginTop: 'auto' }}>Comenzar ahora</Link>
-            </div>
-
-            <div className="price-card reveal-scale stagger-3">
-              <div className="price-name">Plan Custom</div>
-              <div className="price-amount">A Medida <span></span></div>
-              <ul className="price-features">
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Redes de centros</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Integración API directa</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Gestor de cuentas dedicado</li>
-                <li className="price-feature"><Check size={16} style={{ color: 'var(--success-text)' }} /> Acuerdos de nivel de servicio (SLA)</li>
-              </ul>
-              <a href="#demo" className="btn btn-secondary" style={{ marginTop: 'auto' }}>Contactar soporte</a>
+            <div>
+              <h3>Varios centros</h3>
+              <p className="pub-aca-precio">A medida</p>
+              <p>Si tienes una red de centros, pide acceso y lo hablamos.</p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div id="faq" className="landing-section">
-        <h2 className="landing-section-title">Preguntas Frecuentes</h2>
-        <div className="faq-list">
-          <div className="faq-item reveal stagger-1" style={{ padding: 0, overflow: 'hidden' }}>
-            <button
-              type="button"
-              className="faq-toggle"
-              onClick={() => toggleFaq(0)}
-            >
-              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Tiene permanencia el servicio?</span>
-              <span className={`faq-icon ${activeFaq === 0 ? 'open' : ''}`}>+</span>
-            </button>
-            <div className={`faq-body ${activeFaq === 0 ? 'open' : ''}`}>
-              <p className="faq-answer">No. La suscripción es mensual y puede cambiar de plan o darse de baja cuando quiera desde su panel, sin penalización.</p>
-            </div>
-          </div>
-
-          <div className="faq-item reveal stagger-2" style={{ padding: 0, overflow: 'hidden' }}>
-            <button
-              type="button"
-              className="faq-toggle"
-              onClick={() => toggleFaq(1)}
-            >
-              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Cómo reciben los alumnos la información?</span>
-              <span className={`faq-icon ${activeFaq === 1 ? 'open' : ''}`}>+</span>
-            </button>
-            <div className={`faq-body ${activeFaq === 1 ? 'open' : ''}`}>
-              <p className="faq-answer">Los alumnos ven la ficha del curso en Cursenda y piden plaza con un formulario. La solicitud aparece al momento en su panel privado, al que solo entra usted y su equipo con su contraseña.</p>
-            </div>
-          </div>
-
-          <div className="faq-item reveal stagger-3" style={{ padding: 0, overflow: 'hidden' }}>
-            <button
-              type="button"
-              className="faq-toggle"
-              onClick={() => toggleFaq(2)}
-            >
-              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Por qué es importante responder rápido?</span>
-              <span className={`faq-icon ${activeFaq === 2 ? 'open' : ''}`}>+</span>
-            </button>
-            <div className={`faq-body ${activeFaq === 2 ? 'open' : ''}`}>
-              <p className="faq-answer">Un alumno que pide plaza suele estar mirando varios cursos a la vez. Cuanto antes le llame, más fácil es que se matricule con usted. Las plantillas de WhatsApp y email del panel le ayudan a hacerlo en segundos.</p>
-            </div>
-          </div>
-
-          <div className="faq-item" style={{ padding: 0, overflow: 'hidden' }}>
-            <button
-              type="button"
-              className="faq-toggle"
-              onClick={() => toggleFaq(3)}
-            >
-              <span style={{ fontWeight: '600', color: 'var(--primary)' }}>¿Qué pasa cuando terminan los 30 días gratis?</span>
-              <span className={`faq-icon ${activeFaq === 3 ? 'open' : ''}`}>+</span>
-            </button>
-            <div className={`faq-body ${activeFaq === 3 ? 'open' : ''}`}>
-              <p className="faq-answer">Elige un plan desde su panel y todo sigue igual. Si no lo hace, sus cursos dejan de mostrarse, pero sus datos se guardan por si decide volver.</p>
-            </div>
-          </div>
+      <section className="pub-ancho pub-aca-seccion pub-aca-final">
+        <div>
+          <h2 className="pub-titulo">Preguntas</h2>
+          {PREGUNTAS_ACADEMIAS.map(p => (
+            <details key={p.pregunta} className="pub-pregunta">
+              <summary>{p.pregunta}</summary>
+              <p>{p.respuesta}</p>
+            </details>
+          ))}
         </div>
-      </div>
 
-      <div id="demo" className="landing-section">
-        <h2 className="landing-section-title">Empiece sus 30 días gratis</h2>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', maxWidth: '560px', margin: '-1.5rem auto 2rem' }}>Déjenos sus datos y le preparamos la cuenta de su centro. Le enseñamos el panel en una llamada de 15 minutos.</p>
-        <div className="demo-form-container">
+        <div className="pub-pedir" id="acceso">
           {success ? (
-            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-              <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
-              <h3>Solicitud recibida</h3>
-              <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>Le escribiremos en menos de 24 horas laborables para preparar su cuenta y enseñarle el panel.</p>
+            <div className="pub-gracias">
+              <h2>Solicitud enviada</h2>
+              <p>Te escribiremos a {email} para crear la cuenta de {nombreCentro}.</p>
             </div>
           ) : (
             <form onSubmit={handleDemoSubmit}>
-              {error && (
-                <div className="alert-box alert-error">
-                  {error}
-                </div>
-              )}
-              <div className="form-group">
-                <label className="form-label">Nombre del centro de formación</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="Ej: Academia Tecnológica de Madrid"
-                  value={nombreCentro}
-                  onChange={(e) => setNombreCentro(e.target.value)}
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Nombre de contacto</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Ej: Brian Barnicoat"
-                    value={contacto}
-                    onChange={(e) => setContacto(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Teléfono</label>
-                  <input 
-                    type="tel" 
-                    className="form-control" 
-                    placeholder="Ej: 600112233"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Correo electrónico</label>
-                <input 
-                  type="email" 
-                  className="form-control" 
-                  placeholder="Ej: contacto@centro.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="form-checkbox-container" style={{ marginBottom: '1.5rem' }}>
-                <input 
-                  type="checkbox" 
-                  id="rgpd-demo" 
-                  checked={rgpd} 
-                  onChange={(e) => setRgpd(e.target.checked)} 
-                />
-                <label htmlFor="rgpd-demo" className="form-checkbox-label">
-                  Acepto el <Link to="/legal/aviso-legal" target="_blank">aviso legal</Link> y la <Link to="/legal/privacidad" target="_blank">política de privacidad</Link>. Consiento el tratamiento de mis datos de contacto para la demostración comercial del servicio de Cursenda.
-                </label>
-              </div>
-
-              <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Quiero probarlo gratis</button>
+              <h2>Prueba un mes gratis</h2>
+              <p>Déjanos tus datos y te enviamos un enlace para crear la cuenta de tu academia.</p>
+              {error && <p className="pub-error" role="alert">{error}</p>}
+              <label>Nombre de la academia<input required value={nombreCentro} onChange={(e) => setNombreCentro(e.target.value)} /></label>
+              <label>Tu nombre<input required autoComplete="name" value={contacto} onChange={(e) => setContacto(e.target.value)} /></label>
+              <label>Correo<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+              <label>Teléfono<input required type="tel" autoComplete="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
+              <label className="pub-rgpd">
+                <input required type="checkbox" checked={rgpd} onChange={(e) => setRgpd(e.target.checked)} />
+                <span>Acepto que Cursenda use estos datos para contactarme (<Link to="/legal/privacidad" target="_blank">política de privacidad</Link>).</span>
+              </label>
+              <button type="submit" className="pub-boton pub-boton-pedir" disabled={enviando}>{enviando ? 'Enviando...' : 'Pedir acceso'}</button>
             </form>
           )}
         </div>
-      </div>
-
-      <footer className="landing-footer">
-        <div className="footer-content">
-          <div>
-            <Logo light={true} />
-            <p style={{ color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.5rem', fontSize: '0.875rem' }}>SaaS de captación de alumnos para centros de formación en España.</p>
-          </div>
-          <div style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.875rem' }}>
-            <strong>Contacto</strong>
-            <p style={{ marginTop: '0.5rem' }}>{DATOS_LEGALES.email}</p>
-          </div>
-        </div>
-        <div className="footer-bottom">
-          <span>&copy; {new Date().getFullYear()} Cursenda. Todos los derechos reservados.</span>
-          <div className="footer-links">
-            <Link to="/legal/aviso-legal" className="footer-link">Aviso Legal</Link>
-            <Link to="/legal/privacidad" className="footer-link">Privacidad</Link>
-            <Link to="/legal/cookies" className="footer-link">Cookies</Link>
-          </div>
-        </div>
-      </footer>
+      </section>
+      <PiePublico />
     </div>
   );
 }
 
 // --- PORTAL COMERCIAL: LOGIN ---
 function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
-  useTitulo('Acceso centros · Cursenda');
+  useTitulo('Entrar al panel · Cursenda');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -1161,7 +728,7 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
     setError('');
 
     if (!email || !password) {
-      setError('Por favor, rellene todos los campos.');
+      setError('Rellena el correo y la contraseña.');
       return;
     }
 
@@ -1177,7 +744,7 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
         onLogin(data);
         navigate('/centros/dashboard');
       } else {
-        setError(data.error || 'Error al iniciar sesión');
+        setError(data.error || 'No se ha podido entrar.');
       }
     } catch (err) {
       setError('Error de red. Inténtelo de nuevo.');
@@ -1190,8 +757,8 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
           <Logo />
         </div>
-        <h2 className="auth-title">Acceso Centros</h2>
-        <p className="auth-subtitle">Gestión de cursos y solicitudes de plaza</p>
+        <h2 className="auth-title">Entrar al panel</h2>
+        <p className="auth-subtitle">Para academias que publican sus cursos en Cursenda.</p>
 
         <form onSubmit={handleSubmit}>
           {error && (
@@ -1205,7 +772,8 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
             <input 
               type="email" 
               className="form-control" 
-              placeholder="nombre@centro.com"
+              autoComplete="email"
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -1216,17 +784,19 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
             <input 
               type="password" 
               className="form-control" 
-              placeholder="••••••••"
+              autoComplete="current-password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Iniciar sesión</button>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Entrar</button>
         </form>
 
         <div className="auth-links">
-          <Link to="/centros/recuperar" className="auth-link">¿Olvidó su contraseña?</Link>
+          <Link to="/centros/recuperar" className="auth-link">He olvidado mi contraseña</Link>
+          <Link to="/centros#acceso" className="auth-link">Aún no tengo cuenta</Link>
         </div>
       </div>
     </div>
@@ -1321,14 +891,14 @@ function RecuperarCentros() {
         {token ? (
           // Vista activación de cuenta por invitación
           <div>
-            <h2 className="auth-title">Activar Cuenta</h2>
-            <p className="auth-subtitle">Configure el perfil de su centro de formación para acceder</p>
+            <h2 className="auth-title">Activa tu cuenta</h2>
+            <p className="auth-subtitle">Pon los datos de tu academia para entrar al panel.</p>
 
             {activationSuccess ? (
               <div style={{ textAlign: 'center', padding: '1rem 0' }}>
                 <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
                 <h4 style={{ color: 'var(--primary)' }}>Cuenta activada</h4>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Redirigiendo al panel de control...</p>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Te llevamos a tu panel...</p>
               </div>
             ) : (
               <form onSubmit={handleActivationSubmit}>
@@ -1389,18 +959,18 @@ function RecuperarCentros() {
         ) : (
           // Vista recuperación contraseña estándar
           <div>
-            <h2 className="auth-title">Restablecer Contraseña</h2>
+            <h2 className="auth-title">Recuperar la contraseña</h2>
             
             {recoverySent ? (
               <div style={{ textAlign: 'center', padding: '1rem 0' }}>
                 <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
                 <h4 style={{ color: 'var(--primary)' }}>Petición recibida</h4>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Si el correo está registrado, el equipo de Cursenda le enviará un enlace para crear una contraseña nueva en menos de 24 horas laborables.</p>
-                <Link to="/centros/login" className="btn btn-secondary btn-sm" style={{ marginTop: '1.5rem' }}>Volver al login</Link>
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Si el correo está registrado, te enviaremos un enlace para crear una contraseña nueva.</p>
+                <Link to="/centros/login" className="btn btn-secondary btn-sm" style={{ marginTop: '1.5rem' }}>Volver a entrar</Link>
               </div>
             ) : (
               <form onSubmit={handleRecoverySubmit}>
-                <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Introduzca su correo electrónico y le enviaremos un enlace para crear una contraseña nueva.</p>
+                <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Escribe tu correo y te mandaremos un enlace para crear una contraseña nueva.</p>
 
                 {recoveryError && (
                   <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
@@ -1413,7 +983,8 @@ function RecuperarCentros() {
                   <input 
                     type="email" 
                     className="form-control" 
-                    placeholder="ejemplo@centro.com"
+                    autoComplete="email"
+                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -1554,10 +1125,10 @@ function NoEncontrada() {
           <Logo />
         </div>
         <h2 className="auth-title">No encontramos esta página</h2>
-        <p className="auth-subtitle">Puede que el enlace esté mal o que el curso ya no esté disponible.</p>
+        <p className="auth-subtitle">El enlace está mal o el curso ya no está publicado.</p>
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.5rem', flexWrap: 'wrap' }}>
-          <Link to="/" className="btn btn-primary btn-sm">Buscar cursos</Link>
-          <Link to="/centros" className="btn btn-secondary btn-sm">Soy un centro</Link>
+          <Link to="/cursos" className="btn btn-primary btn-sm">Ver los cursos</Link>
+          <Link to="/centros" className="btn btn-secondary btn-sm">Soy una academia</Link>
         </div>
       </div>
     </div>
@@ -1629,7 +1200,7 @@ function RestablecerCentros() {
 
         {valido && !hecho && (
           <form onSubmit={handleSubmit}>
-            <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Elija una contraseña de al menos 8 caracteres.</p>
+            <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Elige una contraseña de al menos 8 caracteres.</p>
             {error && (
               <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
             )}
@@ -1638,7 +1209,7 @@ function RestablecerCentros() {
               <input type="password" className="form-control" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label">Repita la contraseña</label>
+              <label className="form-label">Repite la contraseña</label>
               <input type="password" className="form-control" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} />
             </div>
             <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Guardar contraseña</button>
@@ -1670,7 +1241,7 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!nombre.trim()) { setError('Indique su nombre.'); return; }
+    if (!nombre.trim()) { setError('Escribe tu nombre.'); return; }
     if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
 
     try {
@@ -1705,7 +1276,7 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
 
         {invitacion === null && (
           <div style={{ textAlign: 'center' }}>
-            <p className="auth-subtitle">Esta invitación no es válida o ya ha caducado. Pida al responsable de su centro que le envíe otra.</p>
+            <p className="auth-subtitle">Esta invitación no es válida o ya ha caducado. Pide a la persona responsable de tu academia que te envíe otra.</p>
           </div>
         )}
 
@@ -1718,7 +1289,7 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
               <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
             )}
             <div className="form-group">
-              <label className="form-label">Su nombre</label>
+              <label className="form-label">Tu nombre</label>
               <input type="text" className="form-control" autoComplete="name" value={nombre} onChange={(e) => setNombre(e.target.value)} />
             </div>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
@@ -1760,9 +1331,9 @@ const haceCuanto = (valor: string) => {
 
 // Planes (los mismos precios que en la página para centros)
 const PLANES = [
-  { id: 'starter', nombre: 'Starter', precio: '79 € / mes + IVA', descripcion: 'Hasta 5 cursos activos, gestión de leads y exportación CSV.' },
-  { id: 'pro', nombre: 'Pro', precio: '149 € / mes + IVA', descripcion: 'Cursos ilimitados y estadísticas detalladas de visitas.' },
-  { id: 'custom', nombre: 'Custom', precio: 'A medida', descripcion: 'Redes de centros, integración por API y gestor de cuenta.' }
+  { id: 'starter', nombre: 'Starter', precio: '79 € / mes + IVA', descripcion: 'Hasta 5 cursos activos a la vez.' },
+  { id: 'pro', nombre: 'Pro', precio: '149 € / mes + IVA', descripcion: 'Cursos activos sin límite.' },
+  { id: 'custom', nombre: 'Custom', precio: 'A medida', descripcion: 'Para redes de varios centros.' }
 ];
 
 const textoEstadoSuscripcion = (centro: any, pagos?: any) => {
@@ -3770,11 +3341,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <Download size={18} />
                 <span>Exportar CSV</span>
               </a>
-            </div>
-
-            <div className="alert-box alert-info">
-              <HelpCircle size={20} />
-              <span><strong>Consejo de conversión:</strong> Responder a las solicitudes de plaza en menos de 24 horas duplica la tasa de matriculación final de los alumnos.</span>
             </div>
 
             {/* Tabla de Solicitudes */}

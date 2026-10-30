@@ -1712,8 +1712,8 @@ async function metaDe(ruta: string): Promise<Meta> {
 
   if (ruta === '/centros') {
     return {
-      titulo: 'Cursenda para centros · Llene las plazas de sus cursos subvencionados',
-      descripcion: 'Publique sus cursos subvencionados y reciba en su panel las solicitudes de alumnos interesados. Pruébelo 30 días gratis, sin tarjeta.',
+      titulo: 'Cursenda para academias · Recibe solicitudes para tus cursos',
+      descripcion: 'Publica tus cursos subvencionados y recibe en un panel a la gente que pide plaza, con su teléfono. El primer mes es gratis y sin tarjeta.',
       ruta,
       imagen: '/images/og-centros.jpg'
     };
@@ -1725,7 +1725,7 @@ async function metaDe(ruta: string): Promise<Meta> {
   }
 
   if (ruta.startsWith('/centros/')) {
-    return { titulo: 'Acceso centros · Cursenda', descripcion: 'Panel de gestión de cursos y solicitudes para centros de formación.', ruta, noindex: true };
+    return { titulo: 'Entrar al panel · Cursenda', descripcion: 'Panel de gestión de cursos y solicitudes para centros de formación.', ruta, noindex: true };
   }
 
   const curso = ruta.match(/^\/curso\/(\d+)$/);
