@@ -24,7 +24,7 @@ if (IS_PRODUCTION && !process.env.JWT_SECRET) {
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 
 // Webs que pueden llamar a la API
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://gbarnicoat.uk,http://localhost:5173')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'https://cursenda.es,https://gbarnicoat.uk,http://localhost:5173')
   .split(',')
   .map(o => o.trim());
 

@@ -1007,8 +1007,8 @@ const DATOS_LEGALES = {
   titular: '',
   nif: '',
   domicilio: '',
-  email: 'brian@gbarnicoat.uk',
-  dominio: 'gbarnicoat.uk',
+  email: 'info@cursenda.es',
+  dominio: 'cursenda.es',
   actualizado: '29 de octubre de 2026'
 };
 

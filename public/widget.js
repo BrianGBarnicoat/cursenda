@@ -2,7 +2,7 @@
  * Widget de Cursenda: muestra los cursos de un centro en su propia web.
  * Uso:
  *   <div id="cursenda-cursos"></div>
- *   <script src="https://gbarnicoat.uk/widget.js" data-centro="ID_DEL_CENTRO" async></script>
+ *   <script src="https://cursenda.es/widget.js" data-centro="ID_DEL_CENTRO" async></script>
  */
 (function () {
   var script = document.currentScript;
