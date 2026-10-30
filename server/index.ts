@@ -161,7 +161,7 @@ function baseUrl(req: any) {
 }
 
 // Datos del centro que ve el panel (sin contraseñas ni claves)
-const CAMPOS_CENTRO = `id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol, cif, direccion, web,
+const CAMPOS_CENTRO = `id, nombre, email, plan, plan_pendiente, fecha_renovacion, nombre_contacto, telefono, rol, cif, direccion, web, es_demo,
   suscripcion_estado, prueba_hasta, stripe_subscription_id IS NOT NULL as tiene_suscripcion,
   CASE WHEN ${ACCESO_SQL} THEN 1 ELSE 0 END as acceso`;
 
@@ -1356,8 +1356,8 @@ app.get('/api/admin/centros', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/centros', authenticateAdmin, async (req, res) => {
   const { nombre, email, password, plan, nombre_contacto, telefono } = req.body;
 
-  if (!nombre || !email || !password) {
-    return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
+  if (!nombre || !email) {
+    return res.status(400).json({ error: 'El nombre y el correo son obligatorios' });
   }
 
   try {
@@ -1370,7 +1370,8 @@ app.post('/api/admin/centros', authenticateAdmin, async (req, res) => {
     }
 
     const salt = crypto.randomBytes(16).toString('hex');
-    const pwdHash = hashPassword(password, salt);
+    // Sin contraseña: la pone la academia con el enlace que le envía el admin
+    const pwdHash = hashPassword(password || crypto.randomBytes(32).toString('hex'), salt);
     const apiToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
     
     const fechaRenovacion = new Date();
@@ -1534,6 +1535,17 @@ app.get('/api/admin/solicitudes', authenticateAdmin, async (req, res) => {
 });
 
 // Ampliar la prueba gratis de un centro (por defecto 30 días más desde hoy o desde su fin)
+app.delete('/api/admin/solicitudes/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    await db.run('DELETE FROM notas_contacto WHERE solicitud_id = ?', [req.params.id]);
+    await db.run('DELETE FROM solicitudes WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar la solicitud' });
+  }
+});
+
 app.post('/api/admin/centros/:id/ampliar-prueba', authenticateAdmin, async (req, res) => {
   const dias = Math.min(365, Math.max(1, parseInt(req.body?.dias) || 30));
   try {
@@ -1586,6 +1598,32 @@ app.put('/api/admin/demos/:id', authenticateAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar la solicitud' });
+  }
+});
+
+// Crea la cuenta de una academia que ha pedido acceso y da el enlace para poner su contraseña
+app.post('/api/admin/demos/:id/crear-cuenta', authenticateAdmin, async (req, res) => {
+  try {
+    const db = await getDatabase();
+    const demo = await db.get('SELECT * FROM solicitudes_demo WHERE id = ?', [req.params.id]);
+    if (!demo) return res.status(404).json({ error: 'Petición no encontrada' });
+
+    const existe = await db.get('SELECT id FROM centros WHERE lower(email) = lower(?)', [demo.email])
+      || await db.get('SELECT id FROM miembros WHERE lower(email) = lower(?)', [demo.email]);
+    if (existe) return res.status(400).json({ error: 'Ya hay una cuenta con ese correo' });
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const fechaRenovacion = new Date();
+    fechaRenovacion.setMonth(fechaRenovacion.getMonth() + 1);
+    const nuevo = await db.run(`
+      INSERT INTO centros (nombre, email, password_hash, salt, plan, fecha_renovacion, nombre_contacto, telefono, api_token, rol, prueba_hasta)
+      VALUES (?, ?, ?, ?, 'starter', ?, ?, ?, ?, 'centro', datetime('now', '+30 days'))
+    `, [demo.nombre_centro, demo.email, hashPassword(crypto.randomBytes(32).toString('hex'), salt), salt, fechaRenovacion.toISOString(), demo.nombre_contacto, demo.telefono, 'cursenda_live_' + crypto.randomBytes(16).toString('hex')]);
+
+    await db.run("UPDATE solicitudes_demo SET estado = 'contactada' WHERE id = ?", [demo.id]);
+    res.status(201).json({ enlace: await crearEnlaceRecuperacion(req, 'centro', nuevo.lastID as number) });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear la cuenta' });
   }
 });
 

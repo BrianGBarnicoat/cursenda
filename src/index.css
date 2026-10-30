@@ -2977,3 +2977,34 @@ tr:last-child td {
 .grafica-valor { font-size: .875rem; font-weight: 600; }
 .grafica-mes { font-size: .8125rem; color: var(--text-muted); }
 .dashboard-content { min-height: 100vh; }
+
+/* --- PANEL DE ADMINISTRADOR --- */
+.admin-titulo { font-size: 1.75rem; color: var(--primary); margin-bottom: 1.25rem; }
+.admin-intro { color: var(--text-muted); margin: -0.75rem 0 1.25rem; max-width: 70ch; }
+.admin-cabecera { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.admin-cabecera .admin-titulo { margin: 0 auto 0 0; }
+.admin-cabecera .form-control { width: 280px; max-width: 100%; }
+.admin-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 2rem; }
+.admin-cifras > * { display: flex; flex-direction: column; gap: 6px; padding: 18px; text-align: left; font: inherit; color: var(--text); background: var(--white); border: 1px solid #D5DED9; border-radius: 4px; }
+.admin-cifras button { cursor: pointer; }
+.admin-cifras button:hover { border-color: var(--primary); }
+.admin-cifras span { font-size: .9375rem; color: var(--text-muted); }
+.admin-cifras strong { font-size: 2rem; font-weight: 600; line-height: 1.1; color: var(--primary); }
+.admin-columnas { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 2rem; }
+.admin-columnas h2 { font-size: 1.25rem; color: var(--primary); padding-bottom: 8px; margin-bottom: 8px; border-bottom: 2px solid var(--primary); }
+.admin-vacio { color: var(--text-muted); padding: 8px 0 12px; }
+.admin-pendientes { list-style: none; }
+.admin-pendientes button { width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid #D5DED9; background: none; font: inherit; text-align: left; color: var(--primary); cursor: pointer; }
+.admin-pendientes button:hover { text-decoration: underline; }
+.admin-dato { font-size: .875rem; color: var(--text-muted); }
+.admin-dato a { text-decoration: underline; }
+.admin-acciones { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.admin .btn.admin-borrar { color: var(--error-text); }
+.admin .table-container td strong { font-weight: 600; }
+.admin-modal-cuerpo { padding: 1.25rem 1.5rem; max-height: 68vh; overflow-y: auto; }
+.admin-modal-pie { display: flex; justify-content: flex-end; gap: 8px; padding: 1rem 1.5rem; border-top: 1px solid #D5DED9; }
+.admin-dos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+@media (max-width: 760px) {
+  .admin-columnas, .admin-dos { grid-template-columns: minmax(0, 1fr); }
+  .admin-acciones { justify-content: flex-start; }
+}

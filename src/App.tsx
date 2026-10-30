@@ -20,6 +20,7 @@ import {
   MessageSquare,
   Shield,
   Globe,
+  Building,
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -1430,7 +1431,7 @@ const getAvatarBg = (nombre: string) => {
   return colors[charCode % colors.length];
 };
 
-function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void }) {
+function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const [tab, setTab] = useState<'inicio' | 'academias' | 'cursos' | 'solicitudes' | 'demos' | 'recuperaciones'>('inicio');
   const [academias, setAcademias] = useState<any[]>([]);
   const [demos, setDemos] = useState<any[]>([]);
@@ -1446,7 +1447,6 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
   const [selectedAcademia, setSelectedAcademia] = useState<any>(null);
   const [formAcademiaNombre, setFormAcademiaNombre] = useState('');
   const [formAcademiaEmail, setFormAcademiaEmail] = useState('');
-  const [formAcademiaPassword, setFormAcademiaPassword] = useState('');
   const [formAcademiaPlan, setFormAcademiaPlan] = useState('starter');
   const [formAcademiaContacto, setFormAcademiaContacto] = useState('');
   const [formAcademiaTelefono, setFormAcademiaTelefono] = useState('');
@@ -1467,6 +1467,7 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
   const [formCursoDescripcion, setFormCursoDescripcion] = useState('');
   const [formCursoEstado, setFormCursoEstado] = useState('publicado');
   const [formCursoError, setFormCursoError] = useState('');
+  const [busqueda, setBusqueda] = useState('');
 
   const navigate = useNavigate();
 
@@ -1534,7 +1535,7 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
       alert(data.error || 'No se pudo reiniciar la demo');
       return;
     }
-    alert('Demo reiniciada. Ya puede enseñarla.');
+    alert('Demo reiniciada. Ya puedes enseñarla.');
     loadData();
   };
 
@@ -1569,19 +1570,51 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
   };
 
   // Crear/Editar Academia
+  // Deja pasar el mes gratis desde la petición del formulario y da el enlace para enviárselo
+  const handleCrearCuentaDemo = async (d: any) => {
+    if (!window.confirm(`¿Crear la cuenta de ${d.nombre_centro}? Empieza hoy su mes gratis.`)) return;
+    const res = await fetch(`${API_BASE}/admin/demos/${d.id}/crear-cuenta`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'No se ha podido crear la cuenta');
+      return;
+    }
+    setEnlaceGenerado({ para: d.email, enlace: data.enlace });
+    loadData();
+  };
+
+  const handleEstadoCurso = async (c: any) => {
+    const res = await fetch(`${API_BASE}/admin/cursos/${c.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...c, estado: c.estado === 'publicado' ? 'pausado' : 'publicado' })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'No se ha podido cambiar el curso');
+      return;
+    }
+    loadData();
+  };
+
+  const handleDeleteSolicitud = async (s: any) => {
+    if (!window.confirm(`¿Eliminar la solicitud de ${s.nombre}? No se puede deshacer.`)) return;
+    const res = await fetch(`${API_BASE}/admin/solicitudes/${s.id}`, { method: 'DELETE' });
+    if (res.ok) setSolicitudes(solicitudes.filter(x => x.id !== s.id));
+    else alert('No se ha podido eliminar la solicitud');
+  };
+
   const handleOpenAcademiaModal = (ac?: any) => {
     setSelectedAcademia(ac || null);
     if (ac) {
       setFormAcademiaNombre(ac.nombre);
       setFormAcademiaEmail(ac.email);
-      setFormAcademiaPassword('');
       setFormAcademiaPlan(ac.plan);
       setFormAcademiaContacto(ac.nombre_contacto || '');
       setFormAcademiaTelefono(ac.telefono || '');
     } else {
       setFormAcademiaNombre('');
       setFormAcademiaEmail('');
-      setFormAcademiaPassword('');
       setFormAcademiaPlan('starter');
       setFormAcademiaContacto('');
       setFormAcademiaTelefono('');
@@ -1594,11 +1627,6 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
     e.preventDefault();
     setFormAcademiaError('');
 
-    if (!formAcademiaNombre || !formAcademiaEmail || (!selectedAcademia && !formAcademiaPassword)) {
-      setFormAcademiaError('Nombre, correo electrónico y contraseña son obligatorios.');
-      return;
-    }
-
     const payload: any = {
       nombre: formAcademiaNombre,
       email: formAcademiaEmail,
@@ -1606,10 +1634,6 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
       nombre_contacto: formAcademiaContacto,
       telefono: formAcademiaTelefono
     };
-    if (formAcademiaPassword) {
-      payload.password = formAcademiaPassword;
-    }
-
     try {
       const url = selectedAcademia ? `${API_BASE}/admin/centros/${selectedAcademia.id}` : `${API_BASE}/admin/centros`;
       const method = selectedAcademia ? 'PUT' : 'POST';
@@ -1621,19 +1645,21 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
       });
 
       if (res.ok) {
+        const guardada = await res.json().catch(() => ({}));
         setShowAcademiaModal(false);
+        if (!selectedAcademia && guardada.id) await handleEnlaceRecuperacion(`${API_BASE}/admin/centros/${guardada.id}/enlace-recuperacion`, guardada.email);
         loadData();
       } else {
         const errData = await res.json();
         setFormAcademiaError(errData.error || 'Error al guardar la academia');
       }
     } catch (err) {
-      setFormAcademiaError('Error de red. Inténtelo de nuevo.');
+      setFormAcademiaError('No se ha podido conectar. Vuelve a intentarlo.');
     }
   };
 
   const handleDeleteAcademia = async (id: number) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar esta academia? Esta acción es irreversible y eliminará todos sus cursos y solicitudes asociadas.')) {
+    if (!window.confirm('¿Eliminar esta academia con todos sus cursos y solicitudes? No se puede deshacer.')) {
       return;
     }
     try {
@@ -1705,12 +1731,12 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
         setFormCursoError(errData.error || 'Error al guardar el curso');
       }
     } catch (err) {
-      setFormCursoError('Error de red. Inténtelo de nuevo.');
+      setFormCursoError('No se ha podido conectar. Vuelve a intentarlo.');
     }
   };
 
   const handleDeleteCurso = async (id: number) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar este curso? Se eliminarán también las solicitudes de plaza asociadas.')) {
+    if (!window.confirm('¿Eliminar este curso y sus solicitudes? No se puede deshacer.')) {
       return;
     }
     try {
@@ -1726,723 +1752,333 @@ function DashboardAdmin({ user, onLogout }: { user: any; onLogout: () => void })
     }
   };
 
-  // Cálculo de estadísticas
-  const totalAcademias = academias.filter(a => a.rol !== 'admin').length;
-  const totalCursos = cursos.length;
-  const totalLeads = solicitudes.length;
-  // Solo cuentan las academias que ya pagan (sin IVA)
-  const totalFacturadoEst = academias
-    .filter(a => a.rol !== 'admin' && a.suscripcion_estado === 'activa')
-    .reduce((sum, a) => {
-      // Custom es a medida, no se suma
-      if (a.plan === 'pro') return sum + 149;
-      if (a.plan === 'starter') return sum + 79;
-      return sum;
-    }, 0);
+  // Datos para las pantallas
+  const academiasReales = academias.filter(a => a.rol !== 'admin');
+  const totalCursosPublicados = cursos.filter(c => c.estado === 'publicado').length;
+  const academiasPagando = academiasReales.filter(a => a.suscripcion_estado === 'activa');
+  // Sin IVA. Custom es a medida y no se suma.
+  const ingresosMes = academiasPagando.reduce((suma, a) => suma + (a.plan === 'pro' ? 149 : a.plan === 'starter' ? 79 : 0), 0);
+  const demosNuevas = demos.filter(d => (d.estado || 'nueva') === 'nueva');
+  const recuperacionesPendientes = recuperaciones.filter(r => !r.atendida);
+  const diasDePrueba = (a: any) => {
+    const fin = parseFecha(a.prueba_hasta);
+    return fin ? Math.ceil((fin.getTime() - Date.now()) / 86400000) : 0;
+  };
+  const enPrueba = (a: any) => a.suscripcion_estado === 'prueba' && !a.es_demo;
+  const pruebasAcabando = academiasReales.filter(a => enPrueba(a) && diasDePrueba(a) > 0 && diasDePrueba(a) <= 7);
+  const pruebasTerminadas = academiasReales.filter(a => enPrueba(a) && diasDePrueba(a) <= 0);
+
+  const contiene = (texto: string, ...campos: any[]) => {
+    const limpio = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return !texto.trim() || campos.some(c => limpio(c).includes(limpio(texto.trim())));
+  };
+  const academiasVistas = academiasReales.filter(a => contiene(busqueda, a.nombre, a.email, a.nombre_contacto, a.telefono));
+  const cursosVistos = cursos.filter(c => contiene(busqueda, c.titulo, c.centro_nombre, c.localidad, c.categoria));
+  const solicitudesVistas = solicitudes.filter(s => contiene(busqueda, s.nombre, s.email, s.telefono, s.curso_titulo, s.centro_nombre));
+
+  const irA = (destino: typeof tab) => { setTab(destino); setBusqueda(''); };
+  const estadoAcademia = (a: any) => {
+    if (a.es_demo) return 'Cuenta demo';
+    if (enPrueba(a)) {
+      const dias = diasDePrueba(a);
+      return dias > 0 ? `Prueba: ${dias === 1 ? 'queda 1 día' : `quedan ${dias} días`}` : 'Prueba terminada';
+    }
+    return textoEstadoSuscripcion(a);
+  };
+
+  const pendientes = [
+    ...demosNuevas.map(d => ({ clave: `d${d.id}`, texto: `${d.nombre_centro} ha pedido acceso`, destino: 'demos' as const })),
+    ...recuperacionesPendientes.map(r => ({ clave: `r${r.id}`, texto: `${r.email} necesita una contraseña nueva`, destino: 'recuperaciones' as const })),
+    ...pruebasAcabando.map(a => ({ clave: `a${a.id}`, texto: `A ${a.nombre} le ${diasDePrueba(a) === 1 ? 'queda 1 día' : `quedan ${diasDePrueba(a)} días`} de prueba`, destino: 'academias' as const })),
+    ...pruebasTerminadas.map(a => ({ clave: `t${a.id}`, texto: `${a.nombre} ha terminado la prueba y no ha contratado`, destino: 'academias' as const }))
+  ];
+
+  const MENU: { id: typeof tab; texto: string; icono: React.ReactNode; aviso?: number }[] = [
+    { id: 'inicio', texto: 'Resumen', icono: <BarChart3 size={18} /> },
+    { id: 'academias', texto: 'Academias', icono: <Building size={18} /> },
+    { id: 'cursos', texto: 'Cursos', icono: <BookOpen size={18} /> },
+    { id: 'solicitudes', texto: 'Solicitudes', icono: <Users size={18} /> },
+    { id: 'demos', texto: 'Peticiones de acceso', icono: <Mail size={18} />, aviso: demosNuevas.length },
+    { id: 'recuperaciones', texto: 'Contraseñas', icono: <Shield size={18} />, aviso: recuperacionesPendientes.length }
+  ];
 
   return (
-    <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
-      {/* Sidebar Admin */}
-      <aside className="dashboard-sidebar" style={{ width: '260px', backgroundColor: 'var(--primary-dark)', color: 'var(--white)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div className="dashboard-sidebar-header" style={{ padding: '2rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div className="dashboard-layout admin">
+      <aside className="sidebar">
+        <div>
           <Logo light={true} />
-          <span style={{ fontSize: '0.625rem', backgroundColor: 'var(--accent)', color: 'var(--primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase' }}>Admin</span>
+          <ul className="nav-menu">
+            {MENU.map(m => (
+              <li key={m.id} className={`nav-item ${tab === m.id ? 'active' : ''}`}>
+                <button type="button" onClick={() => irA(m.id)}>
+                  {m.icono}
+                  <span>{m.texto}</span>
+                  {!!m.aviso && <span className="nav-badge">{m.aviso}</span>}
+                </button>
+              </li>
+            ))}
+            <li className="nav-item">
+              <a href="/" target="_blank" rel="noopener"><Globe size={18} /><span>Ver la web</span></a>
+            </li>
+          </ul>
         </div>
-        
-        <nav className="dashboard-nav" style={{ flex: 1, padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <button 
-            type="button" 
-            className={`dashboard-nav-item ${tab === 'inicio' ? 'active' : ''}`}
-            onClick={() => setTab('inicio')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'inicio' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'inicio' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
-          >
-            <BarChart3 size={16} />
-            <span>Inicio</span>
-          </button>
-          <button 
-            type="button" 
-            className={`dashboard-nav-item ${tab === 'academias' ? 'active' : ''}`}
-            onClick={() => setTab('academias')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'academias' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'academias' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
-          >
-            <Users size={16} />
-            <span>Academias</span>
-          </button>
-          <button 
-            type="button" 
-            className={`dashboard-nav-item ${tab === 'cursos' ? 'active' : ''}`}
-            onClick={() => setTab('cursos')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'cursos' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'cursos' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
-          >
-            <BookOpen size={16} />
-            <span>Moderación Cursos</span>
-          </button>
-          <button 
-            type="button" 
-            className={`dashboard-nav-item ${tab === 'solicitudes' ? 'active' : ''}`}
-            onClick={() => setTab('solicitudes')}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === 'solicitudes' ? 'rgba(255,255,255,0.08)' : 'none', color: tab === 'solicitudes' ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
-          >
-            <MessageSquare size={16} />
-            <span>Solicitudes / Leads</span>
-          </button>
-          {([
-            ['demos', 'Demos pedidas', <Calendar size={16} />, demos.filter(d => d.estado === 'nueva').length],
-            ['recuperaciones', 'Recuperar contraseña', <Shield size={16} />, recuperaciones.filter(r => !r.atendida).length]
-          ] as const).map(([id, texto, icono, pendientes]) => (
-            <button
-              key={id}
-              type="button"
-              className={`dashboard-nav-item ${tab === id ? 'active' : ''}`}
-              onClick={() => setTab(id)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: '8px', border: 'none', background: tab === id ? 'rgba(255,255,255,0.08)' : 'none', color: tab === id ? 'var(--white)' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, textAlign: 'left', transition: 'all 0.2s ease' }}
-            >
-              {icono}
-              <span style={{ flex: 1 }}>{texto}</span>
-              {pendientes > 0 && <span className="nav-badge">{pendientes}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <div className="dashboard-sidebar-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            <div style={{ 
-              width: '36px', height: '36px', borderRadius: '50%', 
-              backgroundColor: 'var(--accent)', color: 'var(--primary)', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.875rem'
-            }}>
-              AD
-            </div>
-            <div style={{ textAlign: 'left', overflow: 'hidden' }}>
-              <h4 style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--white)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.nombre || 'Administrador'}</h4>
-              <p style={{ margin: 0, fontSize: '0.6875rem', color: 'rgba(255,255,255,0.45)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
-            </div>
-          </div>
-          <button 
-            type="button" 
-            onClick={handleLogout} 
-            className="btn btn-secondary btn-sm"
-            style={{ width: '100%', padding: '6px', fontSize: '0.75rem', backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.2)', color: 'var(--white)' }}
-          >
-            Cerrar Sesión
-          </button>
-        </div>
+        <button type="button" onClick={handleLogout} className="btn-logout"><X size={16} /><span>Cerrar sesión</span></button>
       </aside>
 
-      {/* Main Admin Area */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2rem', padding: '2rem', height: '100vh', overflowY: 'auto', boxSizing: 'border-box' }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ textAlign: 'left' }}>
-            <h1 style={{ margin: 0, fontSize: '1.75rem', color: 'var(--primary)', fontWeight: 800 }}>Panel de Control de Administración</h1>
-            <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--text-muted)' }}>Control global de academias, cursos y solicitudes registradas en Cursenda</p>
-          </div>
-        </header>
-
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '5rem', color: 'var(--text-muted)' }}>Cargando datos globales del sistema...</div>
-        ) : error ? (
-          <div className="alert-box alert-error" style={{ padding: '1rem', color: 'var(--error-text)' }}>{error}</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            {/* TAB: INICIO */}
+      <main className="dashboard-content">
+        {loading ? <p>Cargando...</p> : error ? <div className="alert-box alert-error" role="alert">{error}</div> : (
+          <>
             {tab === 'inicio' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                {/* Stats Counters */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
-                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Academias Registradas</span>
-                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(201,150,46,0.1)', color: 'var(--accent)', alignItems: 'center', justifyContent: 'center' }}><Users size={14} /></span>
-                    </div>
-                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalAcademias}</span>
-                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Plataforma SaaS activa</span>
-                  </div>
-                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cursos Publicados</span>
-                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(12,59,51,0.1)', color: 'var(--primary)', alignItems: 'center', justifyContent: 'center' }}><BookOpen size={14} /></span>
-                    </div>
-                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalCursos}</span>
-                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Moderación activa</span>
-                  </div>
-                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Solicitudes</span>
-                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(46,92,83,0.1)', color: 'var(--primary-dark)', alignItems: 'center', justifyContent: 'center' }}><MessageSquare size={14} /></span>
-                    </div>
-                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalLeads}</span>
-                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Estudiantes registrados</span>
-                  </div>
-                  <div className="stat-card" style={{ backgroundColor: 'var(--white)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ingresos Est. Mensual</span>
-                      <span style={{ display: 'flex', width: '28px', height: '28px', borderRadius: '50%', backgroundColor: 'rgba(94,62,12,0.1)', color: 'var(--accent)', alignItems: 'center', justifyContent: 'center' }}>💰</span>
-                    </div>
-                    <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)', lineHeight: 1 }}>{totalFacturadoEst} €</span>
-                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--success-text)', fontWeight: 700, marginTop: '0.5rem' }}>Suscripciones activas</span>
-                  </div>
+              <div>
+                <h1 className="admin-titulo">Resumen</h1>
+                <div className="admin-cifras">
+                  <button type="button" onClick={() => irA('academias')}><span>Academias, sin la demo</span><strong>{academiasReales.filter(a => !a.es_demo).length}</strong></button>
+                  <button type="button" onClick={() => irA('academias')}><span>Pagando</span><strong>{academiasPagando.length}</strong></button>
+                  <div><span>Ingresos al mes, sin IVA</span><strong>{ingresosMes} €</strong></div>
+                  <button type="button" onClick={() => irA('cursos')}><span>Cursos publicados</span><strong>{totalCursosPublicados}</strong></button>
+                  <button type="button" onClick={() => irA('solicitudes')}><span>Solicitudes</span><strong>{solicitudes.length}</strong></button>
                 </div>
-
-                <div style={{ padding: '2rem', backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', textAlign: 'left' }}>
-                  <h3 style={{ margin: '0 0 1rem', color: 'var(--primary)', fontWeight: 800 }}>🔑 Acceso Directo de Administración</h3>
-                  <p style={{ margin: '0 0 1.5rem', color: 'var(--text-muted)', fontSize: '0.875rem', lineHeight: 1.6 }}>
-                    Bienvenido al panel central de Cursenda. Desde aquí puedes autorizar y crear cuentas para nuevas academias que hayan contratado el servicio, actualizar sus planes de suscripción o supervisar y moderar los cursos que publican en la plataforma estudiantil pública.
-                  </p>
-                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                    <button type="button" onClick={() => setTab('academias')} className="btn btn-primary btn-sm">Ver Academias</button>
-                    <button type="button" onClick={() => setTab('cursos')} className="btn btn-secondary btn-sm">Moderar Cursos</button>
-                    <button type="button" onClick={handleReiniciarDemo} className="btn btn-secondary btn-sm" title="Vuelve a poner la cuenta demo con sus datos de ejemplo">Reiniciar demo</button>
-                  </div>
+                <div className="admin-columnas">
+                  <section>
+                    <h2>Por hacer</h2>
+                    {pendientes.length === 0 ? <p className="admin-vacio">No tienes nada pendiente.</p> : (
+                      <ul className="admin-pendientes">
+                        {pendientes.map(p => <li key={p.clave}><button type="button" onClick={() => irA(p.destino)}>{p.texto}</button></li>)}
+                      </ul>
+                    )}
+                  </section>
+                  <section>
+                    <h2>Cuenta demo</h2>
+                    <p className="admin-vacio">Se pone como nueva sola cada noche a las 4:00. Reiníciala antes de enseñarla en una academia.</p>
+                    <button type="button" onClick={handleReiniciarDemo} className="btn btn-secondary btn-sm">Reiniciar demo</button>
+                  </section>
                 </div>
               </div>
             )}
 
-            {/* TAB: ACADEMIAS */}
             {tab === 'academias' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Gestión de Academias</h3>
-                    <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Da de alta nuevas empresas cuando paguen o actualiza sus suscripciones.</p>
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => handleOpenAcademiaModal()} 
-                    className="btn btn-accent btn-sm"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}
-                  >
-                    <Plus size={14} />
-                    <span>Crear Academia</span>
-                  </button>
+              <div>
+                <div className="admin-cabecera">
+                  <h1 className="admin-titulo">Academias</h1>
+                  <input className="form-control" aria-label="Buscar academia" placeholder="Buscar academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+                  <button type="button" onClick={() => handleOpenAcademiaModal()} className="btn btn-primary"><Plus size={16} /><span>Nueva academia</span></button>
                 </div>
-
-                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
-                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Nombre</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Email</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Plan</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Contacto / Teléfono</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Suscripción</th>
-                        <th style={{ padding: '1rem', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>Acciones</th>
-                      </tr>
-                    </thead>
+                <div className="table-container">
+                  <table>
+                    <thead><tr><th>Academia</th><th>Contacto</th><th>Plan</th><th>Situación</th><th></th></tr></thead>
                     <tbody>
-                      {academias.filter(a => a.rol !== 'admin').map((ac) => (
-                        <tr key={ac.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{ac.nombre}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text)' }}>{ac.email}</td>
-                          <td style={{ padding: '1rem' }}>
-                            <span style={{ 
-                              fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', padding: '3px 8px', borderRadius: '4px',
-                              backgroundColor: ac.plan === 'starter' ? '#e2e8f0' : ac.plan === 'pro' ? 'rgba(201,150,46,0.15)' : 'rgba(12,59,51,0.15)',
-                              color: ac.plan === 'starter' ? '#4a5568' : ac.plan === 'pro' ? 'var(--accent)' : 'var(--primary)'
-                            }}>
-                              {ac.plan}
-                            </span>
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                            {ac.nombre_contacto || 'N/D'} {ac.telefono && `(${ac.telefono})`}
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                            <div style={{ fontWeight: 600, color: ac.acceso ? 'var(--success-text)' : 'var(--error-text)' }}>{textoEstadoSuscripcion(ac)}</div>
-                            <div style={{ fontSize: '0.75rem' }}>
-                              {ac.suscripcion_estado === 'prueba' && ac.prueba_hasta
-                                ? `Prueba hasta ${formatFechaHora(ac.prueba_hasta).split(' ')[0]}`
-                                : ac.tiene_suscripcion ? `Renueva el ${new Date(ac.fecha_renovacion).toLocaleDateString('es-ES')}` : ''}
-                            </div>
-                          </td>
-                          <td style={{ padding: '1rem', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                              <button 
-                                type="button" 
-                                onClick={() => handleOpenAcademiaModal(ac)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                              >
-                                Editar
-                              </button>
-                              {!ac.tiene_suscripcion && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleAmpliarPrueba(ac)}
-                                  className="btn btn-secondary btn-sm"
-                                  style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                                  title="Dar 30 días más de prueba gratis"
-                                >
-                                  +30 días
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/centros/${ac.id}/enlace-recuperacion`, ac.email)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                                title="Crear un enlace para que ponga contraseña nueva"
-                              >
-                                Contraseña
-                              </button>
-                              <button 
-                                type="button" 
-                                onClick={() => handleDeleteAcademia(ac.id)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'red', borderColor: 'rgba(255,0,0,0.15)' }}
-                              >
-                                Eliminar
-                              </button>
+                      {academiasVistas.map(a => (
+                        <tr key={a.id}>
+                          <td><strong>{a.nombre}</strong><div className="admin-dato">{a.email}</div></td>
+                          <td>{a.nombre_contacto || 'Sin nombre'}<div className="admin-dato">{a.telefono || 'Sin teléfono'}</div></td>
+                          <td style={{ textTransform: 'capitalize' }}>{a.plan}</td>
+                          <td>{estadoAcademia(a)}</td>
+                          <td>
+                            <div className="admin-acciones">
+                              <button type="button" onClick={() => handleOpenAcademiaModal(a)} className="btn btn-secondary btn-sm">Editar</button>
+                              <button type="button" onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/centros/${a.id}/enlace-recuperacion`, a.email)} className="btn btn-secondary btn-sm">Enlace de contraseña</button>
+                              {enPrueba(a) && <button type="button" onClick={() => handleAmpliarPrueba(a)} className="btn btn-secondary btn-sm">30 días más</button>}
+                              {!a.es_demo && <button type="button" onClick={() => handleDeleteAcademia(a.id)} className="btn btn-secondary btn-sm admin-borrar">Eliminar</button>}
                             </div>
                           </td>
                         </tr>
                       ))}
-                      {academias.filter(a => a.rol !== 'admin').length === 0 && (
-                        <tr>
-                          <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay academias registradas.</td>
-                        </tr>
-                      )}
+                      {academiasVistas.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay academias.</td></tr>}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
 
-            {/* TAB: MODERACIÓN CURSOS */}
             {tab === 'cursos' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
-                <div>
-                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Moderación de Cursos</h3>
-                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Administra y modera el catálogo completo de cursos activos e inactivos.</p>
+              <div>
+                <div className="admin-cabecera">
+                  <h1 className="admin-titulo">Cursos</h1>
+                  <input className="form-control" aria-label="Buscar curso" placeholder="Buscar curso o academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
                 </div>
-
-                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
-                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Título / Academia</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Categoría</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Modalidad / Zona</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Vacantes</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Estado</th>
-                        <th style={{ padding: '1rem', textAlign: 'center', fontWeight: 700, color: 'var(--primary)' }}>Acciones</th>
-                      </tr>
-                    </thead>
+                <div className="table-container">
+                  <table>
+                    <thead><tr><th>Curso</th><th>Dónde</th><th>Plazas libres</th><th>Estado</th><th></th></tr></thead>
                     <tbody>
-                      {cursos.map((c) => (
-                        <tr key={c.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                          <td style={{ padding: '1rem' }}>
-                            <strong style={{ color: 'var(--primary)', display: 'block' }}>{c.titulo}</strong>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Publicado por: {c.centro_nombre}</span>
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text)' }}>{c.categoria}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
-                            {c.modalidad} {c.localidad && `(${c.localidad})`}
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
-                            {c.plazas_cubiertas} / {c.plazas} plazas
-                          </td>
-                          <td style={{ padding: '1rem' }}>
-                            <span style={{ 
-                              fontSize: '0.6875rem', fontWeight: 700, padding: '3px 8px', borderRadius: '4px',
-                              backgroundColor: c.estado === 'publicado' ? 'rgba(46,117,89,0.1)' : 'rgba(201,150,46,0.1)',
-                              color: c.estado === 'publicado' ? 'var(--success-text)' : 'var(--accent)'
-                            }}>
-                              {c.estado === 'publicado' ? 'Publicado' : 'Pausado'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '1rem', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                              <button 
-                                type="button" 
-                                onClick={() => handleOpenCursoModal(c)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                              >
-                                Moderar
-                              </button>
-                              <button 
-                                type="button" 
-                                onClick={() => handleDeleteCurso(c.id)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ padding: '4px 8px', fontSize: '0.75rem', color: 'red', borderColor: 'rgba(255,0,0,0.15)' }}
-                              >
-                                Eliminar
-                              </button>
+                      {cursosVistos.map(c => (
+                        <tr key={c.id}>
+                          <td><strong>{c.titulo}</strong><div className="admin-dato">{c.centro_nombre}</div></td>
+                          <td>{c.modalidad}<div className="admin-dato">{c.localidad}</div></td>
+                          <td>{Math.max(0, c.plazas - c.plazas_cubiertas)} de {c.plazas}</td>
+                          <td>{c.estado === 'publicado' ? 'Publicado' : 'Pausado'}</td>
+                          <td>
+                            <div className="admin-acciones">
+                              {c.estado === 'publicado' && <a href={`/curso/${c.id}`} target="_blank" rel="noopener" className="btn btn-secondary btn-sm">Ver</a>}
+                              <button type="button" onClick={() => handleEstadoCurso(c)} className="btn btn-secondary btn-sm">{c.estado === 'publicado' ? 'Pausar' : 'Publicar'}</button>
+                              <button type="button" onClick={() => handleOpenCursoModal(c)} className="btn btn-secondary btn-sm">Editar</button>
+                              <button type="button" onClick={() => handleDeleteCurso(c.id)} className="btn btn-secondary btn-sm admin-borrar">Eliminar</button>
                             </div>
                           </td>
                         </tr>
                       ))}
-                      {cursos.length === 0 && (
-                        <tr>
-                          <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay cursos creados en la plataforma.</td>
-                        </tr>
-                      )}
+                      {cursosVistos.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay cursos.</td></tr>}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
 
-            {/* TAB: LEADS / SOLICITUDES */}
             {tab === 'solicitudes' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
-                <div>
-                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Control de Solicitudes / Leads</h3>
-                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Supervisión de todos los estudiantes inscritos en los cursos.</p>
+              <div>
+                <div className="admin-cabecera">
+                  <h1 className="admin-titulo">Solicitudes</h1>
+                  <input className="form-control" aria-label="Buscar solicitud" placeholder="Buscar persona, curso o academia" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
                 </div>
-
-                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
-                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Estudiante</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Contacto</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Curso Solicitado</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Academia</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha Registro</th>
-                      </tr>
-                    </thead>
+                <div className="table-container">
+                  <table>
+                    <thead><tr><th>Persona</th><th>Curso</th><th>Academia</th><th>Fecha</th><th></th></tr></thead>
                     <tbody>
-                      {solicitudes.map((sol) => (
-                        <tr key={sol.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{sol.nombre}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
-                            <div style={{ fontSize: '0.8125rem' }}>📧 {sol.email}</div>
-                            <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>📞 {sol.telefono}</div>
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text)' }}>{sol.curso_titulo}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{sol.centro_nombre}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                            {new Date(sol.fecha_creacion).toLocaleDateString()} {new Date(sol.fecha_creacion).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </td>
+                      {solicitudesVistas.map(s => (
+                        <tr key={s.id}>
+                          <td><strong>{s.nombre}</strong><div className="admin-dato">{s.telefono}<br />{s.email}</div></td>
+                          <td>{s.curso_titulo}</td>
+                          <td>{s.centro_nombre}</td>
+                          <td>{formatFechaHora(s.fecha_creacion)}</td>
+                          <td><button type="button" onClick={() => handleDeleteSolicitud(s)} className="btn btn-secondary btn-sm admin-borrar">Eliminar</button></td>
                         </tr>
                       ))}
-                      {solicitudes.length === 0 && (
-                        <tr>
-                          <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay solicitudes de alumnos registradas.</td>
-                        </tr>
-                      )}
+                      {solicitudesVistas.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay solicitudes.</td></tr>}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
 
-            {/* TAB: DEMOS PEDIDAS */}
             {tab === 'demos' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
-                <div>
-                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Demos pedidas</h3>
-                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Centros que han rellenado el formulario de la página para centros.</p>
-                </div>
-                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflowX: 'auto' }}>
-                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Centro</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Contacto</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Estado</th>
-                      </tr>
-                    </thead>
+              <div>
+                <h1 className="admin-titulo">Peticiones de acceso</h1>
+                <p className="admin-intro">Academias que han rellenado el formulario para probar Cursenda. Al crear la cuenta empieza su mes gratis y te doy un enlace para que se lo envíes.</p>
+                <div className="table-container">
+                  <table>
+                    <thead><tr><th>Academia</th><th>Contacto</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
                     <tbody>
-                      {demos.map((d) => (
-                        <tr key={d.id} style={{ borderBottom: '1px solid var(--lines-light)' }}>
-                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{d.nombre_centro}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text)' }}>
-                            <div>{d.nombre_contacto}</div>
-                            <div style={{ fontSize: '0.8125rem' }}><a href={`mailto:${d.email}`}>{d.email}</a></div>
-                            <div style={{ fontSize: '0.8125rem' }}><a href={`tel:${d.telefono}`}>{d.telefono}</a></div>
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{formatFechaHora(d.fecha_creacion)}</td>
-                          <td style={{ padding: '1rem' }}>
-                            <select className="form-control" style={{ minWidth: '140px' }} value={d.estado} onChange={(e) => handleEstadoDemo(d.id, e.target.value)}>
+                      {demos.map(d => (
+                        <tr key={d.id}>
+                          <td><strong>{d.nombre_centro}</strong></td>
+                          <td>{d.nombre_contacto}<div className="admin-dato"><a href={`tel:${d.telefono}`}>{d.telefono}</a><br /><a href={`mailto:${d.email}`}>{d.email}</a></div></td>
+                          <td>{formatFechaHora(d.fecha_creacion)}</td>
+                          <td>
+                            <select className="form-control" aria-label={`Estado de ${d.nombre_centro}`} value={d.estado || 'nueva'} onChange={(e) => handleEstadoDemo(d.id, e.target.value)}>
                               <option value="nueva">Nueva</option>
                               <option value="contactada">Contactada</option>
                               <option value="descartada">Descartada</option>
                             </select>
                           </td>
+                          <td><button type="button" onClick={() => handleCrearCuentaDemo(d)} className="btn btn-primary btn-sm">Crear cuenta</button></td>
                         </tr>
                       ))}
-                      {demos.length === 0 && (
-                        <tr>
-                          <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Todavía no ha pedido nadie una demo.</td>
-                        </tr>
-                      )}
+                      {demos.length === 0 && <tr><td colSpan={5} className="admin-vacio">Todavía no hay peticiones.</td></tr>}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
 
-            {/* TAB: RECUPERAR CONTRASEÑA */}
             {tab === 'recuperaciones' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'left' }}>
-                <div>
-                  <h3 style={{ margin: 0, color: 'var(--primary)', fontWeight: 800 }}>Recuperar contraseña</h3>
-                  <p style={{ margin: '0.125rem 0 0', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>Genera el enlace y envíaselo por email o WhatsApp. Caduca en 24 horas y solo sirve una vez.</p>
-                </div>
-                <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', border: '1px solid var(--lines)', boxShadow: 'var(--card-shadow)', overflowX: 'auto' }}>
-                  <table className="table-leads" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: 'var(--bg)', borderBottom: '1px solid var(--lines)' }}>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Correo</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Cuenta</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}>Fecha</th>
-                        <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 700, color: 'var(--primary)' }}></th>
-                      </tr>
-                    </thead>
+              <div>
+                <h1 className="admin-titulo">Contraseñas</h1>
+                <p className="admin-intro">Personas que han pulsado "He olvidado mi contraseña". Crea el enlace y envíaselo.</p>
+                <div className="table-container">
+                  <table>
+                    <thead><tr><th>Correo</th><th>Cuenta</th><th>Fecha</th><th></th></tr></thead>
                     <tbody>
-                      {recuperaciones.map((r) => (
-                        <tr key={r.id} style={{ borderBottom: '1px solid var(--lines-light)', opacity: r.atendida ? 0.55 : 1 }}>
-                          <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{r.email}</td>
-                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
-                            {r.centro_nombre ? r.centro_nombre : r.miembro_de ? `Equipo de ${r.miembro_de}` : 'No existe ninguna cuenta'}
-                          </td>
-                          <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{formatFechaHora(r.fecha_creacion)}</td>
-                          <td style={{ padding: '1rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {recuperaciones.map(r => (
+                        <tr key={r.id}>
+                          <td><strong>{r.email}</strong></td>
+                          <td>{r.centro_nombre || r.miembro_de || 'No hay ninguna cuenta con este correo'}</td>
+                          <td>{formatFechaHora(r.fecha_creacion)}</td>
+                          <td>
                             {r.atendida ? 'Atendida' : (
-                              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                                {(r.centro_nombre || r.miembro_de) && (
-                                  <button type="button" className="btn btn-primary btn-sm" onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/recuperaciones/${r.id}/enlace`, r.email, r.id)}>Crear enlace</button>
-                                )}
+                              <div className="admin-acciones">
+                                <button type="button" className="btn btn-primary btn-sm" onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/recuperaciones/${r.id}/enlace`, r.email, r.id)}>Crear enlace</button>
                                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDescartarRecuperacion(r.id)}>Descartar</button>
                               </div>
                             )}
                           </td>
                         </tr>
                       ))}
-                      {recuperaciones.length === 0 && (
-                        <tr>
-                          <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No hay peticiones.</td>
-                        </tr>
-                      )}
+                      {recuperaciones.length === 0 && <tr><td colSpan={4} className="admin-vacio">No hay peticiones.</td></tr>}
                     </tbody>
                   </table>
                 </div>
               </div>
             )}
-          </div>
+          </>
         )}
       </main>
 
       {enlaceGenerado && (
         <EnlaceModal
-          titulo="Enlace para contraseña nueva"
+          titulo="Enlace para poner la contraseña"
           texto={`Envíale este enlace a ${enlaceGenerado.para}. Caduca en 24 horas y solo sirve una vez.`}
           enlace={enlaceGenerado.enlace}
           onClose={() => setEnlaceGenerado(null)}
         />
       )}
 
-      {/* Modal: Nueva / Editar Academia */}
       {showAcademiaModal && (
-        <div style={{
-          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
-          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 10000, padding: '1rem'
-        }}>
-          <div className="reveal-scale visible" style={{
-            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '500px',
-            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
-            overflow: 'hidden', display: 'flex', flexDirection: 'column', textAlign: 'left'
-          }}>
-            <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
-              <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800 }}>
-                {selectedAcademia ? 'Editar Academia' : 'Crear Nueva Academia'}
-              </h3>
-              <button 
-                onClick={() => setShowAcademiaModal(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.375rem', cursor: 'pointer' }}
-              >
-                &times;
-              </button>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">{selectedAcademia ? 'Editar academia' : 'Nueva academia'}</h3>
+              <button type="button" aria-label="Cerrar" onClick={() => setShowAcademiaModal(false)} className="btn-close-modal"><X size={18} /></button>
             </div>
-
-            <form onSubmit={handleSaveAcademia} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {formAcademiaError && <div className="alert-box alert-error" style={{ fontSize: '0.8125rem', padding: '0.75rem' }}>{formAcademiaError}</div>}
-              
-              <div className="form-group">
-                <label className="form-label">Razon Social / Nombre Centro *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="Ej: Centro Tecnológico de Sevilla" 
-                  value={formAcademiaNombre}
-                  onChange={(e) => setFormAcademiaNombre(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Correo electrónico *</label>
-                <input 
-                  type="email" 
-                  className="form-control" 
-                  placeholder="ejemplo@academia.com" 
-                  value={formAcademiaEmail}
-                  onChange={(e) => setFormAcademiaEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Contraseña {selectedAcademia ? '(dejar vacío para no cambiar)' : '*'}</label>
-                <input 
-                  type="password" 
-                  className="form-control" 
-                  placeholder="••••••••" 
-                  value={formAcademiaPassword}
-                  onChange={(e) => setFormAcademiaPassword(e.target.value)}
-                  required={!selectedAcademia}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Plan de Suscripción</label>
-                <select 
-                  className="form-control"
-                  value={formAcademiaPlan}
-                  onChange={(e) => setFormAcademiaPlan(e.target.value)}
-                >
-                  <option value="starter">Starter (79€/mes)</option>
-                  <option value="pro">Pro (149€/mes)</option>
-                  <option value="custom">Custom (a medida)</option>
-                </select>
-              </div>
-
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <form onSubmit={handleSaveAcademia}>
+              <div className="admin-modal-cuerpo">
+                {formAcademiaError && <div className="alert-box alert-error" role="alert">{formAcademiaError}</div>}
+                <div className="form-group"><label className="form-label" htmlFor="ac-nombre">Nombre de la academia *</label><input id="ac-nombre" required className="form-control" value={formAcademiaNombre} onChange={(e) => setFormAcademiaNombre(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="ac-email">Correo de acceso *</label><input id="ac-email" required type="email" className="form-control" value={formAcademiaEmail} onChange={(e) => setFormAcademiaEmail(e.target.value)} /></div>
                 <div className="form-group">
-                  <label className="form-label">Nombre de Contacto</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Ej: Ana Pérez" 
-                    value={formAcademiaContacto}
-                    onChange={(e) => setFormAcademiaContacto(e.target.value)}
-                  />
+                  <label className="form-label" htmlFor="ac-plan">Plan</label>
+                  <select id="ac-plan" className="form-control" value={formAcademiaPlan} onChange={(e) => setFormAcademiaPlan(e.target.value)}>
+                    {PLANES.map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.precio})</option>)}
+                  </select>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Teléfono de Contacto</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Ej: 600000000" 
-                    value={formAcademiaTelefono}
-                    onChange={(e) => setFormAcademiaTelefono(e.target.value)}
-                  />
-                </div>
+                <div className="form-group"><label className="form-label" htmlFor="ac-contacto">Persona de contacto</label><input id="ac-contacto" className="form-control" value={formAcademiaContacto} onChange={(e) => setFormAcademiaContacto(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="ac-tel">Teléfono</label><input id="ac-tel" type="tel" className="form-control" value={formAcademiaTelefono} onChange={(e) => setFormAcademiaTelefono(e.target.value)} /></div>
+                {!selectedAcademia && <p className="admin-dato">Al guardar empieza su mes gratis y te doy un enlace para que ponga su contraseña.</p>}
               </div>
-
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', borderTop: '1px solid var(--lines)', paddingTop: '1.25rem' }}>
-                <button type="button" onClick={() => setShowAcademiaModal(false)} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Guardar Academia</button>
+              <div className="admin-modal-pie">
+                <button type="button" onClick={() => setShowAcademiaModal(false)} className="btn btn-secondary">Cancelar</button>
+                <button type="submit" className="btn btn-primary">Guardar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Modal: Moderación / Edición Curso */}
       {showCursoModal && (
-        <div style={{
-          position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)',
-          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 10000, padding: '1rem'
-        }}>
-          <div className="reveal-scale visible" style={{
-            backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '600px',
-            boxShadow: '0 25px 50px -12px rgba(8, 42, 36, 0.25)', border: '1px solid var(--lines)',
-            overflow: 'hidden', display: 'flex', flexDirection: 'column', textAlign: 'left', maxHeight: '90vh'
-          }}>
-            <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid var(--lines)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
-              <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.125rem', fontWeight: 800 }}>Moderar Curso</h3>
-              <button onClick={() => setShowCursoModal(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.375rem', cursor: 'pointer' }}>&times;</button>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">Editar curso</h3>
+              <button type="button" aria-label="Cerrar" onClick={() => setShowCursoModal(false)} className="btn-close-modal"><X size={18} /></button>
             </div>
-
-            <form onSubmit={handleSaveCurso} style={{ padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-              {formCursoError && <div className="alert-box alert-error" style={{ fontSize: '0.8125rem' }}>{formCursoError}</div>}
-
-              <div className="form-group">
-                <label className="form-label">Título del Curso *</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  value={formCursoTitulo}
-                  onChange={(e) => setFormCursoTitulo(e.target.value)}
-                  required
-                />
+            <form onSubmit={handleSaveCurso}>
+              <div className="admin-modal-cuerpo">
+                {formCursoError && <div className="alert-box alert-error" role="alert">{formCursoError}</div>}
+                <div className="form-group"><label className="form-label" htmlFor="cu-titulo">Título *</label><input id="cu-titulo" required className="form-control" value={formCursoTitulo} onChange={(e) => setFormCursoTitulo(e.target.value)} /></div>
+                <div className="admin-dos">
+                  <div className="form-group"><label className="form-label" htmlFor="cu-cat">Categoría</label><select id="cu-cat" className="form-control" value={formCursoCategoria} onChange={(e) => setFormCursoCategoria(e.target.value)}>{['Informática', 'Sanidad', 'Logística', 'Hostelería', 'Administración', 'Otros'].map(c => <option key={c}>{c}</option>)}</select></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-mod">Modalidad</label><select id="cu-mod" className="form-control" value={formCursoModalidad} onChange={(e) => setFormCursoModalidad(e.target.value)}>{['Presencial', 'Online', 'Mixta'].map(c => <option key={c}>{c}</option>)}</select></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-loc">Localidad *</label><input id="cu-loc" required className="form-control" value={formCursoLocalidad} onChange={(e) => setFormCursoLocalidad(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-horas">Horas *</label><input id="cu-horas" required type="number" min="1" className="form-control" value={formCursoDuracion} onChange={(e) => setFormCursoDuracion(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-plazas">Plazas *</label><input id="cu-plazas" required type="number" min="1" className="form-control" value={formCursoPlazas} onChange={(e) => setFormCursoPlazas(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-cub">Plazas ya cubiertas</label><input id="cu-cub" type="number" min="0" className="form-control" value={formCursoPlazasCubiertas} onChange={(e) => setFormCursoPlazasCubiertas(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-fecha">Fecha de inicio *</label><input id="cu-fecha" required className="form-control" value={formCursoFechaInicio} onChange={(e) => setFormCursoFechaInicio(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-para">Dirigido a</label><select id="cu-para" className="form-control" value={formCursoDirigidoA} onChange={(e) => setFormCursoDirigidoA(e.target.value)}>{['Todos', 'Desempleados', 'Ocupados'].map(c => <option key={c}>{c}</option>)}</select></div>
+                </div>
+                <div className="form-group"><label className="form-label" htmlFor="cu-est">Estado</label><select id="cu-est" className="form-control" value={formCursoEstado} onChange={(e) => setFormCursoEstado(e.target.value)}><option value="publicado">Publicado</option><option value="pausado">Pausado</option></select></div>
+                <div className="form-group"><label className="form-label" htmlFor="cu-desc">Descripción *</label><textarea id="cu-desc" required rows={4} className="form-control" value={formCursoDescripcion} onChange={(e) => setFormCursoDescripcion(e.target.value)} /></div>
               </div>
-
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Categoría</label>
-                  <select className="form-control" value={formCursoCategoria} onChange={(e) => setFormCursoCategoria(e.target.value)}>
-                    <option value="Informática">Informática</option>
-                    <option value="Sanidad">Sanidad</option>
-                    <option value="Logística">Logística</option>
-                    <option value="Hostelería">Hostelería</option>
-                    <option value="Administración">Administración</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Modalidad</label>
-                  <select className="form-control" value={formCursoModalidad} onChange={(e) => setFormCursoModalidad(e.target.value)}>
-                    <option value="Presencial">Presencial</option>
-                    <option value="Online">Online</option>
-                    <option value="Mixta">Mixta</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Localidad / Zona *</label>
-                  <input type="text" className="form-control" value={formCursoLocalidad} onChange={(e) => setFormCursoLocalidad(e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Duración en Horas *</label>
-                  <input type="number" className="form-control" value={formCursoDuracion} onChange={(e) => setFormCursoDuracion(e.target.value)} required />
-                </div>
-              </div>
-
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Plazas Totales *</label>
-                  <input type="number" className="form-control" value={formCursoPlazas} onChange={(e) => setFormCursoPlazas(e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Plazas Cubiertas *</label>
-                  <input type="number" className="form-control" value={formCursoPlazasCubiertas} onChange={(e) => setFormCursoPlazasCubiertas(e.target.value)} required />
-                </div>
-              </div>
-
-              <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="form-label">Fecha de Inicio *</label>
-                  <input type="text" className="form-control" value={formCursoFechaInicio} onChange={(e) => setFormCursoFechaInicio(e.target.value)} required />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Dirigido A</label>
-                  <input type="text" className="form-control" value={formCursoDirigidoA} onChange={(e) => setFormCursoDirigidoA(e.target.value)} required />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Estado de Moderación</label>
-                <select className="form-control" value={formCursoEstado} onChange={(e) => setFormCursoEstado(e.target.value)}>
-                  <option value="publicado">Publicado</option>
-                  <option value="pausado">Pausado (Ocultar)</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Descripción *</label>
-                <textarea className="form-control" rows={3} value={formCursoDescripcion} onChange={(e) => setFormCursoDescripcion(e.target.value)} required style={{ resize: 'vertical' }}></textarea>
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', borderTop: '1px solid var(--lines)', paddingTop: '1.25rem' }}>
-                <button type="button" onClick={() => setShowCursoModal(false)} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Guardar Cambios</button>
+              <div className="admin-modal-pie">
+                <button type="button" onClick={() => setShowCursoModal(false)} className="btn btn-secondary">Cancelar</button>
+                <button type="submit" className="btn btn-primary">Guardar</button>
               </div>
             </form>
           </div>
