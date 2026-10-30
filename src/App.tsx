@@ -17,9 +17,9 @@ import {
   BarChart3,
   Calendar,
   Settings,
-  Code,
   MessageSquare,
   Shield,
+  Globe,
 } from 'lucide-react';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -1339,7 +1339,7 @@ const PLANES = [
 const textoEstadoSuscripcion = (centro: any, pagos?: any) => {
   const estado = centro?.suscripcion_estado;
   if (estado === 'activa') return 'Activa';
-  if (estado === 'impago') return 'Pago pendiente: revise su tarjeta';
+  if (estado === 'impago') return 'Pago pendiente: revisa tu tarjeta';
   if (estado === 'cancelada') return 'Cancelada';
   if (estado === 'prueba') {
     if (!centro?.acceso) return 'Prueba terminada';
@@ -1357,10 +1357,10 @@ function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { u
     return (
       <div className="alert-box alert-error" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <span style={{ flex: 1 }}>
-          <strong>Su periodo de prueba ha terminado.</strong>{' '}
+          <strong>Tu mes de prueba ha terminado.</strong>{' '}
           {esPropietario
-            ? 'Sus cursos no se muestran en la web y el panel queda bloqueado hasta que active su suscripción. Sus datos siguen guardados.'
-            : 'Pida al responsable del centro que active la suscripción para seguir usando Cursenda.'}
+            ? 'Tus cursos no se muestran en la web y el panel queda bloqueado hasta que contrates un plan. Tus datos siguen guardados.'
+            : 'Pide a la persona responsable de tu academia que contrate un plan para seguir usando Cursenda.'}
         </span>
               </div>
     );
@@ -1369,7 +1369,7 @@ function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { u
   if (user.suscripcion_estado === 'impago' && esPropietario) {
     return (
       <div className="alert-box alert-warning" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1 }}><strong>No hemos podido cobrar su suscripción.</strong> Revise su tarjeta para no perder el acceso.</span>
+        <span style={{ flex: 1 }}><strong>No hemos podido cobrar tu suscripción.</strong> Revisa tu tarjeta para no perder el acceso.</span>
         {!enPlan && <button type="button" className="btn btn-primary btn-sm" onClick={onIrAPlan}>Revisar pago</button>}
       </div>
     );
@@ -1379,7 +1379,7 @@ function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { u
     return (
       <div className="alert-box alert-warning" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <span style={{ flex: 1 }}>
-          Le {pagos.dias_prueba === 1 ? 'queda 1 día' : `quedan ${pagos.dias_prueba} días`} de prueba gratis. Elija un plan para no perder sus cursos ni sus solicitudes.
+          Te {pagos.dias_prueba === 1 ? 'queda 1 día' : `quedan ${pagos.dias_prueba} días`} de prueba gratis. Elige un plan para que tus cursos sigan en la web.
         </span>
         {!enPlan && <button type="button" className="btn btn-primary btn-sm" onClick={onIrAPlan}>Ver planes</button>}
       </div>
@@ -2465,9 +2465,9 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [facturas, setFacturas] = useState<any[]>([]);
-  const [apiToken, setApiToken] = useState('');
   const [webhookUrl, setWebhookUrl] = useState('');
   const [webhookSaveSuccess, setWebhookSaveSuccess] = useState(false);
+  const [webhookError, setWebhookError] = useState('');
 
   // Configuración del Centro
   const [confRazonSocial, setConfRazonSocial] = useState(user?.nombre || '');
@@ -2503,8 +2503,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
   // Estados para feedback de copiado
   const [copiedTemplateId, setCopiedTemplateId] = useState<number | null>(null);
-  const [copiedApiToken, setCopiedApiToken] = useState(false);
-  const [apiRegenSuccess, setApiRegenSuccess] = useState(false);
 
   // Gestión de Personal (equipo del centro)
   const [team, setTeam] = useState<any[]>([]);
@@ -2594,7 +2592,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       const res = await fetch(`${API_BASE}/centro/api-settings`);
       if (res.ok) {
         const data = await res.json();
-        setApiToken(data.api_token);
         setWebhookUrl(data.webhook_url || '');
       }
     } catch (err) {
@@ -2602,22 +2599,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     }
   };
 
-  const handleRegenerateApiKey = async () => {
-    if (!window.confirm('¿Está seguro de que desea regenerar su clave API? Las integraciones actuales dejarán de funcionar hasta que actualice la clave.')) {
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE}/centro/api-settings/regenerate`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        setApiToken(data.api_token);
-        setApiRegenSuccess(true);
-        setTimeout(() => setApiRegenSuccess(false), 3000);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const handleSaveWebhook = async () => {
     try {
@@ -2627,11 +2608,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         body: JSON.stringify({ webhook_url: webhookUrl })
       });
       if (res.ok) {
+        setWebhookError('');
         setWebhookSaveSuccess(true);
         setTimeout(() => setWebhookSaveSuccess(false), 3000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setWebhookError(data.error || 'No se ha podido guardar.');
       }
     } catch (err) {
-      console.error(err);
+      setWebhookError('No se ha podido conectar. Vuelve a intentarlo.');
     }
   };
 
@@ -2727,7 +2712,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       const locLower = formLocalidad.trim().toLowerCase();
       const invalidTerms = ['online', 'remoto', 'virtual', 'internet', 'no presencial', 'distancia', 'remota', 'pantalla', 'cualquiera'];
       if (invalidTerms.some(term => locLower.includes(term)) || locLower === '') {
-        setFormError('Para cursos presenciales o mixtos, debe indicar una localidad o dirección física real (no se permite "Online", "Remoto" o similar).');
+        setFormError('Si el curso es presencial o mixto, pon una localidad real, no "Online" ni "Remoto".');
         return;
       }
     }
@@ -2764,7 +2749,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         setFormError(data.error || 'Error al guardar el curso');
       }
     } catch (err) {
-      setFormError('Error de red. Inténtelo de nuevo.');
+      setFormError('No se ha podido conectar. Vuelve a intentarlo.');
     }
   };
 
@@ -2811,12 +2796,12 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       setTemplates(selectedTemplate ? templates.map(t => t.id === guardada.id ? guardada : t) : [...templates, guardada]);
       setShowTemplateModal(false);
     } catch (err) {
-      setFormTemplateError('Error de red. Inténtelo de nuevo.');
+      setFormTemplateError('No se ha podido conectar. Vuelve a intentarlo.');
     }
   };
 
   const handleDeleteTemplate = async (id: number) => {
-    if (!window.confirm('¿Está seguro de que desea eliminar esta plantilla?')) return;
+    if (!window.confirm('¿Eliminar esta plantilla?')) return;
     const res = await fetch(`${API_BASE}/plantillas/${id}`, { method: 'DELETE' });
     if (res.ok) setTemplates(templates.filter(t => t.id !== id));
   };
@@ -2845,14 +2830,14 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       setInviteEmail('');
       loadEquipo();
     } catch (err) {
-      setInviteError('Error de red. Inténtelo de nuevo.');
+      setInviteError('No se ha podido conectar. Vuelve a intentarlo.');
     }
   };
 
   const handleRemoveTeamMember = async (id: number) => {
     const member = team.find(t => t.id === id);
     if (!member || member.esPropietario) return;
-    if (!window.confirm(`¿Está seguro de que desea eliminar a ${member.nombre !== '—' ? member.nombre : member.email}?`)) return;
+    if (!window.confirm(`¿Eliminar a ${member.nombre !== '—' ? member.nombre : member.email}?`)) return;
     const res = await fetch(`${API_BASE}/equipo/${id}`, { method: 'DELETE' });
     if (res.ok) loadEquipo();
   };
@@ -2919,7 +2904,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   const rellenarPlantilla = (texto: string, lead: any) => texto
     .replace(/\[Nombre\]/g, (lead.nombre || '').split(' ')[0])
     .replace(/\[Curso\]/g, lead.curso_titulo || '')
-    .replace(/\[Centro\]/g, user?.nombre || '');
+    .replace(/\[Centro\]/g, user?.nombre || '')
+    .replace(/\[Fecha\]/g, lead.curso_fecha || '');
 
   // wa.me necesita el número con prefijo de país y sin espacios
   const telefonoWhatsApp = (tel: string) => {
@@ -2973,23 +2959,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         setLeadNotes(notesData);
 
         // Recargar solicitudes para reflejar estado "gestionado"
-        loadSolicitudes();
-        loadStats();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleToggleLeadGestionado = async (lead: any) => {
-    try {
-      const res = await fetch(`${API_BASE}/solicitudes/${lead.id}/gestionado`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gestionado: lead.gestionado ? 0 : 1 })
-      });
-
-      if (res.ok) {
         loadSolicitudes();
         loadStats();
       }
@@ -3053,7 +3022,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       }
       setPagoError(data.error || 'No se pudo abrir la página de pago.');
     } catch (err) {
-      setPagoError('Error de red. Inténtelo de nuevo.');
+      setPagoError('No se ha podido conectar. Vuelve a intentarlo.');
     }
     setPagoCargando(false);
   };
@@ -3077,32 +3046,18 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   // Contar solicitudes sin gestionar
   const countNuevas = solicitudes.filter(sol => !sol.gestionado).length;
 
-  const getDynamicActivity = () => {
-    const activity: any[] = [];
-    
-    // Añadir solicitudes como actividad
-    solicitudes.slice(0, 3).forEach(s => {
-      activity.push({
-        id: `sol-${s.id}`,
-        text: `${s.nombre} solicitó plaza en "${s.curso_titulo}"`,
-        time: haceCuanto(s.fecha_creacion)
-      });
+  const solicitudesPorMes = () => {
+    const hoy = new Date();
+    const meses = Array.from({ length: 6 }, (_, i) => {
+      const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - 5 + i, 1);
+      const total = solicitudes.filter(s => {
+        const creada = parseFecha(s.fecha_creacion);
+        return creada && creada.getFullYear() === fecha.getFullYear() && creada.getMonth() === fecha.getMonth();
+      }).length;
+      return { mes: fecha.toLocaleDateString('es-ES', { month: 'short' }), total };
     });
-
-    // Añadir cursos como actividad
-    cursos.slice(0, 2).forEach(c => {
-      activity.push({
-        id: `cur-${c.id}`,
-        text: `Curso "${c.titulo}" está en estado ${c.estado}`,
-        time: `${c.visitas} visitas totales`
-      });
-    });
-
-    if (activity.length === 0) {
-      activity.push({ id: 1, text: "Sin actividad reciente registrada", time: "ahora" });
-    }
-
-    return activity;
+    const maximo = Math.max(1, ...meses.map(m => m.total));
+    return meses.map(m => ({ ...m, altura: (m.total / maximo) * 100 }));
   };
 
   return (
@@ -3157,15 +3112,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             <li className={`nav-item ${tab === 'personal' ? 'active' : ''}`}>
               <button onClick={() => setTab('personal')}>
                 <Shield size={18} />
-                <span>Gestión Personal</span>
+                <span>Equipo</span>
               </button>
             </li>
             )}
             {tabsPermitidas.includes('integraciones') && (
             <li className={`nav-item ${tab === 'integraciones' ? 'active' : ''}`}>
               <button onClick={() => setTab('integraciones')}>
-                <Code size={18} />
-                <span>Integraciones y API</span>
+                <Globe size={18} />
+                <span>Tu web</span>
               </button>
             </li>
             )}
@@ -3205,7 +3160,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <div>
                 <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Mis cursos</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Administre y publique los cursos ofrecidos por su centro</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Publica y pausa los cursos de tu academia.</p>
               </div>
               {puedeEditar && (
                 <button onClick={() => handleOpenCursoModal()} className="btn btn-primary">
@@ -3219,21 +3174,21 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             <div className="metrics-grid">
               <div className="metric-card metric-highlight">
                 <div className="metric-header-row">
-                  <span className="metric-label">Solicitudes Nuevas (Semana)</span>
+                  <span className="metric-label">Solicitudes en los últimos 7 días</span>
                   <span className="metric-icon-box"><Users size={20} /></span>
                 </div>
                 <span className="metric-value">{stats?.solicitudes_nuevas_semana || 0}</span>
               </div>
               <div className="metric-card">
                 <div className="metric-header-row">
-                  <span className="metric-label">Cursos Publicados</span>
+                  <span className="metric-label">Cursos publicados</span>
                   <span className="metric-icon-box"><BookOpen size={20} /></span>
                 </div>
                 <span className="metric-value">{cursos.filter(c => c.estado === 'publicado').length}</span>
               </div>
               <div className="metric-card">
                 <div className="metric-header-row">
-                  <span className="metric-label">Visitas a las Fichas</span>
+                  <span className="metric-label">Visitas a tus cursos</span>
                   <span className="metric-icon-box"><BarChart3 size={20} /></span>
                 </div>
                 <span className="metric-value">{stats?.visitas_totales || 0}</span>
@@ -3244,13 +3199,13 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               {/* Tabla de Cursos */}
               <div className="table-container">
                 <div className="table-header">
-                  <h3 className="table-title">Listado de Cursos</h3>
+                  <h3 className="table-title">Tus cursos</h3>
                 </div>
                 
                 {cursos.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '3rem' }}>
                     <BookOpen size={32} style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }} />
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No tiene ningún curso publicado. Comience publicando su primer curso.</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Todavía no tienes cursos. Publica el primero.</p>
                   </div>
                 ) : (
                   <table>
@@ -3305,14 +3260,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
               {/* Feed de Actividad Reciente */}
               <div className="activity-card">
-                <h3 className="activity-title">Actividad Reciente</h3>
+                <h3 className="activity-title">Últimas solicitudes</h3>
                 <ul className="activity-feed-list">
-                  {getDynamicActivity().map((act) => (
-                    <li key={act.id} className="activity-item">
+                  {solicitudes.length === 0 && <li className="activity-item"><div className="activity-text">Todavía no hay solicitudes.</div></li>}
+                  {solicitudes.slice(0, 5).map((s) => (
+                    <li key={s.id} className="activity-item">
                       <div className="activity-dot"></div>
                       <div>
-                        <div className="activity-text">{act.text}</div>
-                        {act.time && <span className="activity-time">{act.time}</span>}
+                        <div className="activity-text">{s.nombre}: {s.curso_titulo}</div>
+                        <span className="activity-time">{haceCuanto(s.fecha_creacion)}</span>
                       </div>
                     </li>
                   ))}
@@ -3327,15 +3283,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1.5rem', flexWrap: 'wrap' }}>
               <div>
-                <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Solicitudes (Leads)</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Gestione las solicitudes recibidas de alumnos y póngase en contacto rápidamente</p>
+                <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Solicitudes</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Las personas que han pedido plaza en tus cursos.</p>
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', flexGrow: 1, maxWidth: '520px' }}>
                 <input 
                   type="text" 
                   className="form-control" 
-                  placeholder="Buscar alumno, curso, email..." 
+                  placeholder="Buscar por nombre, curso o correo" 
                   value={solicitudSearch}
                   onChange={(e) => setSolicitudSearch(e.target.value)}
                   style={{ flexGrow: 1 }}
@@ -3346,7 +3302,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   onChange={(e) => setSolicitudStatusFilter(e.target.value as any)}
                   style={{ width: '160px' }}
                 >
-                  <option value="todos">Todos los leads</option>
+                  <option value="todos">Todas</option>
                   <option value="nuevos">Sólo Nuevos</option>
                   <option value="gestionados">Sólo Gestionados</option>
                 </select>
@@ -3363,14 +3319,14 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               {solicitudes.length === 0 ? (
                 <div className="empty-state">
                   <Users size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-                  <h3 className="empty-state-title">Aún no tiene solicitudes</h3>
-                  <p className="empty-state-desc">Las solicitudes de los alumnos aparecerán aquí en cuanto se inscriban en sus cursos.</p>
+                  <h3 className="empty-state-title">Aún no tienes solicitudes</h3>
+                  <p className="empty-state-desc">Aparecerán aquí cuando alguien pida plaza en uno de tus cursos.</p>
                 </div>
               ) : (
                 <table>
                   <thead>
                     <tr>
-                      <th>Alumno</th>
+                      <th>Persona</th>
                       <th>Curso</th>
                       <th>Fecha</th>
                       <th>Estado</th>
@@ -3475,14 +3431,6 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                             >
                               Contactar
                             </button>
-                            <button 
-                              onClick={() => handleToggleLeadGestionado(s)} 
-                              className="btn btn-secondary btn-sm"
-                              title={s.gestionado ? 'Marcar como nuevo' : 'Marcar como gestionado'}
-                              style={{ display: 'flex', alignItems: 'center' }}
-                            >
-                              {s.gestionado ? <X size={14} /> : <Check size={14} />}
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -3501,15 +3449,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             
             <div className="metrics-grid">
               <div className="metric-card">
-                <span className="metric-label">Visitas Totales</span>
+                <span className="metric-label">Visitas</span>
                 <span className="metric-value">{stats?.visitas_totales || 0}</span>
               </div>
               <div className="metric-card">
-                <span className="metric-label">Solicitudes Recibidas</span>
+                <span className="metric-label">Solicitudes</span>
                 <span className="metric-value">{stats?.solicitudes_totales || 0}</span>
               </div>
               <div className="metric-card">
-                <span className="metric-label">Ratio de Conversión</span>
+                <span className="metric-label">Visitas que piden plaza</span>
                 <span className="metric-value">
                   {stats?.visitas_totales > 0 
                     ? `${((stats.solicitudes_totales / stats.visitas_totales) * 100).toFixed(1)}%`
@@ -3520,7 +3468,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
             <div className="dashboard-grid">
               <div className="table-container" style={{ padding: '2rem' }}>
-                <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Visitas por Curso</h3>
+                <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Visitas por curso</h3>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   {cursos.map((c) => {
@@ -3541,32 +3489,15 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               </div>
 
               <div className="table-container" style={{ padding: '2rem' }}>
-                <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Captación Mensual (Leads)</h3>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '180px', padding: '10px 0', borderBottom: '1px solid var(--lines)' }}>
-                  {[
-                    { month: 'Ene', leads: 12 },
-                    { month: 'Feb', leads: 18 },
-                    { month: 'Mar', leads: 24 },
-                    { month: 'Abr', leads: 32 },
-                    { month: 'May', leads: stats?.solicitudes_totales || 40 },
-                    { month: 'Jun', leads: solicitudes.length }
-                  ].map((m, idx) => {
-                    const heightPct = Math.max(10, Math.min(100, (m.leads / 50) * 100));
-                    return (
-                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '40px', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent)' }}>{m.leads}</span>
-                        <div style={{ 
-                          width: '24px', 
-                          height: `${heightPct}px`, 
-                          backgroundColor: idx === 5 ? 'var(--accent)' : 'var(--primary)', 
-                          borderRadius: '4px 4px 0 0',
-                          transition: 'height 0.3s ease'
-                        }}></div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{m.month}</span>
-                      </div>
-                    );
-                  })}
+                <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Solicitudes por mes</h3>
+                <div className="grafica-meses">
+                  {solicitudesPorMes().map((m) => (
+                    <div key={m.mes}>
+                      <span className="grafica-valor">{m.total}</span>
+                      <div className="grafica-barra" style={{ height: `${m.altura}%` }}></div>
+                      <span className="grafica-mes">{m.mes}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -3576,17 +3507,17 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         {/* TAB: PLAN Y FACTURAS */}
         {tab === 'plan' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Suscripción y Facturación</h1>
+            <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Plan y facturas</h1>
 
             {pagoAviso === 'ok' && (
               <div className="alert-box alert-info">
                 <CheckCircle size={20} />
-                <span>¡Gracias! Su suscripción se ha activado. Puede tardar unos segundos en aparecer aquí.</span>
+                <span>Suscripción activada. Puede tardar unos segundos en aparecer aquí.</span>
               </div>
             )}
             {pagoAviso === 'cancelado' && (
               <div className="alert-box alert-warning">
-                <span>No se ha completado el pago. Puede intentarlo de nuevo cuando quiera.</span>
+                <span>No se ha completado el pago. Puedes volver a intentarlo cuando quieras.</span>
               </div>
             )}
             {pagoError && (
@@ -3601,7 +3532,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(280px, 1fr)', gap: '2rem', marginBottom: '3rem' }}>
               {/* Estado de la suscripción */}
               <div className="table-container" style={{ padding: '2rem' }}>
-                <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Su suscripción</h3>
+                <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Tu suscripción</h3>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', borderBottom: '1px solid var(--lines-light)', gap: '1rem' }}>
                   <span>Estado:</span>
@@ -3630,11 +3561,11 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   </>
                 ) : (
                   <>
-                    <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', margin: '1.5rem 0 0.5rem' }}>Elija su plan</h4>
+                    <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', margin: '1.5rem 0 0.5rem' }}>Elige tu plan</h4>
                     <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
                       {pagos?.dias_prueba > 2
-                        ? `Añada su tarjeta ahora y no se le cobrará nada hasta que acabe la prueba (${new Date(String(pagos.prueba_hasta).replace(' ', 'T') + 'Z').toLocaleDateString('es-ES')}). Puede cancelar cuando quiera.`
-                        : 'El cobro es mensual y puede cancelar cuando quiera.'}
+                        ? `Si añades tu tarjeta ahora, no se te cobrará nada hasta que acabe la prueba (${new Date(String(pagos.prueba_hasta).replace(' ', 'T') + 'Z').toLocaleDateString('es-ES')}). Puedes cancelar cuando quieras.`
+                        : 'El cobro es mensual y puedes cancelar cuando quieras.'}
                     </p>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '1rem' }}>
@@ -3655,7 +3586,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     </div>
                     {pagos && !pagos.configurado && (
                       <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '1rem' }}>
-                        El pago con tarjeta se activará muy pronto. Mientras tanto, para contratar escríbanos a <a href={`mailto:${DATOS_LEGALES.email}`}>{DATOS_LEGALES.email}</a>.
+                        El pago con tarjeta todavía no está activo. Para contratar, escríbenos a <a href={`mailto:${DATOS_LEGALES.email}`}>{DATOS_LEGALES.email}</a>.
                       </p>
                     )}
                   </>
@@ -3702,8 +3633,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <div>
-                <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Plantillas de Contacto</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Personalice respuestas automáticas rápidas para contactar a los alumnos</p>
+                <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Plantillas</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Mensajes ya escritos para contactar con quien pide plaza.</p>
               </div>
               {puedeEditar && (
                 <button onClick={() => handleOpenTemplateModal()} className="btn btn-primary">
@@ -3715,7 +3646,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
             
             <div className="alert-box alert-info">
               <MessageSquare size={20} />
-              <span>Personalice las respuestas automáticas para contactar a los alumnos con un solo clic. Copie el contenido del portapapeles y péguelo en su cliente de WhatsApp o correo electrónico.</span>
+              <span>Desde la ficha de cada solicitud, eliges una plantilla y se abre WhatsApp o tu correo con el mensaje escrito. [Nombre], [Curso], [Centro] y [Fecha] se cambian solos por sus datos.</span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
@@ -3773,8 +3704,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <div>
-                <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Gestión de Personal</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Administre los usuarios que tienen acceso de gestión para su centro</p>
+                <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)' }}>Equipo</h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Las personas que pueden entrar al panel de tu academia.</p>
               </div>
             </div>
 
@@ -3782,7 +3713,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               {/* Tabla de Gestores */}
               <div className="table-container">
                 <div className="table-header">
-                  <h3 className="table-title">Equipo de {confRazonSocial || user?.nombre || 'Mi Centro'}</h3>
+                  <h3 className="table-title">Equipo de {confRazonSocial || user?.nombre}</h3>
                 </div>
                 <table>
                   <thead>
@@ -3878,13 +3809,13 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         {/* TAB: INTEGRACIONES */}
         {tab === 'integraciones' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Integraciones y API</h1>
+            <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Tu web</h1>
 
             {/* Widget para la web del centro */}
             <div className="table-container" style={{ padding: '2rem', marginBottom: '2rem' }}>
-              <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Sus cursos en su propia web</h3>
+              <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Tus cursos en tu web</h3>
               <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem', maxWidth: '60ch' }}>
-                Pegue este código en la página de su web donde quiera mostrar sus cursos. Se actualiza solo cuando publica o pausa un curso, y las solicitudes le llegan a este panel.
+                Pega este código en la página de tu web donde quieras mostrar tus cursos. Se actualiza solo cuando publicas o pausas un curso, y las solicitudes te llegan a este panel.
               </p>
               <textarea
                 className="form-control"
@@ -3898,90 +3829,26 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => { navigator.clipboard.writeText(codigoWidget).then(() => { setWidgetCopiado(true); setTimeout(() => setWidgetCopiado(false), 2000); }).catch(() => {}); }}>
                   {widgetCopiado ? 'Copiado' : 'Copiar código'}
                 </button>
-                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', alignSelf: 'center' }}>Si su web la lleva otra persona, envíele este código.</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', alignSelf: 'center' }}>Si tu web la lleva otra persona, envíale este código.</span>
               </div>
             </div>
 
-            <div className="alert-box alert-info">
-              <Code size={20} />
-              <span>Conecte Cursenda con sus herramientas internas (Moodle, HubSpot, Salesforce) para exportar automáticamente sus leads.</span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem' }}>
-              <div className="table-container" style={{ padding: '2rem' }}>
-                <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Claves de API de Producción</h3>
-                
-                <div style={{ backgroundColor: '#FAF9F6', border: '1px solid var(--lines)', padding: '1rem', borderRadius: '6px', marginBottom: '1.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Live API Token</span>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <code style={{ fontFamily: 'monospace', fontSize: '0.875rem', fontWeight: '700', wordBreak: 'break-all' }}>{apiToken || 'Generando token...'}</code>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      {apiRegenSuccess && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--success-text)', marginRight: '0.5rem', fontWeight: 600 }}>✓ Regenerada</span>
-                      )}
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(apiToken);
-                          setCopiedApiToken(true);
-                          setTimeout(() => setCopiedApiToken(false), 2000);
-                        }} 
-                        className={`btn ${copiedApiToken ? 'btn-success' : 'btn-secondary'} btn-sm`}
-                      >
-                        {copiedApiToken ? '¡Copiado!' : 'Copiar'}
-                      </button>
-                      <button 
-                        onClick={handleRegenerateApiKey} 
-                        className="btn btn-secondary btn-sm"
-                        style={{ color: 'var(--error-text)' }}
-                      >
-                        Regenerar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', marginBottom: '1rem' }}>Webhooks activos</h4>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Configure una dirección URL para recibir una notificación HTTPS POST automática cada vez que un alumno solicite plaza.</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="https://mi-crm.com/webhooks/leads" 
-                    value={webhookUrl} 
-                    onChange={(e) => setWebhookUrl(e.target.value)} 
-                  />
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <button onClick={handleSaveWebhook} className="btn btn-primary btn-sm">Guardar webhook</button>
-                    {webhookSaveSuccess && (
-                      <span style={{ fontSize: '0.8125rem', color: 'var(--success-text)', fontWeight: 600 }}>✓ Webhook guardado correctamente</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="table-container" style={{ padding: '2rem' }}>
-                <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Guía Rápida de API</h3>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.25rem', lineHeight: '1.45' }}>Realice consultas HTTPS GET para descargar su listado de solicitudes en formato JSON desde otros sistemas:</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--accent)', textTransform: 'uppercase' }}>Ejemplo cURL</span>
-                    <pre style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflowX: 'auto', fontFamily: 'monospace', marginTop: '0.25rem' }}>
-{`curl -X GET "${window.location.origin}/api/public/solicitudes" \\
-  -H "Authorization: Bearer ${apiToken || 'TU_API_TOKEN'}"`}
-                    </pre>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--accent)', textTransform: 'uppercase' }}>Ejemplo Node.js</span>
-                    <pre style={{ backgroundColor: 'var(--primary-dark)', color: 'var(--white)', padding: '1rem', borderRadius: '6px', fontSize: '0.75rem', overflowX: 'auto', fontFamily: 'monospace', marginTop: '0.25rem' }}>
-{`fetch("${window.location.origin}/api/public/solicitudes", {
-  headers: {
-    "Authorization": "Bearer ${apiToken || 'TU_API_TOKEN'}"
-  }
-})
-.then(res => res.json())
-.then(data => console.log(data));`}
-                    </pre>
-                  </div>
+            <div className="table-container" style={{ padding: '2rem' }}>
+              <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Aviso a otro programa</h3>
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1rem', maxWidth: '60ch' }}>Si usas otro programa para tus alumnos, pon aquí su dirección de aviso (webhook) y le enviaremos los datos de cada solicitud nueva. Si no sabes qué es, no lo necesitas.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '560px' }}>
+                <input
+                  type="url"
+                  className="form-control"
+                  placeholder="https://"
+                  aria-label="Dirección de aviso"
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                />
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                  <button onClick={handleSaveWebhook} className="btn btn-primary btn-sm">Guardar</button>
+                  {webhookSaveSuccess && <span style={{ fontSize: '0.8125rem', color: 'var(--success-text)', fontWeight: 600 }}>Guardado</span>}
+                  {webhookError && <span role="alert" style={{ fontSize: '0.8125rem', color: 'var(--error-text)' }}>{webhookError}</span>}
                 </div>
               </div>
             </div>
@@ -3991,14 +3858,14 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         {/* TAB: CONFIGURACIÓN */}
         {tab === 'configuracion' && (
           <div>
-            <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Configuración del Centro</h1>
+            <h1 style={{ fontSize: '1.75rem', color: 'var(--primary)', marginBottom: '2rem' }}>Configuración</h1>
 
             <div className="table-container" style={{ padding: '2.5rem', maxWidth: '800px', margin: '0 auto' }}>
-              <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Perfil y Detalles Legales</h3>
+              <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Datos de tu academia</h3>
               
               {confSaveSuccess && (
                 <div className="alert-box alert-info" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
-                  Cambios del perfil del centro guardados correctamente.
+                  Cambios guardados.
                 </div>
               )}
 
@@ -4022,11 +3889,11 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   setConfSaveSuccess(true);
                   setTimeout(() => setConfSaveSuccess(false), 3000);
                 } catch (err) {
-                  setConfError('Error de red. Inténtelo de nuevo.');
+                  setConfError('No se ha podido conectar. Vuelve a intentarlo.');
                 }
               }}>
                 <div className="form-group">
-                  <label className="form-label">Nombre Comercial del Centro</label>
+                  <label className="form-label">Nombre de la academia</label>
                   <input 
                     type="text" 
                     className="form-control" 
@@ -4038,51 +3905,47 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">CIF / NIF Legal</label>
+                    <label className="form-label">CIF o NIF</label>
                     <input 
                       type="text" 
                       className="form-control" 
                       value={confCif}
                       onChange={(e) => setConfCif(e.target.value)}
-                      required
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Teléfono de Atención</label>
+                    <label className="form-label">Teléfono</label>
                     <input 
                       type="tel" 
                       className="form-control" 
                       value={confTelefono}
                       onChange={(e) => setConfTelefono(e.target.value)}
-                      required
                     />
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Dirección Física del Centro</label>
+                  <label className="form-label">Dirección</label>
                   <input 
                     type="text" 
                     className="form-control" 
                     value={confDireccion}
                     onChange={(e) => setConfDireccion(e.target.value)}
-                    required
                   />
                 </div>
 
                 <div className="form-row" style={{ marginBottom: '1.5rem' }}>
                   <div className="form-group">
-                    <label className="form-label">Sitio Web Oficial</label>
+                    <label className="form-label">Web</label>
                     <input 
                       type="url" 
                       className="form-control" 
                       value={confWeb}
                       onChange={(e) => setConfWeb(e.target.value)}
-                      required
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Email de Contacto</label>
+                    <label className="form-label">Correo de acceso</label>
                     <input 
                       type="email" 
                       className="form-control" 
@@ -4106,7 +3969,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3 className="modal-title">{selectedCurso ? 'Editar Curso' : 'Publicar Nuevo Curso'}</h3>
+              <h3 className="modal-title">{selectedCurso ? 'Editar curso' : 'Publicar curso'}</h3>
               <button onClick={() => setShowCursoModal(false)} className="btn-close-modal">
                 <X size={20} />
               </button>
@@ -4124,7 +3987,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   <input 
                     type="text" 
                     className="form-control" 
-                    placeholder="Ej: Curso Superior de Programación"
+                    placeholder="Ej: IFCD0210 - Desarrollo de aplicaciones web"
                     value={formTitulo}
                     onChange={(e) => setFormTitulo(e.target.value)}
                   />
@@ -4154,7 +4017,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Localidad / Zona *</label>
+                    <label className="form-label">Localidad *</label>
                     <input 
                       type="text" 
                       className="form-control" 
@@ -4177,7 +4040,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Plazas ofertadas *</label>
+                    <label className="form-label">Plazas *</label>
                     <input 
                       type="number" 
                       className="form-control" 
@@ -4204,7 +4067,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     <input 
                       type="text" 
                       className="form-control" 
-                      placeholder="Ej: Inmediata, Septiembre..."
+                      placeholder="Ej: 15 de enero de 2027 o Inmediata"
                       value={formFechaInicio}
                       onChange={(e) => setFormFechaInicio(e.target.value)}
                     />
@@ -4224,7 +4087,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                   <textarea 
                     className="form-control" 
                     rows={4} 
-                    placeholder="Contenido, requisitos, titulación..."
+                    placeholder="Qué se aprende, requisitos y titulación"
                     value={formDescripcion}
                     onChange={(e) => setFormDescripcion(e.target.value)}
                   ></textarea>
@@ -4232,7 +4095,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowCursoModal(false)} className="btn btn-secondary">Cancelar</button>
-                <button type="submit" className="btn btn-primary">Guardar y publicar</button>
+                <button type="submit" className="btn btn-primary">Guardar</button>
               </div>
             </form>
           </div>
@@ -4244,7 +4107,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '650px' }}>
             <div className="modal-header">
-              <h3 className="modal-title">Ficha del Alumno</h3>
+              <h3 className="modal-title">Solicitud</h3>
               <button onClick={() => setShowLeadModal(false)} className="btn-close-modal">
                 <X size={20} />
               </button>
@@ -4298,25 +4161,25 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
               {/* Agregar Nota */}
               <form onSubmit={handleAddNote} style={{ marginBottom: '2rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Registrar acción o nota de contacto</label>
+                  <label className="form-label">Añadir una nota</label>
                   <textarea 
                     className="form-control" 
                     rows={2} 
-                    placeholder="Ej: Llamado hoy. No responde, reintentar mañana..."
+                    placeholder="Ej: Llamado hoy. No responde, volver a llamar mañana."
                     value={newNoteText}
                     onChange={(e) => setNewNoteText(e.target.value)}
                   ></textarea>
                 </div>
-                <button type="submit" className="btn btn-primary btn-sm" style={{ float: 'right' }}>Guardar nota y gestionar</button>
+                <button type="submit" className="btn btn-primary btn-sm" style={{ float: 'right' }}>Guardar nota</button>
                 <div style={{ clear: 'both' }}></div>
               </form>
 
               {/* Historial */}
               <div className="contact-history">
-                <h4 className="contact-history-title">Historial de gestiones</h4>
+                <h4 className="contact-history-title">Notas</h4>
                 <div className="notes-timeline">
                   {leadNotes.length === 0 ? (
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '1rem 0', textAlign: 'center' }}>No hay anotaciones previas para este alumno.</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '1rem 0', textAlign: 'center' }}>Todavía no hay notas.</div>
                   ) : (
                     leadNotes.map((note) => (
                       <div key={note.id} className="note-item">
@@ -4343,7 +4206,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '550px' }}>
             <div className="modal-header">
-              <h3 className="modal-title">{selectedTemplate ? 'Editar Plantilla' : 'Nueva Plantilla de Contacto'}</h3>
+              <h3 className="modal-title">{selectedTemplate ? 'Editar plantilla' : 'Nueva plantilla'}</h3>
               <button onClick={() => setShowTemplateModal(false)} className="btn-close-modal">
                 <X size={20} />
               </button>
@@ -4357,7 +4220,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 )}
 
                 <div className="form-group">
-                  <label className="form-label">Título de la plantilla *</label>
+                  <label className="form-label">Título *</label>
                   <input 
                     type="text" 
                     className="form-control" 
@@ -4368,7 +4231,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Canal de comunicación *</label>
+                  <label className="form-label">Canal *</label>
                   <select 
                     className="form-control" 
                     value={formTemplateCanal} 
@@ -4380,11 +4243,11 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Contenido del mensaje *</label>
+                  <label className="form-label">Mensaje *</label>
                   <textarea 
                     className="form-control" 
                     rows={6} 
-                    placeholder="Escriba aquí el mensaje. Puede usar variables como [Nombre], [Curso], [Centro], [Fecha]..."
+                    placeholder="Puedes usar [Nombre], [Curso], [Centro] y [Fecha]"
                     value={formTemplateContenido}
                     onChange={(e) => setFormTemplateContenido(e.target.value)}
                   ></textarea>

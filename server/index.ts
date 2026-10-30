@@ -228,7 +228,7 @@ const soloPropietario = requireRol('propietario');
 // Si se acabó la prueba y no paga, solo puede entrar a "Plan y facturas"
 function requiereAcceso(req: any, res: any, next: any) {
   if (!req.centro?.acceso) {
-    return res.status(402).json({ error: 'Su periodo de prueba ha terminado. Active su suscripción para seguir usando Cursenda.', codigo: 'sin_suscripcion' });
+    return res.status(402).json({ error: 'Tu mes de prueba ha terminado. Contrata un plan para seguir usando Cursenda.', codigo: 'sin_suscripcion' });
   }
   next();
 }
@@ -587,7 +587,7 @@ app.get('/api/cursos', authenticateToken, requiereAcceso, async (req: any, res) 
 // Crear curso
 // El plan Starter permite 5 cursos activos a la vez. Pausar siempre se puede.
 const LIMITE_CURSOS_STARTER = 5;
-const AVISO_LIMITE_CURSOS = `El plan Starter permite ${LIMITE_CURSOS_STARTER} cursos activos a la vez. Pause uno o cambie al plan Pro.`;
+const AVISO_LIMITE_CURSOS = `El plan Starter permite ${LIMITE_CURSOS_STARTER} cursos activos a la vez. Pausa uno o cambia al plan Pro.`;
 
 async function superaLimiteCursos(db: any, centro: any) {
   if (centro.plan !== 'starter' || centro.rol === 'admin') return false;
@@ -606,7 +606,7 @@ app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (r
     const locLower = (localidad || '').trim().toLowerCase();
     const invalidTerms = ['online', 'remoto', 'virtual', 'internet', 'no presencial', 'distancia', 'remota', 'pantalla', 'cualquiera'];
     if (invalidTerms.some(term => locLower.includes(term)) || locLower === '') {
-      return res.status(400).json({ error: 'Para cursos presenciales o mixtos, debe indicar una localidad o dirección física real (no se permite "Online", "Remoto" o similar).' });
+      return res.status(400).json({ error: 'Para cursos presenciales o mixtos, pon una localidad real, no "Online" ni "Remoto".' });
     }
   }
 
@@ -660,7 +660,7 @@ app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async
       const locLower = (finalLocalidad || '').trim().toLowerCase();
       const invalidTerms = ['online', 'remoto', 'virtual', 'internet', 'no presencial', 'distancia', 'remota', 'pantalla', 'cualquiera'];
       if (invalidTerms.some(term => locLower.includes(term)) || locLower === '') {
-        return res.status(400).json({ error: 'Para cursos presenciales o mixtos, debe indicar una localidad o dirección física real (no se permite "Online", "Remoto" o similar).' });
+        return res.status(400).json({ error: 'Para cursos presenciales o mixtos, pon una localidad real, no "Online" ni "Remoto".' });
       }
     }
 
@@ -777,7 +777,7 @@ app.get('/api/solicitudes', authenticateToken, requiereAcceso, async (req: any, 
   try {
     const db = await getDatabase();
     const list = await db.all(`
-      SELECT solicitudes.*, cursos.titulo as curso_titulo 
+      SELECT solicitudes.*, cursos.titulo as curso_titulo, cursos.fecha_inicio as curso_fecha 
       FROM solicitudes 
       JOIN cursos ON solicitudes.curso_id = cursos.id 
       WHERE cursos.centro_id = ? 
@@ -1057,10 +1057,10 @@ app.post('/api/pagos/checkout', authenticateToken, soloPropietario, async (req: 
     return res.status(400).json({ error: 'Plan no válido' });
   }
   if (!pagosConfigurados()) {
-    return res.status(503).json({ error: 'Los pagos todavía no están activados. Escríbanos para contratar.' });
+    return res.status(503).json({ error: 'El pago con tarjeta todavía no está activo. Escríbenos para contratar.' });
   }
   if (req.centro.tiene_suscripcion) {
-    return res.status(400).json({ error: 'Ya tiene una suscripción. Use "Gestionar pago" para cambiar de plan.' });
+    return res.status(400).json({ error: 'Ya tienes una suscripción. Usa "Gestionar pago" para cambiar de plan.' });
   }
   try {
     res.json({ url: await crearCheckout(req.centro.id, plan, baseUrl(req)) });
@@ -1099,9 +1099,8 @@ app.get('/api/facturas', authenticateToken, soloPropietario, async (req: any, re
 app.get('/api/centro/api-settings', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   try {
     const db = await getDatabase();
-    const row = await db.get('SELECT api_token, webhook_url FROM centros WHERE id = ?', [req.centro.id]);
+    const row = await db.get('SELECT webhook_url FROM centros WHERE id = ?', [req.centro.id]);
     res.json({
-      api_token: row?.api_token || '',
       webhook_url: row?.webhook_url || ''
     });
   } catch (err) {
@@ -1110,22 +1109,10 @@ app.get('/api/centro/api-settings', authenticateToken, soloPropietario, requiere
 });
 
 // Regenerar clave API
-app.post('/api/centro/api-settings/regenerate', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
-  const nuevoToken = 'cursenda_live_' + crypto.randomBytes(16).toString('hex');
-  try {
-    const db = await getDatabase();
-    await db.run('UPDATE centros SET api_token = ? WHERE id = ?', [nuevoToken, req.centro.id]);
-    res.json({ success: true, api_token: nuevoToken });
-  } catch (err) {
-    res.status(500).json({ error: 'Error al regenerar el token de API' });
-  }
-});
-
-// Guardar webhook
 app.post('/api/centro/api-settings/webhook', authenticateToken, soloPropietario, requiereAcceso, async (req: any, res) => {
   const { webhook_url } = req.body;
   if (webhook_url && !(await isSafeWebhookUrl(webhook_url))) {
-    return res.status(400).json({ error: 'La URL del webhook debe ser HTTPS y apuntar a un servidor público' });
+    return res.status(400).json({ error: 'La dirección debe empezar por https:// y ser de un servidor público.' });
   }
   try {
     const db = await getDatabase();
@@ -1260,7 +1247,7 @@ app.post('/api/equipo/:id/enlace-recuperacion', authenticateToken, soloPropietar
 const PLANTILLAS_INICIALES = [
   { titulo: 'Primer contacto (WhatsApp)', tipo: 'whatsapp', texto: 'Hola [Nombre], te escribimos de [Centro] por tu solicitud de plaza gratuita en el curso "[Curso]". ¿Te viene bien una llamada breve hoy para confirmar tus datos?' },
   { titulo: 'Requisitos SEPE (Email)', tipo: 'email', texto: 'Estimado/a [Nombre],\n\nPara tramitar su matrícula gratuita en el curso "[Curso]", necesitamos que nos facilite una copia de su DNI y su documento de demanda de empleo (DARDE) o su última nómina.\n\nUn saludo,\n[Centro]' },
-  { titulo: 'Convocatoria de inicio (WhatsApp)', tipo: 'whatsapp', texto: '¡Buenas noticias [Nombre]! Tu plaza para el curso "[Curso]" ha sido confirmada. Empezamos el próximo [Fecha] a las 09:00. Por favor, confirma tu asistencia respondiendo a este mensaje.' }
+  { titulo: 'Convocatoria de inicio (WhatsApp)', tipo: 'whatsapp', texto: '¡Buenas noticias [Nombre]! Tu plaza para el curso "[Curso]" está confirmada. Empezamos el [Fecha]. Por favor, confirma que vienes respondiendo a este mensaje.' }
 ];
 
 app.get('/api/plantillas', authenticateToken, requiereAcceso, async (req: any, res) => {

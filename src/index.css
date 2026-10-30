@@ -2958,3 +2958,22 @@ tr:last-child td {
   .pub-aca-final { gap: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .pub-aca-panel { animation: none; } }
+
+/* --- PANEL DE LAS ACADEMIAS --- */
+.dashboard-layout, .modal-content { font-family: 'Schibsted Grotesk', system-ui, sans-serif; }
+.dashboard-layout h1, .dashboard-layout h2, .dashboard-layout h3, .dashboard-layout h4, .dashboard-layout h5, .modal-content h3, .modal-content h4 { font-family: inherit; font-weight: 600; }
+.dashboard-content { background: var(--white); }
+.metric-card, .metric-card:hover, .table-container, .activity-card { box-shadow: none; transform: none; border-radius: 4px; border: 1px solid #D5DED9; }
+.metric-label { text-transform: none; letter-spacing: 0; font-size: .9375rem; font-weight: 500; }
+.metric-value { font-weight: 600; }
+.metric-card.metric-highlight { background: #EEF2F0; }
+.table-container th, th { text-transform: none; letter-spacing: 0; font-size: .875rem; font-weight: 600; }
+.form-label { text-transform: none; letter-spacing: 0; }
+.dashboard-layout .btn, .modal-content .btn { border-radius: 4px; box-shadow: none; transform: none; }
+.alert-box { border-radius: 4px; }
+.grafica-meses { display: flex; justify-content: space-between; gap: 8px; height: 200px; }
+.grafica-meses > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; min-width: 0; height: 100%; }
+.grafica-barra { width: 28px; max-height: calc(100% - 52px); min-height: 2px; background: var(--primary); border-radius: 3px 3px 0 0; }
+.grafica-valor { font-size: .875rem; font-weight: 600; }
+.grafica-mes { font-size: .8125rem; color: var(--text-muted); }
+.dashboard-content { min-height: 100vh; }
