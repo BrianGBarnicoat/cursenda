@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
-import { getDatabase, verifyPassword, hashPassword } from './db.js';
+import { getDatabase, verifyPassword, hashPassword, hashAntiguo } from './db.js';
 import { reiniciarDemo, programarReinicioDemo } from './demo.js';
 import { familiaDe, slugSector, NOMBRES_SECTORES } from './familias.js';
 import { avisoContrasena, avisoPeticionAcceso, avisoPrueba, avisoSolicitud } from './correo.js';
@@ -92,6 +92,37 @@ function loginRateLimit(req: any, res: any, next: any) {
   }
   next();
 }
+
+// Límite de envíos por IP para los formularios públicos
+function limitePorIp(max: number, ventanaMs: number, mensaje: string) {
+  const intentos = new Map<string, { count: number; resetAt: number }>();
+  setInterval(() => {
+    const ahora = Date.now();
+    for (const [ip, e] of intentos) if (e.resetAt < ahora) intentos.delete(ip);
+  }, ventanaMs).unref();
+  return (req: any, res: any, next: any) => {
+    const ahora = Date.now();
+    const clave = req.ip || 'unknown';
+    const e = intentos.get(clave);
+    if (!e || e.resetAt < ahora) {
+      intentos.set(clave, { count: 1, resetAt: ahora + ventanaMs });
+      return next();
+    }
+    if (++e.count > max) return res.status(429).json({ error: mensaje });
+    next();
+  };
+}
+const UNA_HORA = 60 * 60 * 1000;
+const limiteSolicitudes = limitePorIp(20, UNA_HORA, 'Has enviado demasiadas solicitudes. Inténtalo de nuevo dentro de un rato.');
+const limiteAcceso = limitePorIp(5, UNA_HORA, 'Has enviado demasiadas peticiones. Inténtalo de nuevo dentro de un rato.');
+
+const EMAIL_VALIDO = /^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/;
+const TELEFONO_VALIDO = /^[+\d\s().-]{6,30}$/;
+
+setInterval(() => {
+  const ahora = Date.now();
+  for (const [ip, e] of loginAttempts) if (e.resetAt < ahora) loginAttempts.delete(ip);
+}, LOGIN_WINDOW_MS).unref();
 
 // Dice si una IP es de una red interna
 function isPrivateAddress(ip: string): boolean {
@@ -242,6 +273,11 @@ function datosSesion(centro: any, usuario: any) {
 
 // --- Endpoints de Autenticación ---
 
+async function reforzarContrasena(db: any, tabla: 'centros' | 'miembros', cuenta: any, password: string) {
+  if (!hashAntiguo(cuenta.password_hash)) return;
+  await db.run(`UPDATE ${tabla} SET password_hash = ? WHERE id = ?`, [hashPassword(password, cuenta.salt), cuenta.id]);
+}
+
 app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   const { email, password } = req.body;
 
@@ -258,12 +294,21 @@ app.post('/api/auth/login', loginRateLimit, async (req, res) => {
 
     if (centro) {
       if (!verifyPassword(password, centro.salt, centro.password_hash)) return error();
+      await reforzarContrasena(db, 'centros', centro, password);
+      loginAttempts.delete(req.ip || 'unknown');
       setSessionCookie(res, { id: centro.id, tipo: 'centro' });
       return res.json(datosSesion(await cargarCentro(centro.id), { tipo: 'centro', id: centro.id, nombre: centro.nombre_contacto || centro.nombre, email: centro.email, rol: 'propietario' }));
     }
 
     const miembro = await db.get('SELECT * FROM miembros WHERE lower(email) = ? AND activo = 1 AND password_hash IS NOT NULL', [emailLimpio]);
-    if (!miembro || !verifyPassword(password, miembro.salt, miembro.password_hash)) return error();
+    if (!miembro) {
+      // Tarda lo mismo exista o no la cuenta
+      verifyPassword(password, 'sin-cuenta', 'v2$00');
+      return error();
+    }
+    if (!verifyPassword(password, miembro.salt, miembro.password_hash)) return error();
+    await reforzarContrasena(db, 'miembros', miembro, password);
+    loginAttempts.delete(req.ip || 'unknown');
 
     const centroMiembro = await cargarCentro(miembro.centro_id);
     setSessionCookie(res, { id: miembro.id, tipo: 'miembro' });
@@ -282,10 +327,18 @@ app.get('/api/auth/me', authenticateToken, (req: any, res) => {
   res.json(datosSesion(req.centro, req.usuario));
 });
 
+// Lo mismo, pero sin sesión contesta null: la web pública lo pregunta en cada visita
+app.get('/api/auth/sesion', (req: any, res, next) => {
+  if (!req.cookies.token) return res.json(null);
+  next();
+}, authenticateToken, (req: any, res) => {
+  res.json(datosSesion(req.centro, req.usuario));
+});
+
 // Pedir recuperar la contraseña: queda apuntado para el admin (todavía no hay envío de emails)
-app.post('/api/auth/recuperar', async (req, res) => {
+app.post('/api/auth/recuperar', limiteAcceso, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
-  if (!email || email.length > 200 || !email.includes('@')) {
+  if (email.length > 200 || !EMAIL_VALIDO.test(email)) {
     return res.status(400).json({ error: 'Indique un correo electrónico válido' });
   }
 
@@ -393,11 +446,11 @@ app.post('/api/auth/activar-miembro', async (req, res) => {
 });
 
 // Solicitud de demo desde la página para centros
-app.post('/api/public/demo', async (req, res) => {
+app.post('/api/public/demo', limiteAcceso, async (req, res) => {
   const { nombre_centro, nombre_contacto, email, telefono, rgpd } = req.body || {};
   const campos = [nombre_centro, nombre_contacto, email, telefono].map(v => String(v || '').trim());
 
-  if (campos.some(v => !v) || campos.some(v => v.length > 200) || !campos[2].includes('@')) {
+  if (campos.some(v => !v) || campos.some(v => v.length > 200) || !EMAIL_VALIDO.test(campos[2]) || !TELEFONO_VALIDO.test(campos[3])) {
     return res.status(400).json({ error: 'Por favor, rellene todos los campos obligatorios.' });
   }
   if (!rgpd) {
@@ -420,6 +473,9 @@ app.post('/api/auth/register-invitation', async (req, res) => {
 
   if (!token || !nombre || !password) {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  }
+  if (String(password).length < PASSWORD_MIN) {
+    return res.status(400).json({ error: `La contraseña debe tener al menos ${PASSWORD_MIN} caracteres` });
   }
 
   try {
@@ -589,7 +645,7 @@ app.post('/api/public/cursos/:id/visita', async (req, res) => {
 
   try {
     const db = await getDatabase();
-    await db.run('UPDATE cursos SET visitas = visitas + 1 WHERE id = ?', [id]);
+    await db.run("UPDATE cursos SET visitas = visitas + 1 WHERE id = ? AND estado = 'publicado'", [id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al registrar visita' });
@@ -635,6 +691,24 @@ const textoOpcional = (v: any) => String(v ?? '').trim().slice(0, 2000) || null;
 const LIMITE_CURSOS_STARTER = 5;
 const AVISO_LIMITE_CURSOS = `El plan Starter permite ${LIMITE_CURSOS_STARTER} cursos activos a la vez. Pausa uno o cambia al plan Pro.`;
 
+// Comprueba los datos de un curso ya completos: evita errores raros y cifras imposibles
+const MODALIDADES = ['Online', 'Presencial', 'Mixta'];
+const LARGOS_CURSO: Record<string, number> = { titulo: 200, localidad: 120, fecha_inicio: 60, dirigido_a: 120, descripcion: 5000 };
+
+function errorDeCurso(c: any): string | null {
+  const horas = Number(c.duracion_horas);
+  const plazas = Number(c.plazas);
+  const cubiertas = Number(c.plazas_cubiertas || 0);
+  if (!Number.isInteger(horas) || horas < 1 || horas > 10000) return 'Las horas tienen que ser un número entero mayor que 0.';
+  if (!Number.isInteger(plazas) || plazas < 1 || plazas > 10000) return 'Las plazas tienen que ser un número entero mayor que 0.';
+  if (!Number.isInteger(cubiertas) || cubiertas < 0 || cubiertas > plazas) return 'Las plazas cubiertas no pueden ser más que las plazas del curso.';
+  if (!MODALIDADES.includes(c.modalidad)) return 'La modalidad no es válida.';
+  for (const [campo, max] of Object.entries(LARGOS_CURSO)) {
+    if (String(c[campo] ?? '').length > max) return `El campo ${campo.replace('_', ' ')} es demasiado largo (máximo ${max} caracteres).`;
+  }
+  return null;
+}
+
 async function superaLimiteCursos(db: any, centro: any) {
   if (centro.plan !== 'starter' || centro.rol === 'admin') return false;
   const { total } = await db.get(`SELECT COUNT(*) as total FROM cursos WHERE centro_id = ? AND estado = 'publicado'`, [centro.id]);
@@ -647,6 +721,8 @@ app.post('/api/cursos', authenticateToken, puedeEditar, requiereAcceso, async (r
   if (!titulo || !categoria || !modalidad || !localidad || !duracion_horas || !plazas || !fecha_inicio || !dirigido_a || !descripcion) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
+  const errorCurso = errorDeCurso(req.body);
+  if (errorCurso) return res.status(400).json({ error: errorCurso });
 
   if (modalidad === 'Presencial' || modalidad === 'Mixta') {
     const locLower = (localidad || '').trim().toLowerCase();
@@ -702,6 +778,8 @@ app.put('/api/cursos/:id', authenticateToken, puedeEditar, requiereAcceso, async
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado o sin permisos' });
     }
+    const errorCurso = errorDeCurso({ ...curso, ...req.body });
+    if (errorCurso) return res.status(400).json({ error: errorCurso });
 
     const finalModalidad = modalidad !== undefined ? modalidad : curso.modalidad;
     const finalLocalidad = localidad !== undefined ? localidad : curso.localidad;
@@ -787,11 +865,23 @@ app.post('/api/cursos/:id/toggle-estado', authenticateToken, puedeEditar, requie
 // --- Endpoints de Solicitudes (Leads) ---
 
 // Registrar solicitud (Público - Alumno)
-app.post('/api/public/solicitudes', async (req, res) => {
-  const { curso_id, nombre, email, telefono, rgpd } = req.body;
+app.post('/api/public/solicitudes', limiteSolicitudes, async (req, res) => {
+  const { curso_id, rgpd } = req.body || {};
+  const nombre = String(req.body?.nombre ?? '').trim();
+  const email = String(req.body?.email ?? '').trim();
+  const telefono = String(req.body?.telefono ?? '').trim();
 
   if (!curso_id || !nombre || !email || !telefono) {
     return res.status(400).json({ error: 'Por favor, rellene todos los campos requeridos' });
+  }
+  if (!Number.isInteger(Number(curso_id)) || nombre.length > 120) {
+    return res.status(400).json({ error: 'Revisa los datos del formulario' });
+  }
+  if (email.length > 200 || !EMAIL_VALIDO.test(email)) {
+    return res.status(400).json({ error: 'El correo no es válido' });
+  }
+  if (!TELEFONO_VALIDO.test(telefono)) {
+    return res.status(400).json({ error: 'El teléfono no es válido' });
   }
 
   if (!rgpd) {
@@ -810,18 +900,30 @@ app.post('/api/public/solicitudes', async (req, res) => {
     if (!curso) {
       return res.status(404).json({ error: 'El curso no está disponible para solicitudes' });
     }
+    // Nadie va a llamar por un curso de ejemplo: no se recogen datos de gente real
+    if (curso.es_demo) {
+      return res.status(400).json({ error: 'Este curso es de ejemplo y no admite solicitudes.' });
+    }
+
+    // Si ya la pidió con ese correo, no se repite ni se avisa otra vez al centro
+    const repetida = await db.get('SELECT id FROM solicitudes WHERE curso_id = ? AND lower(email) = lower(?)', [curso_id, email]);
+    if (repetida) {
+      return res.status(201).json({ success: true, message: 'Solicitud enviada correctamente' });
+    }
 
     await db.run(`
       INSERT INTO solicitudes (curso_id, nombre, email, telefono, gestionado)
       VALUES (?, ?, ?, ?, 0)
     `, [curso_id, nombre, email, telefono]);
 
-    if (!curso.es_demo) avisoSolicitud({ id: curso.centro_id, email: curso.centro_email }, curso.titulo);
+    avisoSolicitud({ id: curso.centro_id, email: curso.centro_email }, curso.titulo);
 
     // Despachar Webhook si está configurado en el centro
     if (curso.webhook_url && await isSafeWebhookUrl(curso.webhook_url)) {
       fetch(curso.webhook_url, {
         method: 'POST',
+        redirect: 'error',
+        signal: AbortSignal.timeout(5000),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event: 'lead.created',
@@ -1014,7 +1116,7 @@ app.get('/api/solicitudes/export', authenticateToken, puedeEditar, requiereAcces
     
     list.forEach((sol: any) => {
       const gestionadoTexto = sol.gestionado ? 'Sí' : 'No';
-      const fecha = new Date(sol.fecha_creacion).toLocaleString('es-ES');
+      const fecha = new Date(String(sol.fecha_creacion).replace(' ', 'T') + 'Z').toLocaleString('es-ES', { timeZone: 'Europe/Madrid' });
       
       // Limpiar los datos para el CSV
       const nombre = csvSafe(sol.nombre);
@@ -1045,7 +1147,7 @@ app.get('/api/estadisticas', authenticateToken, requiereAcceso, async (req: any,
   try {
     const db = await getDatabase();
     
-    const countCursos = await db.get('SELECT COUNT(*) as count FROM cursos WHERE centro_id = ?', [req.centro.id]);
+    const countCursos = await db.get("SELECT COUNT(*) as count FROM cursos WHERE centro_id = ? AND estado = 'publicado'", [req.centro.id]);
     const visitasTotales = await db.get('SELECT SUM(visitas) as count FROM cursos WHERE centro_id = ?', [req.centro.id]);
     
     // Solicitudes totales del centro
@@ -1070,7 +1172,7 @@ app.get('/api/estadisticas', authenticateToken, requiereAcceso, async (req: any,
       SELECT COUNT(*) as count 
       FROM solicitudes 
       JOIN cursos ON solicitudes.curso_id = cursos.id 
-      WHERE cursos.centro_id = ? AND solicitudes.gestionado = 0
+      WHERE cursos.centro_id = ? AND solicitudes.gestionado = 0 AND solicitudes.archivada IS NOT 1
     `, [req.centro.id]);
 
     res.json({
@@ -1486,6 +1588,12 @@ app.put('/api/admin/centros/:id', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Centro no encontrado' });
     }
 
+    if (email && String(email).toLowerCase() !== String(centro.email).toLowerCase()) {
+      const ocupado = await db.get('SELECT id FROM centros WHERE lower(email) = lower(?)', [email])
+        || await db.get('SELECT id FROM miembros WHERE lower(email) = lower(?)', [email]);
+      if (ocupado) return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
+    }
+
     await db.run(`
       UPDATE centros
       SET nombre = ?, email = ?, plan = ?, fecha_renovacion = ?, nombre_contacto = ?, telefono = ?
@@ -1556,6 +1664,11 @@ app.put('/api/admin/cursos/:id', authenticateAdmin, async (req, res) => {
     const curso = await db.get('SELECT * FROM cursos WHERE id = ?', [id]);
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado' });
+    }
+    const errorCurso = errorDeCurso({ ...curso, ...req.body });
+    if (errorCurso) return res.status(400).json({ error: errorCurso });
+    if (estado === 'publicado' && curso.archivado) {
+      return res.status(400).json({ error: 'Recupera el curso del archivo antes de publicarlo.' });
     }
 
     await db.run(`
@@ -1964,7 +2077,10 @@ const META_PORTADA: Meta = {
 
 async function metaDe(ruta: string): Promise<Meta> {
   if (ruta === '/centros-de-formacion') {
-    return { titulo: 'Centros de formación | Cursenda', descripcion: 'Los centros de formación que publican sus cursos subvencionados en Cursenda.', ruta };
+    const db = await getDatabase();
+    const alguno = await db.get(`SELECT centros.id FROM centros JOIN cursos ON cursos.centro_id = centros.id AND cursos.estado = 'publicado'
+      WHERE centros.es_demo IS NOT 1 AND (centros.rol IS NULL OR centros.rol != 'admin') AND ${VISIBLE_SQL} LIMIT 1`);
+    return { titulo: 'Centros de formación | Cursenda', descripcion: 'Los centros de formación que publican sus cursos subvencionados en Cursenda.', ruta, noindex: !alguno };
   }
 
   const academia = ruta.match(/^\/centro-de-formacion\/(\d+)$/);
@@ -2099,12 +2215,30 @@ app.use(async (req, res, next) => {
   if (req.path.startsWith('/api/') || (req.method !== 'GET' && req.method !== 'HEAD')) {
     return next();
   }
+  // /cursos/ y /cursos son la misma página
+  if (/^\/[^/].*\/$/.test(req.path) && !req.path.includes('//')) {
+    const consulta = req.originalUrl.slice(req.path.length);
+    return res.redirect(301, req.path.replace(/\/$/, '') + consulta);
+  }
   try {
     const meta = await metaDe(req.path);
     res.status(meta.estado || 200).type('html').send(paginaHtml(meta));
   } catch (err) {
     res.sendFile(path.join(distPath, 'index.html'));
   }
+});
+
+// Cualquier otro error de la API contesta en JSON, nunca con una página suelta
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'No encontrado' });
+});
+
+app.use((err: any, req: any, res: any, next: any) => {
+  if (res.headersSent) return next(err);
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'El archivo o el texto es demasiado grande.' });
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Los datos enviados no son válidos.' });
+  console.error('Error sin controlar:', err.message);
+  res.status(500).json({ error: 'Error interno del servidor' });
 });
 
 // La cuenta demo se reinicia cada noche

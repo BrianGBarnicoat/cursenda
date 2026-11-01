@@ -3269,3 +3269,20 @@ tr:last-child td {
 .logo-light .logo-marca { color: var(--white); }
 .sidebar .logo-marca { color: var(--white); height: 28px; }
 .pub-pie .logo-marca { height: 24px; }
+
+/* Revisión: tabla que se cortaba en el móvil, cabecera en una línea y enlaces del pie más fáciles de pulsar */
+.pub-info-tabla { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 700px) {
+  .pub-pie-columnas > div { gap: 2px; }
+  .pub .pub-pie-columnas a { padding: 7px 0; }
+}
+@media (max-width: 420px) {
+  .pub-cabecera-principal { gap: 8px; }
+  .pub-cabecera-principal .logo-marca { height: 19px; width: auto; }
+  .pub-explorar-boton { padding: 7px 8px; font-size: 15px; }
+  .pub-cabecera-principal .pub-boton-borde { padding: 7px 9px; font-size: 15px; }
+}
+@media (max-width: 340px) {
+  .pub-cabecera-principal { gap: 6px; }
+  .pub-cabecera-principal .logo-marca { height: 16px; }
+}

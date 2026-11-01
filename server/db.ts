@@ -7,10 +7,14 @@ import { insertarDatosDemo } from './demo.js';
 
 let dbInstance: Database | null = null;
 
+// Las contraseñas nuevas llevan delante "v2$". Las de antes (1000 vueltas) se cambian solas al entrar.
+const VUELTAS = 210000;
+
 export function hashPassword(password: string, salt: string): string {
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512');
-  return hash.toString('hex');
+  return 'v2$' + crypto.pbkdf2Sync(String(password), salt, VUELTAS, 64, 'sha512').toString('hex');
 }
+
+export const hashAntiguo = (hash: string) => !String(hash).startsWith('v2$');
 
 export async function getDatabase(): Promise<Database> {
   if (dbInstance) {
@@ -264,7 +268,8 @@ export async function getDatabase(): Promise<Database> {
 }
 
 export function verifyPassword(password: string, salt: string, hash: string): boolean {
-  const testHash = Buffer.from(hashPassword(password, salt), 'hex');
-  const storedHash = Buffer.from(hash, 'hex');
+  const antiguo = hashAntiguo(hash);
+  const testHash = crypto.pbkdf2Sync(String(password), salt, antiguo ? 1000 : VUELTAS, 64, 'sha512');
+  const storedHash = Buffer.from(antiguo ? hash : hash.slice(3), 'hex');
   return testHash.length === storedHash.length && crypto.timingSafeEqual(testHash, storedHash);
 }

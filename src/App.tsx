@@ -653,7 +653,7 @@ function AcademiasPublicas() {
       <CabeceraPublica />
       <div className="pub-arriba"><div className="pub-ancho pub-lista-cabeza"><h1>Centros en Cursenda</h1><p className="pub-info-entrada">Los centros que publican aquí sus cursos.</p></div></div>
       <main className="pub-ancho pub-bloque">
-        {listo && academias.length === 0 && <p className="pub-aviso">Todavía no hay academias publicando cursos. <Link to="/centros">¿Tienes una?</Link></p>}
+        {listo && academias.length === 0 && <p className="pub-aviso">Todavía no hay centros publicando cursos. <Link to="/centros">Publicar mis cursos</Link></p>}
         <div className="pub-academias-lista">
           {academias.map(a => (
             <Link key={a.id} to={`/centro-de-formacion/${a.id}`}>
@@ -856,7 +856,7 @@ function AlumnosLista() {
 function AlumnosDetalle() {
   const { id } = useParams();
   const [curso, setCurso] = useState<any>(null);
-  useTitulo(curso ? `${tituloSinCodigo(curso.titulo)} | Cursenda` : null);
+  useTitulo(curso ? `${tituloSinCodigo(curso.titulo)}: curso gratis ${curso.modalidad === 'Online' ? 'online' : `en ${curso.localidad}`} | Cursenda` : null);
   const [loading, setLoading] = useState(true);
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
@@ -943,7 +943,7 @@ function AlumnosDetalle() {
           <div><dt>Para</dt><dd>{dirigidoA[curso.dirigido_a] || curso.dirigido_a}</dd></div>
         </dl>
 
-        {!submitSuccess && libres > 0 && (
+        {!submitSuccess && libres > 0 && !curso.es_demo && (
           <div className="pub-barra-movil"><span>{textoPlazas(curso)}</span><a href="#pedir" className="pub-boton pub-boton-pedir">Pedir plaza</a></div>
         )}
         <div className="pub-detalle">
@@ -996,6 +996,12 @@ function AlumnosDetalle() {
                 <h2>Solicitud enviada</h2>
                 <p>{curso.centro_nombre} ya tiene tus datos y te llamará al {telefono}.</p>
                 <p><Link to="/cursos">Ver más cursos</Link></p>
+              </div>
+            ) : curso.es_demo ? (
+              <div>
+                <h2>Curso de ejemplo</h2>
+                <p>Este curso no es real y no admite solicitudes.</p>
+                <p><Link to="/cursos">Ver todos los cursos</Link></p>
               </div>
             ) : libres === 0 ? (
               <div>
@@ -3562,7 +3568,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                           <div className="admin-dato">{s.email}</div>
                         </td>
                         <td style={{ color: 'var(--primary)' }}>{s.curso_titulo}</td>
-                        <td>{new Date(s.fecha_creacion).toLocaleDateString('es-ES')}</td>
+                        <td>{parseFecha(s.fecha_creacion).toLocaleDateString('es-ES')}</td>
                         <td>
                           {(() => {
                             const status = s.estado_detalle || (s.gestionado ? 'Llamado' : 'Nuevo');
@@ -4505,10 +4511,10 @@ function App() {
   // Comprobar si hay sesión iniciada al cargar
   const checkSession = async () => {
     try {
-      const res = await fetch(`${API_BASE}/auth/me`);
+      const res = await fetch(`${API_BASE}/auth/sesion`);
       if (res.ok) {
         const data = await res.json();
-        setCurrentUser(data);
+        if (data) setCurrentUser(data);
       }
     } catch (err) {
       console.error(err);
