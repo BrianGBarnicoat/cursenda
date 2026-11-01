@@ -290,7 +290,7 @@ app.post('/api/auth/login', loginRateLimit, async (req, res) => {
     return res.status(400).json({ error: 'Email y contraseña obligatorios' });
   }
 
-  const error = () => res.status(401).json({ error: 'Las credenciales introducidas no son correctas' });
+  const error = () => res.status(401).json({ error: 'El correo o la contraseña no son correctos' });
 
   try {
     const db = await getDatabase();

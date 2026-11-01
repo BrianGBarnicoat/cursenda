@@ -516,6 +516,20 @@ function useAcademias() {
   return { academias, listo };
 }
 
+// La sección del panel va en la dirección: así se conserva al recargar y funciona el botón de atrás
+function useSeccion<T extends string>(validas: readonly T[], inicial: T) {
+  const [params, setParams] = useSearchParams();
+  const pedida = params.get('seccion') as T;
+  const seccion = validas.includes(pedida) ? pedida : inicial;
+  const cambiar = (destino: T, sustituir = false) => {
+    const nuevos = new URLSearchParams(params);
+    nuevos.set('seccion', destino);
+    nuevos.delete('pago');
+    setParams(nuevos, { replace: sustituir || destino === seccion });
+  };
+  return [seccion, cambiar] as const;
+}
+
 // En el móvil el menú del panel se abre con este botón para no ocupar media pantalla
 function BotonMenuPanel({ abierto, aviso, onClick }: { abierto: boolean; aviso?: number; onClick: () => void }) {
   return (
@@ -718,21 +732,29 @@ const OPCIONES_SITUACION = [
 
 function AlumnosLista() {
     const { cursos, estado } = useCursosPublicos();
-  const [params] = useSearchParams();
-  const [modalidades, setModalidades] = useState<string[]>([]);
-  const [situaciones, setSituaciones] = useState<string[]>(() => {
-    const inicial = new URLSearchParams(window.location.search).get('situacion');
-    return OPCIONES_SITUACION.some(o => o.valor === inicial) ? [inicial as string] : [];
-  });
-  const [duracion, setDuracion] = useState('');
-  const [zona, setZona] = useState('');
+  // Los filtros van en la dirección: así siguen ahí al volver de un curso y se pueden compartir
+  const [params, setParams] = useSearchParams();
+  const ponerFiltro = (clave: string, valor: string) => {
+    const nuevos = new URLSearchParams(params);
+    if (valor) nuevos.set(clave, valor); else nuevos.delete(clave);
+    setParams(nuevos, { replace: true });
+  };
+  const modalidades = (params.get('modalidad') || '').split(',').filter(Boolean);
+  const setModalidades = (lista: string[]) => ponerFiltro('modalidad', lista.join(','));
+  const situaciones = (params.get('situacion') || '').split(',').filter(v => OPCIONES_SITUACION.some(o => o.valor === v));
+  const setSituaciones = (lista: string[]) => ponerFiltro('situacion', lista.join(','));
+  const duracion = ['corto', 'medio', 'largo'].find(v => v === params.get('duracion')) || '';
+  const setDuracion = (valor: string) => ponerFiltro('duracion', valor);
+  const zona = params.get('zona') || '';
+  const setZona = (valor: string) => ponerFiltro('zona', valor);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const navigate = useNavigate();
   const { sector } = useParams();
   const busqueda = params.get('q') || '';
   // Compatibilidad con los enlaces antiguos con ?categoria=
   const categoria = NOMBRES_FAMILIAS.find(f => slugSector(f) === sector) || params.get('categoria') || '';
-  useTitulo(categoria ? `Cursos gratis de ${categoria.toLowerCase()} | Cursenda` : 'Cursos gratis | Cursenda');
+  const sectorExiste = !sector || NOMBRES_FAMILIAS.some(f => slugSector(f) === sector);
+  useTitulo(!sectorExiste ? 'Página no encontrada | Cursenda' : categoria ? `Cursos gratis de ${categoria.toLowerCase()} | Cursenda` : 'Cursos gratis | Cursenda');
 
   const cambiarSector = (valor: string) => {
     const nuevos = new URLSearchParams(params);
@@ -773,7 +795,10 @@ function AlumnosLista() {
   });
 
   const hayFiltros = !!(texto || categoria || modalidades.length || situaciones.length || duracion || zona);
-  const quitarFiltros = () => { navigate('/cursos', { replace: true }); setModalidades([]); setSituaciones([]); setDuracion(''); setZona(''); };
+  const quitarFiltros = () => navigate('/cursos', { replace: true });
+
+  // Un sector que no existe no es una lista de cursos
+  if (!sectorExiste) return <NoEncontrada />;
 
   return (
     <div className="pub">
@@ -1865,6 +1890,8 @@ function EnlaceModal({ titulo, texto, enlace, onClose }: { titulo: string; texto
   );
 }
 
+const SECCIONES_ADMIN = ['inicio', 'academias', 'cursos', 'solicitudes', 'demos', 'recuperaciones', 'ajustes'] as const;
+
 function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const { ajustes, setAjustes } = useAjustes();
   const cargarPrecios = usePrecios();
@@ -1872,7 +1899,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const [formAjustes, setFormAjustes] = useState<Ajustes>(ajustes);
   const [ajustesEstado, setAjustesEstado] = useState('');
   useEffect(() => { setFormAjustes(ajustes); }, [ajustes]);
-  const [tab, setTab] = useState<'inicio' | 'academias' | 'cursos' | 'solicitudes' | 'demos' | 'recuperaciones' | 'ajustes'>('inicio');
+  const [tab, setTab] = useSeccion(SECCIONES_ADMIN, 'inicio');
   const [academias, setAcademias] = useState<any[]>([]);
   const [demos, setDemos] = useState<any[]>([]);
   const [recuperaciones, setRecuperaciones] = useState<any[]>([]);
@@ -2644,16 +2671,18 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 }
 
 function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void }) {
+  if (user?.rol === 'admin') return <DashboardAdmin user={user} onLogout={onLogout} />;
+  return <DashboardCentro user={user} onLogout={onLogout} />;
+}
+
+const SECCIONES_CENTRO = ['cursos', 'solicitudes', 'stats', 'plan', 'plantillas', 'personal', 'integraciones', 'configuracion'] as const;
+
+function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }) {
   const { ajustes } = useAjustes();
   usePrecios();
-  if (user?.rol === 'admin') {
-    return <DashboardAdmin user={user} onLogout={onLogout} />;
-  }
-
-  const [tabElegida, setTab] = useState<'cursos' | 'solicitudes' | 'stats' | 'plan' | 'plantillas' | 'personal' | 'integraciones' | 'configuracion'>('cursos');
+  const [tabElegida, setTab] = useSeccion(SECCIONES_CENTRO, 'cursos');
   // Sin suscripción ni prueba, lo único que queda abierto es la pantalla de pago
   const bloqueado = !user?.acceso;
-  const tab: string = bloqueado ? (!user?.usuario?.rol || user.usuario.rol === 'propietario' ? 'plan' : 'ninguna') : tabElegida;
   const [cursos, setCursos] = useState<any[]>([]);
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -2681,6 +2710,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     : esPropietario
       ? ['cursos', 'solicitudes', 'plantillas', 'stats', 'plan', 'personal', 'integraciones', 'configuracion']
       : ['cursos', 'solicitudes', 'plantillas', 'stats'];
+  const tab: string = bloqueado ? (esPropietario ? 'plan' : 'ninguna') : tabsPermitidas.includes(tabElegida) ? tabElegida : 'cursos';
 
   // Plantillas de mensajes (guardadas en el servidor)
   const [templates, setTemplates] = useState<any[]>([]);
@@ -2887,7 +2917,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
       loadPagos();
     }
     // Sin prueba ni suscripción, directo a "Plan y facturas"
-    if (user && !user.acceso && esPropietario) setTab('plan');
+    if (user && !user.acceso && esPropietario) setTab('plan', true);
   }, [user]);
 
   // Manejar cursos
@@ -3219,14 +3249,18 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     }
   };
 
+  // El aviso sale arriba del formulario: hay que llevarlo a la vista
+  useEffect(() => {
+    if (formError) document.querySelector('.modal-content .alert-box')?.scrollIntoView({ block: 'center' });
+  }, [formError]);
+
   // Al volver de Stripe: avisar y esperar a que llegue la confirmación
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pago = params.get('pago');
     if (pago !== 'ok' && pago !== 'cancelado') return;
     setPagoAviso(pago);
-    setTab('plan');
-    window.history.replaceState({}, '', '/centros/dashboard');
+    setTab('plan', true);
     if (pago === 'ok') {
       let intentos = 0;
       const t = setInterval(() => {
@@ -3279,6 +3313,16 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
 
   // Contar solicitudes sin gestionar
   const countNuevas = solicitudes.filter(sol => !sol.gestionado && !sol.archivada).length;
+  const sinTildes = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const solicitudesVistas = solicitudes.filter(s => {
+    const buscado = sinTildes(solicitudSearch.trim());
+    const matchesSearch = [s.nombre, s.email, s.telefono, s.curso_titulo].some(v => sinTildes(v).includes(buscado));
+    if (solicitudStatusFilter === 'archivadas') return matchesSearch && s.archivada;
+    if (s.archivada) return false;
+    if (solicitudStatusFilter === 'nuevos') return matchesSearch && !s.gestionado;
+    if (solicitudStatusFilter === 'gestionados') return matchesSearch && s.gestionado;
+    return matchesSearch;
+  });
   const cursosArchivados = cursos.filter(c => c.archivado);
   const cursosVistos = cursos.filter(c => verCursosArchivados ? c.archivado : !c.archivado);
 
@@ -3567,18 +3611,8 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                     </tr>
                   </thead>
                   <tbody>
-                    {solicitudes
-                      .filter(s => {
-                        const matchesSearch = s.nombre.toLowerCase().includes(solicitudSearch.toLowerCase()) || 
-                                              s.email.toLowerCase().includes(solicitudSearch.toLowerCase()) || 
-                                              s.telefono.includes(solicitudSearch) ||
-                                              s.curso_titulo.toLowerCase().includes(solicitudSearch.toLowerCase());
-                        if (solicitudStatusFilter === 'archivadas') return matchesSearch && s.archivada;
-                        if (s.archivada) return false;
-                        if (solicitudStatusFilter === 'nuevos') return matchesSearch && !s.gestionado;
-                        if (solicitudStatusFilter === 'gestionados') return matchesSearch && s.gestionado;
-                        return matchesSearch;
-                      })
+                    {solicitudesVistas.length === 0 && <tr><td colSpan={6} className="admin-vacio">No hay solicitudes con esta búsqueda.</td></tr>}
+                    {solicitudesVistas
                       .map((s) => (
                       <tr key={s.id} style={!s.gestionado ? { backgroundColor: 'rgba(201, 150, 46, 0.03)' } : undefined}>
                         <td>

@@ -3350,3 +3350,11 @@ tr:last-child td {
 @media (max-width: 950px) {
   .sidebar.abierto .btn-logout { color: var(--white); }
 }
+
+/* Móvil: ventanas a pantalla completa y botones del panel fáciles de pulsar */
+@media (max-width: 700px) {
+  .modal-overlay { padding: 0; align-items: stretch; }
+  .modal-content { max-width: 100%; width: 100%; margin: 0; max-height: 100vh; max-height: 100dvh; height: 100vh; height: 100dvh; border: 0; }
+  .dashboard-content .btn, .modal-content .btn { min-height: 42px; }
+  .dashboard-content textarea[readonly] { min-height: 130px; }
+}
