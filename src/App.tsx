@@ -431,6 +431,10 @@ function MenuExplorar() {
             <Link to="/cursos?situacion=Desempleados" onClick={cerrar}>Estoy en paro</Link>
             <Link to="/cursos?situacion=Ocupados" onClick={cerrar}>Estoy trabajando</Link>
             <Link to="/cursos" onClick={cerrar}>Todos los cursos</Link>
+            <div className="pub-explorar-movil">
+              <Link to="/como-funciona" onClick={cerrar}>Cómo funciona</Link>
+              <Link to="/centros" onClick={cerrar}>Soy un centro</Link>
+            </div>
           </div>
         </div>
       )}
@@ -512,6 +516,16 @@ function useAcademias() {
   return { academias, listo };
 }
 
+// En el móvil el menú del panel se abre con este botón para no ocupar media pantalla
+function BotonMenuPanel({ abierto, aviso, onClick }: { abierto: boolean; aviso?: number; onClick: () => void }) {
+  return (
+    <button type="button" className="panel-menu-boton" aria-expanded={abierto} onClick={onClick}>
+      {abierto ? 'Cerrar menú' : 'Menú'}
+      {!abierto && !!aviso && <span className="nav-badge">{aviso}</span>}
+    </button>
+  );
+}
+
 function LogoAcademia({ academia, grande }: { academia: { nombre: string; logo?: string | null }; grande?: boolean }) {
   return academia.logo
     ? <img className={`pub-logo-academia ${grande ? 'grande' : ''}`} src={`/logos/${academia.logo}`} alt={`Logo de ${academia.nombre}`} />
@@ -586,7 +600,7 @@ function AlumnosHome() {
       </section>
 
       {masVistos.length > 0 && (
-        <section className="pub-ancho pub-bloque">
+        <section className="pub-ancho pub-bloque pub-mas-vistos">
           <div className="pub-bloque-cabeza"><h2>Los cursos más vistos</h2><Link to="/cursos">Ver todos</Link></div>
           <div className="pub-tarjetas">{masVistos.map(c => <TarjetaCurso key={c.id} curso={c} />)}</div>
         </section>
@@ -821,6 +835,7 @@ function AlumnosLista() {
                   ))}
                 </fieldset>
               )}
+              <button type="button" className="pub-boton pub-filtros-ver" onClick={() => { setFiltrosAbiertos(false); window.scrollTo(0, 0); }}>Ver {filtrados.length === 1 ? '1 curso' : `${filtrados.length} cursos`}</button>
             </div>
           </aside>
 
@@ -1987,8 +2002,8 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const handleLogout = async () => {
     try {
       await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
-      onLogout();
       navigate('/centros/login');
+      onLogout();
     } catch (err) {
       console.error(err);
     }
@@ -2256,7 +2271,8 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const cursosVistos = cursos.filter(c => !!c.archivado === verArchivados && contiene(busqueda, c.titulo, c.centro_nombre, c.localidad, c.categoria));
   const solicitudesVistas = solicitudes.filter(s => !!s.archivada === verArchivados && contiene(busqueda, s.nombre, s.email, s.telefono, s.curso_titulo, s.centro_nombre));
 
-  const irA = (destino: typeof tab) => { setTab(destino); setBusqueda(''); setVerArchivados(false); };
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const irA = (destino: typeof tab) => { setTab(destino); setBusqueda(''); setVerArchivados(false); setMenuAbierto(false); window.scrollTo(0, 0); };
   const estadoAcademia = (a: any) => {
     if (a.es_demo) return 'Cuenta demo';
     if (enPrueba(a)) {
@@ -2285,9 +2301,10 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
   return (
     <div className="dashboard-layout admin">
-      <aside className="sidebar">
+      <aside className={`sidebar ${menuAbierto ? 'abierto' : ''}`}>
         <div>
           <Logo light={true} />
+          <BotonMenuPanel abierto={menuAbierto} aviso={demosNuevas.length + recuperacionesPendientes.length} onClick={() => setMenuAbierto(!menuAbierto)} />
           <ul className="nav-menu">
             {MENU.map(m => (
               <li key={m.id} className={`nav-item ${tab === m.id ? 'active' : ''}`}>
@@ -2389,7 +2406,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                       {cursosVistos.map(c => (
                         <tr key={c.id}>
                           <td><strong>{c.titulo}</strong><div className="admin-dato">{c.centro_nombre}. {c.modalidad}, {c.localidad}.</div></td>
-                          <td>{Math.max(0, c.plazas - c.plazas_cubiertas)} de {c.plazas}</td>
+                          <td data-etiqueta="Plazas libres">{Math.max(0, c.plazas - c.plazas_cubiertas)} de {c.plazas}</td>
                           <td>{c.archivado ? 'Archivado' : c.estado === 'publicado' ? 'Publicado' : 'Pausado'}</td>
                           <td>
                             <div className="admin-acciones">
@@ -3222,6 +3239,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
     }
   }, []);
 
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const irAStripe = async (url: string, body?: any) => {
     setPagoError('');
     setPagoCargando(true);
@@ -3301,10 +3319,11 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
   return (
     <div className="dashboard-layout">
       {/* Sidebar fijo */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${menuAbierto ? 'abierto' : ''}`}>
         <div>
           <Logo />
-          <ul className="nav-menu">
+          <BotonMenuPanel abierto={menuAbierto} aviso={countNuevas} onClick={() => setMenuAbierto(!menuAbierto)} />
+          <ul className="nav-menu" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) { setMenuAbierto(false); window.scrollTo(0, 0); } }}>
             {tabsPermitidas.includes('cursos') && (
             <li className={`nav-item ${tab === 'cursos' ? 'active' : ''}`}>
               <button onClick={() => setTab('cursos')}>
@@ -3463,7 +3482,7 @@ function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void 
                             <div style={{ fontWeight: '600', color: 'var(--primary)' }}>{c.titulo}</div>
                             <div className="admin-dato">{c.localidad}. Empieza: {c.fecha_inicio}</div>
                           </td>
-                          <td><strong>{c.solicitudes_count || 0}</strong></td>
+                          <td data-etiqueta="Solicitudes"><strong>{c.solicitudes_count || 0}</strong></td>
                           <td>
                             <span className={`badge ${c.estado === 'publicado' ? 'badge-published' : 'badge-paused'}`}>
                               {c.archivado ? 'Archivado' : c.estado === 'publicado' ? 'Publicado' : 'Pausado'}
