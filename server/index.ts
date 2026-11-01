@@ -203,6 +203,10 @@ async function cargarCentro(id: number) {
   return db.get(`SELECT ${CAMPOS_CENTRO} FROM centros WHERE id = ?`, [id]);
 }
 
+// Al cambiar la contraseña dejan de valer las sesiones abiertas antes
+const sesionCaducada = (decoded: { iat?: number }, cuenta: { sesiones_desde?: number }) =>
+  (decoded.iat || 0) < (cuenta.sesiones_desde || 0);
+
 // Middleware de autenticación: deja en req.centro el centro y en req.usuario quién es
 async function authenticateToken(req: any, res: any, next: any) {
   const token = req.cookies.token;
@@ -212,22 +216,23 @@ async function authenticateToken(req: any, res: any, next: any) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; tipo?: 'centro' | 'miembro' };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; tipo?: 'centro' | 'miembro'; iat?: number };
     const db = await getDatabase();
 
     let centro: any;
     let usuario: any;
 
     if (decoded.tipo === 'miembro') {
-      const miembro = await db.get('SELECT id, centro_id, nombre, email, rol FROM miembros WHERE id = ? AND activo = 1 AND password_hash IS NOT NULL', [decoded.id]);
-      if (!miembro) {
+      const miembro = await db.get('SELECT id, centro_id, nombre, email, rol, sesiones_desde FROM miembros WHERE id = ? AND activo = 1 AND password_hash IS NOT NULL', [decoded.id]);
+      if (!miembro || sesionCaducada(decoded, miembro)) {
         res.clearCookie('token');
         return res.status(401).json({ error: 'Usuario no encontrado' });
       }
       centro = await cargarCentro(miembro.centro_id);
       usuario = { tipo: 'miembro', id: miembro.id, nombre: miembro.nombre, email: miembro.email, rol: miembro.rol };
     } else {
-      centro = await cargarCentro(decoded.id);
+      const fila = await db.get('SELECT sesiones_desde FROM centros WHERE id = ?', [decoded.id]);
+      centro = fila && !sesionCaducada(decoded, fila) ? await cargarCentro(decoded.id) : null;
       if (centro) {
         usuario = { tipo: 'centro', id: centro.id, nombre: centro.nombre_contacto || centro.nombre, email: centro.email, rol: 'propietario' };
       }
@@ -384,7 +389,7 @@ app.post('/api/auth/restablecer', async (req, res) => {
     const salt = crypto.randomBytes(16).toString('hex');
     const tabla = fila.tipo === 'miembro' ? 'miembros' : 'centros';
     await db.run('BEGIN TRANSACTION');
-    await db.run(`UPDATE ${tabla} SET password_hash = ?, salt = ? WHERE id = ?`, [hashPassword(password, salt), salt, fila.usuario_id]);
+    await db.run(`UPDATE ${tabla} SET password_hash = ?, salt = ?, sesiones_desde = ? WHERE id = ?`, [hashPassword(password, salt), salt, Math.floor(Date.now() / 1000), fila.usuario_id]);
     await db.run('UPDATE tokens_recuperacion SET usado = 1 WHERE tipo = ? AND usuario_id = ?', [fila.tipo, fila.usuario_id]);
     await db.run('COMMIT');
     res.json({ success: true });
@@ -1506,15 +1511,15 @@ async function authenticateAdmin(req: any, res: any, next: any) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; tipo?: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: number; tipo?: string; iat?: number };
     // Los miembros de un centro nunca son admin
     if (decoded.tipo === 'miembro') {
       return res.status(403).json({ error: 'Acceso denegado: se requieren permisos de administrador' });
     }
     const db = await getDatabase();
-    const admin = await db.get('SELECT id, nombre, email, rol FROM centros WHERE id = ? AND rol = "admin"', [decoded.id]);
+    const admin = await db.get('SELECT id, nombre, email, rol, sesiones_desde FROM centros WHERE id = ? AND rol = "admin"', [decoded.id]);
     
-    if (!admin) {
+    if (!admin || sesionCaducada(decoded, admin)) {
       return res.status(403).json({ error: 'Acceso denegado: se requieren permisos de administrador' });
     }
 

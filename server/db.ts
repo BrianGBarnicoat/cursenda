@@ -133,7 +133,8 @@ export async function getDatabase(): Promise<Database> {
     'ALTER TABLE cursos ADD COLUMN requisitos TEXT',
     'ALTER TABLE cursos ADD COLUMN salidas TEXT',
     'ALTER TABLE cursos ADD COLUMN horario TEXT',
-    'ALTER TABLE centros ADD COLUMN logo TEXT'
+    'ALTER TABLE centros ADD COLUMN logo TEXT',
+    'ALTER TABLE centros ADD COLUMN sesiones_desde INTEGER DEFAULT 0'
   ];
   for (const sql of columnasPago) {
     try {
@@ -206,6 +207,10 @@ export async function getDatabase(): Promise<Database> {
       texto TEXT NOT NULL
     );
   `);
+
+  try {
+    await db.run('ALTER TABLE miembros ADD COLUMN sesiones_desde INTEGER DEFAULT 0');
+  } catch (_) {}
 
   // Ver si la base de datos está vacía antes de crear el admin
   const totalCentros = await db.get('SELECT COUNT(*) as count FROM centros');
