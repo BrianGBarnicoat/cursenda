@@ -5,8 +5,6 @@ import path from 'path';
 import crypto from 'crypto';
 import { insertarDatosDemo } from './demo.js';
 
-let dbInstance: Database | null = null;
-
 // Las contraseñas nuevas llevan delante "v2$". Las de antes (1000 vueltas) se cambian solas al entrar.
 const VUELTAS = 210000;
 
@@ -16,20 +14,77 @@ export function hashPassword(password: string, salt: string): string {
 
 export const hashAntiguo = (hash: string) => !String(hash).startsWith('v2$');
 
-export async function getDatabase(): Promise<Database> {
-  if (dbInstance) {
-    return dbInstance;
-  }
-
-  const dbPath = process.env.CURSENDA_DB_PATH || path.resolve(process.cwd(), 'cursenda.db');
-  
+async function conectar(): Promise<Database> {
   const db = await open({
-    filename: dbPath,
+    filename: process.env.CURSENDA_DB_PATH || path.resolve(process.cwd(), 'cursenda.db'),
     driver: sqlite3.Database
   });
 
   // Habilitar claves foráneas
   await db.run('PRAGMA foreign_keys = ON');
+  // Si la otra conexión está escribiendo, espera unos segundos en vez de dar error
+  await db.run('PRAGMA busy_timeout = 5000');
+  repetirSiOcupado(db);
+  return db;
+}
+
+// Hay un caso en el que SQLite no espera y contesta "ocupado" en el acto: cuando llega una escritura mientras
+// esta conexión tiene una lectura sin cerrar y la otra conexión está a medias de una operación por pasos.
+// La escritura no ha llegado a tocar nada, así que basta con repetirla un momento después.
+function repetirSiOcupado(db: Database) {
+  const run = db.run.bind(db) as (...args: any[]) => Promise<any>;
+  db.run = (async (...args: any[]) => {
+    const inicio = Date.now();
+    for (let intento = 1; ; intento++) {
+      try {
+        return await run(...args);
+      } catch (err: any) {
+        if (err?.code !== 'SQLITE_BUSY' || intento > 4 || Date.now() - inicio > 2000) throw err;
+        await new Promise(resolve => setTimeout(resolve, 25 * intento));
+      }
+    }
+  }) as typeof db.run;
+}
+
+// La base de datos se abre y se prepara una sola vez, aunque lleguen varias visitas a la vez al arrancar
+let abierta: Promise<Database> | null = null;
+
+export function getDatabase(): Promise<Database> {
+  if (!abierta) {
+    abierta = abrir().catch(err => { abierta = null; throw err; });
+  }
+  return abierta;
+}
+
+// Las operaciones de varios pasos (o se hacen todos o ninguno) van por una conexión aparte y de una en una,
+// para que no se mezclen entre sí ni con lo que estén haciendo otras visitas en ese momento.
+// Dentro de `pasos` hay que usar la conexión que recibe, no getDatabase().
+let aparte: Promise<Database> | null = null;
+let cola: Promise<unknown> = Promise.resolve();
+
+export function enTransaccion<T>(pasos: (db: Database) => Promise<T>): Promise<T> {
+  const turno = cola.then(async () => {
+    await getDatabase();
+    if (!aparte) {
+      aparte = conectar().catch(err => { aparte = null; throw err; });
+    }
+    const db = await aparte;
+    await db.run('BEGIN IMMEDIATE');
+    try {
+      const resultado = await pasos(db);
+      await db.run('COMMIT');
+      return resultado;
+    } catch (err) {
+      await db.run('ROLLBACK').catch(() => {});
+      throw err;
+    }
+  });
+  cola = turno.catch(() => {});
+  return turno;
+}
+
+async function abrir(): Promise<Database> {
+  const db = await conectar();
 
   // Crear tablas
   await db.exec(`
@@ -134,7 +189,8 @@ export async function getDatabase(): Promise<Database> {
     'ALTER TABLE cursos ADD COLUMN salidas TEXT',
     'ALTER TABLE cursos ADD COLUMN horario TEXT',
     'ALTER TABLE centros ADD COLUMN logo TEXT',
-    'ALTER TABLE centros ADD COLUMN sesiones_desde INTEGER DEFAULT 0'
+    'ALTER TABLE centros ADD COLUMN sesiones_desde INTEGER DEFAULT 0',
+    'ALTER TABLE centros ADD COLUMN plantillas_iniciales INTEGER DEFAULT 0'
   ];
   for (const sql of columnasPago) {
     try {
@@ -147,6 +203,8 @@ export async function getDatabase(): Promise<Database> {
     const familia = familiaDe(c.titulo, c.categoria);
     if (familia !== c.categoria) await db.run('UPDATE cursos SET categoria = ? WHERE id = ?', [familia, c.id]);
   }
+  // Las plazas cubiertas, si no se dijeron, son cero
+  await db.run('UPDATE cursos SET plazas_cubiertas = 0 WHERE plazas_cubiertas IS NULL');
   await db.run('CREATE UNIQUE INDEX IF NOT EXISTS facturas_stripe ON facturas(stripe_invoice_id)');
   // La cuenta demo de siempre
   await db.run("UPDATE centros SET es_demo = 1 WHERE email = 'demo@cursenda.es' AND es_demo IS NOT 1");
@@ -268,8 +326,7 @@ export async function getDatabase(): Promise<Database> {
     await insertarDatosDemo(db, resultCentro.lastID as number);
   }
 
-  dbInstance = db;
-  return dbInstance;
+  return db;
 }
 
 export function verifyPassword(password: string, salt: string, hash: string): boolean {

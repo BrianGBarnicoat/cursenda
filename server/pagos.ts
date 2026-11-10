@@ -23,10 +23,12 @@ export function modoPruebaStripe() {
   return STRIPE_SECRET_KEY.startsWith('sk_test_');
 }
 
-// Un centro puede usar el panel si paga, si está en su mes de prueba, si es admin o si es la demo
+// Un centro puede usar el panel si paga, si está en su mes de prueba, si es admin o si es la demo.
+// Quien ya ha dejado su tarjeta tiene un día de margen al acabar la prueba, mientras Stripe confirma el primer cobro.
 export const accesoDe = (t: string) => `(${t}.rol = 'admin' OR ${t}.es_demo = 1
   OR ${t}.suscripcion_estado IN ('activa', 'impago')
-  OR (${t}.suscripcion_estado = 'prueba' AND ${t}.prueba_hasta > datetime('now')))`;
+  OR (${t}.suscripcion_estado = 'prueba' AND (${t}.prueba_hasta > datetime('now')
+    OR (${t}.stripe_subscription_id IS NOT NULL AND ${t}.prueba_hasta > datetime('now', '-1 day')))))`;
 export const ACCESO_SQL = accesoDe('centros');
 
 // En la web pública: los cursos de la demo solo salen si el admin no los ha quitado y mientras no haya cursos de centros reales
@@ -92,12 +94,13 @@ export async function crearCheckout(centroId: number, plan: string, baseUrl: str
   return session.url;
 }
 
-// Portal de Stripe: cambiar tarjeta, ver facturas, cambiar de plan o darse de baja
+// Portal de Stripe: cambiar tarjeta, ver facturas, cambiar de plan o darse de baja.
+// Devuelve null si el centro todavía no ha pasado nunca por la página de pago.
 export async function crearPortal(centroId: number, baseUrl: string) {
   if (!stripe) throw new Error('Los pagos no están configurados');
   const db = await getDatabase();
-  const centro = await db.get('SELECT * FROM centros WHERE id = ?', [centroId]);
-  if (!centro?.stripe_customer_id) throw new Error('Este centro todavía no tiene ningún pago');
+  const centro = await db.get('SELECT stripe_customer_id FROM centros WHERE id = ?', [centroId]);
+  if (!centro?.stripe_customer_id) return null;
 
   const session = await stripe.billingPortal.sessions.create({
     customer: centro.stripe_customer_id,
@@ -127,21 +130,23 @@ async function sincronizarSuscripcion(sub: Stripe.Subscription) {
   const centroId = await centroDeStripe(customerId, sub.metadata?.centro_id);
   if (!centroId) return;
 
+  // 'impago' es un cobro fallido que Stripe todavía está reintentando: mientras tanto el centro sigue entrando.
+  // Cualquier otro estado (sin pagar del todo, pausada, cancelada...) es no tener suscripción.
   const estados: Record<string, string> = {
     trialing: 'prueba',
     active: 'activa',
-    past_due: 'impago',
-    unpaid: 'impago',
-    incomplete: 'impago',
-    paused: 'cancelada',
-    canceled: 'cancelada',
-    incomplete_expired: 'cancelada'
+    past_due: 'impago'
   };
   const estado = estados[sub.status] || 'cancelada';
   const item = sub.items.data[0];
   const plan = planDePrecio(item?.price?.id);
 
   const db = await getDatabase();
+  // Una suscripción que no llegó a pagarse (tarjeta rechazada al contratar) o una antigua que ya no es
+  // la del centro no cambia nada: el centro sigue como estaba
+  const centro = await db.get('SELECT stripe_subscription_id FROM centros WHERE id = ?', [centroId]);
+  if (estado === 'cancelada' && centro?.stripe_subscription_id !== sub.id) return;
+
   await db.run(`
     UPDATE centros SET
       stripe_customer_id = ?,
@@ -179,7 +184,7 @@ async function guardarFactura(inv: Stripe.Invoice) {
   `, [
     centroId,
     inv.number || inv.id,
-    new Date(inv.created * 1000).toLocaleDateString('es-ES'),
+    new Date(inv.created * 1000).toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid' }),
     inv.total / 100,
     inv.status === 'paid' ? 'pagada' : 'pendiente',
     inv.id,
@@ -213,7 +218,8 @@ export async function handleWebhook(req: any, res: any) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
-        await sincronizarSuscripcion(event.data.object as Stripe.Subscription);
+        // Los avisos pueden llegar desordenados: se pregunta a Stripe cómo está la suscripción ahora mismo
+        await sincronizarSuscripcion(await stripe.subscriptions.retrieve((event.data.object as Stripe.Subscription).id));
         break;
       case 'invoice.finalized':
       case 'invoice.paid':

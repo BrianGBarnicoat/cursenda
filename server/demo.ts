@@ -49,7 +49,7 @@ const SOLICITUDES = [
 ];
 
 const emailDe = (nombre: string) =>
-  nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(' ').slice(0, 2).join('.') + '@ejemplo.com';
+  nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(' ').slice(0, 2).join('.') + '@ejemplo.com';
 
 // Rellena el centro demo con cursos, solicitudes y notas recientes
 export async function insertarDatosDemo(db: Database, centroId: number) {
@@ -74,31 +74,25 @@ export async function insertarDatosDemo(db: Database, centroId: number) {
   }
 }
 
-// Deja la cuenta demo como nueva (se lanza cada noche y desde el admin)
+// Deja la cuenta demo como nueva (se lanza cada noche y desde el admin).
+// Hay que llamarla dentro de enTransaccion, para que si algo falla la demo no se quede a medias.
 export async function reiniciarDemo(db: Database) {
   const demo = await db.get('SELECT id FROM centros WHERE es_demo = 1 ORDER BY id LIMIT 1');
   if (!demo) return false;
 
-  await db.run('BEGIN TRANSACTION');
-  try {
-    // Al borrar los cursos se borran también sus solicitudes y notas
-    await db.run('DELETE FROM cursos WHERE centro_id = ?', [demo.id]);
-    await db.run('DELETE FROM miembros WHERE centro_id = ?', [demo.id]);
-    await db.run('DELETE FROM plantillas WHERE centro_id = ?', [demo.id]);
-    await db.run('DELETE FROM facturas WHERE centro_id = ? AND stripe_invoice_id IS NULL', [demo.id]);
-    await db.run(`UPDATE centros SET webhook_url = NULL, plan = 'pro', plan_pendiente = NULL, suscripcion_estado = 'prueba',
-      prueba_hasta = datetime('now', '+30 days') WHERE id = ?`, [demo.id]);
-    await insertarDatosDemo(db, demo.id);
-    await db.run('COMMIT');
-    return true;
-  } catch (err) {
-    await db.run('ROLLBACK');
-    throw err;
-  }
+  // Al borrar los cursos se borran también sus solicitudes y notas
+  await db.run('DELETE FROM cursos WHERE centro_id = ?', [demo.id]);
+  await db.run('DELETE FROM miembros WHERE centro_id = ?', [demo.id]);
+  await db.run('DELETE FROM plantillas WHERE centro_id = ?', [demo.id]);
+  await db.run('DELETE FROM facturas WHERE centro_id = ? AND stripe_invoice_id IS NULL', [demo.id]);
+  await db.run(`UPDATE centros SET webhook_url = NULL, plan = 'pro', plan_pendiente = NULL, suscripcion_estado = 'prueba',
+    prueba_hasta = datetime('now', '+30 days'), plantillas_iniciales = 0 WHERE id = ?`, [demo.id]);
+  await insertarDatosDemo(db, demo.id);
+  return true;
 }
 
 // Programa el reinicio todas las noches a las 4:00 (hora del servidor)
-export function programarReinicioDemo(getDb: () => Promise<Database>) {
+export function programarReinicioDemo(reiniciar: () => Promise<boolean>) {
   const siguiente = () => {
     const ahora = new Date();
     const objetivo = new Date(ahora);
@@ -108,7 +102,7 @@ export function programarReinicioDemo(getDb: () => Promise<Database>) {
   };
   const lanzar = async () => {
     try {
-      if (await reiniciarDemo(await getDb())) console.log('Cuenta demo reiniciada');
+      if (await reiniciar()) console.log('Cuenta demo reiniciada');
     } catch (err: any) {
       console.error('Error reiniciando la demo:', err.message);
     }

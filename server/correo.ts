@@ -30,7 +30,7 @@ export const avisoContrasena = (email: string) =>
   encolarCorreo(CORREO_ADMIN, 'Alguien ha pedido cambiar su contraseña',
     `${email} ha pulsado "He olvidado mi contraseña".\n\nSi el correo tiene cuenta, crea el enlace en ${WEB}/centros/dashboard (Contraseñas).`);
 
-// Como mucho un aviso cada 10 minutos por academia, para que nadie pueda llenarle el correo
+// Como mucho un aviso cada 10 minutos por centro, para que nadie pueda llenarle el correo
 const ultimoAviso = new Map<number, number>();
 export function avisoSolicitud(centro: { id: number; email: string }, curso: string) {
   const ahora = Date.now();
