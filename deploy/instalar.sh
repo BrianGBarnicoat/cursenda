@@ -64,7 +64,7 @@ if [[ ! -f "$CONF_DIR/cursenda.env" ]]; then
   umask 077
   cat > "$CONF_DIR/cursenda.env" <<EOF
 JWT_SECRET=${JWT_SECRET:-$(openssl rand -hex 48)}
-ALLOWED_ORIGINS=https://gbarnicoat.uk
+ALLOWED_ORIGINS=https://cursenda.es
 EOF
 fi
 if [[ ! -f "$CONF_DIR/backup.key" ]]; then
@@ -96,7 +96,7 @@ install -m 644 "$BASE/app/deploy/nginx/gbarnicoat.uk.conf" "$NGINX_SITE"
 nginx -t
 systemctl reload nginx
 sleep 1
-curl -sf -o /dev/null https://gbarnicoat.uk/api/public/cursos
+curl -sf -o /dev/null https://cursenda.es/api/public/cursos
 
 echo "==> 7/8 Copias de seguridad diarias cifradas"
 systemctl enable --now cursenda-backup.timer
@@ -119,7 +119,7 @@ systemctl enable cursenda.service >/dev/null
 
 echo
 echo "---------------- Comprobaciones ----------------"
-echo -n "Web pública:              "; curl -s -o /dev/null -w "%{http_code}\n" https://gbarnicoat.uk/
+echo -n "Web pública:              "; curl -s -o /dev/null -w "%{http_code}\n" https://cursenda.es/
 echo -n "Usuario del servicio:     "; ps -o user= -p "$(systemctl show -p MainPID --value cursenda.service)"
 echo -n "Puertos TCP de Cursenda:  "; ss -tlnp 2>/dev/null | grep -c 'node' || true
 echo -n "Copias cifradas:          "; ls "$BASE/backups"/*.enc 2>/dev/null | wc -l

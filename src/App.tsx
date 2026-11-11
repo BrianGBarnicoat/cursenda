@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext, createContext } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, useSearchParams, useLocation, useNavigationType } from 'react-router-dom';
 import { 
   BookOpen, 
   MapPin, 
@@ -25,6 +25,31 @@ import {
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
   ? 'http://localhost:3000/api' 
   : '/api';
+
+// Todas las llamadas al servidor pasan por aquí.
+// Sin conexión no salta un error: devuelve una respuesta de fallo con su texto, igual que las del servidor.
+// Y avisa a la aplicación si la sesión ha caducado (401) o el centro se ha quedado sin acceso (402).
+async function pedir(ruta: string, opciones?: RequestInit): Promise<Response> {
+  let res: Response;
+  try {
+    res = await window.fetch(ruta, opciones);
+  } catch {
+    return new Response(JSON.stringify({ error: 'No se ha podido conectar. Comprueba tu conexión y vuelve a intentarlo.' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  if (res.status === 401 && !ruta.includes('/auth/')) window.dispatchEvent(new Event('sesion-caducada'));
+  if (res.status === 402) window.dispatchEvent(new Event('sin-acceso'));
+  return res;
+}
+
+// El error que explica el servidor. Si la respuesta no trae ninguno (por ejemplo, cuando se corta
+// por demasiados intentos seguidos), se pone un texto propio.
+const errorDe = async (res: Response, porDefecto: string): Promise<string> => {
+  const data = await res.json().catch(() => ({}));
+  return data?.error || (res.status === 429 ? 'Demasiados intentos seguidos. Espera un minuto y vuelve a intentarlo.' : porDefecto);
+};
 
 const cleanLocalidad = (loc: string) => {
   if (!loc) return '';
@@ -113,13 +138,18 @@ const AJUSTES_INICIALES = {
   demo_oculta: ''
 };
 type Ajustes = typeof AJUSTES_INICIALES;
+// Las letras que admite el servidor en cada ajuste (los mismos topes que en server/index.ts)
+const LARGO_AJUSTES: Partial<Record<keyof Ajustes, number>> = {
+  portada_titulo: 120, portada_texto: 400, academias_titulo: 120, academias_texto: 500, pie_texto: 300,
+  precio_starter: 5, precio_pro: 5, legal_titular: 200, legal_nif: 30, legal_domicilio: 300, legal_email: 200
+};
 const AjustesContexto = createContext<{ ajustes: Ajustes; setAjustes: React.Dispatch<React.SetStateAction<Ajustes>> }>({ ajustes: AJUSTES_INICIALES, setAjustes: () => {} });
 const useAjustes = () => useContext(AjustesContexto);
 
 // Los precios no van en la parte pública: se piden al entrar al panel
 function usePrecios() {
   const { setAjustes } = useAjustes();
-  const cargar = () => fetch(`${API_BASE}/precios`).then(r => r.ok ? r.json() : {}).then(p => setAjustes(a => ({ ...a, ...p }))).catch(() => {});
+  const cargar = () => pedir(`${API_BASE}/precios`).then(r => r.ok ? r.json() : {}).then(p => setAjustes(a => ({ ...a, ...p }))).catch(() => {});
   useEffect(() => { cargar(); }, []);
   return cargar;
 }
@@ -137,7 +167,7 @@ const FOCO_CATEGORIA: Record<string, string> = {
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
-// El centro escribe la fecha a mano ("15 de enero de 2027", "Inmediata"...).
+// El centro escribe la fecha a mano ("15 de enero de 2027", "15/01/2027", "marzo de 2027", "Inmediata"...).
 // Si no se entiende o ya ha pasado, el curso va al grupo "Otras fechas" con su texto tal cual.
 function inicioDe(curso: any): { grupo: string; orden: number } {
   const texto = String(curso.fecha_inicio || '').toLowerCase();
@@ -148,12 +178,19 @@ function inicioDe(curso: any): { grupo: string; orden: number } {
   let fecha: Date | null = null;
   const conMes = texto.match(new RegExp(`(\\d{1,2})\\s+de\\s+(${MESES.join('|')})(?:\\s+(?:de(?:l)?\\s+)?(\\d{4}))?`));
   const iso = texto.match(/(\d{4})-(\d{2})-(\d{2})/);
+  const conBarras = texto.match(/(\d{1,2})[/.](\d{1,2})[/.](\d{4})/);
+  const soloMes = texto.match(new RegExp(`(${MESES.join('|')})\\s+(?:de(?:l)?\\s+)?(\\d{4})`));
   if (conMes) {
     const mes = MESES.indexOf(conMes[2]);
     fecha = new Date(conMes[3] ? Number(conMes[3]) : hoy.getFullYear(), mes, Number(conMes[1]));
     if (!conMes[3] && fecha < hoy) fecha.setFullYear(fecha.getFullYear() + 1);
   } else if (iso) {
     fecha = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  } else if (conBarras) {
+    fecha = new Date(Number(conBarras[3]), Number(conBarras[2]) - 1, Number(conBarras[1]));
+  } else if (soloMes) {
+    // Sin día ("marzo de 2027"): cuenta hasta que acabe ese mes
+    fecha = new Date(Number(soloMes[2]), MESES.indexOf(soloMes[1]) + 1, 0);
   }
   if (!fecha || fecha < hoy) return { grupo: 'Otras fechas', orden: Number.MAX_SAFE_INTEGER };
   return { grupo: `Empiezan en ${MESES[fecha.getMonth()]} de ${fecha.getFullYear()}`, orden: fecha.getTime() };
@@ -173,7 +210,8 @@ const textoModalidad = (curso: any) => {
 };
 // Los certificados de profesionalidad llevan un código de 4 letras y 4 números (IFCD0210)
 const codigoCertificado = (titulo: string) => titulo.match(/^([A-Z]{4}\d{4})\b/)?.[1] || null;
-const tituloSinCodigo = (titulo: string) => titulo.replace(/^[A-Z]{4}\d{4}\s*[-–]\s*/, '');
+// El código se quita del título vaya con guion ("IFCD0210 - Desarrollo...") o solo con un espacio
+const tituloSinCodigo = (titulo: string) => titulo.replace(/^[A-Z]{4}\d{4}(?:\s*[-–:]\s*|\s+)/, '');
 
 function FilaCurso({ curso }: { curso: any }) {
   const codigo = codigoCertificado(curso.titulo);
@@ -204,8 +242,8 @@ function AvisoCursos({ estado }: { estado: string }) {
 }
 
 const FUENTES = {
-  sepeFundae: 'https://sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2025%2FSeptiembre%2F&detail=formacion-subvencionada-sepe-colaboracion-fundae',
-  sepe45: 'https://www.sepe.es/HomeSepe/en/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2026%2FMarzo%2F&detail=proximos-cursos-gratuitos-desempleados-45-o-mas-anios-edad',
+  sepeFundae: 'https://www.sepe.es/HomeSepe/es/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2025%2FSeptiembre%2F&detail=formacion-subvencionada-sepe-colaboracion-fundae',
+  sepe45: 'https://www.sepe.es/HomeSepe/es/que-es-el-sepe/comunicacion-institucional/noticias/detalle-noticia.html?folder=%2FSEPE%2F2026%2FMarzo%2F&detail=proximos-cursos-gratuitos-desempleados-45-o-mas-anios-edad',
   sepeAutonomias: 'https://www.sepe.es/HomeSepe/es/formacion-trabajo/iniciativas-formacion-trabajo/ofertas-formacion-comunidades-autonomas.html',
   madrid: 'https://oficinaempleo.comunidad.madrid/BuscadorCursosPublico/',
   fundae: 'https://experienciafundae.es/formacion-subvencionada',
@@ -332,7 +370,9 @@ const FAMILIAS: { codigo: string; nombre: string }[] = [
   { codigo: 'VIC', nombre: 'Vidrio y cerámica' }
 ];
 const OTRA_FORMACION = 'Otra formación';
-const slugSector = (nombre: string) => nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+// Para buscar y comparar sin que importen las mayúsculas ni las tildes
+const sinTildes = (v: unknown) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const slugSector = (nombre: string) => sinTildes(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const NOMBRES_FAMILIAS = [...FAMILIAS.map(f => f.nombre), OTRA_FORMACION];
 // El código del certificado indica la familia: SSCS0208 es de SSC
 const familiaDelTitulo = (titulo: string) => FAMILIAS.find(f => f.codigo === titulo.match(/^([A-Z]{3})[A-Z]\d{4}\b/)?.[1])?.nombre;
@@ -348,7 +388,7 @@ function ImagenFamilia({ categoria, className }: { categoria: string; className?
 let peticionCursos: Promise<any[]> | null = null;
 const pedirCursos = () => {
   if (!peticionCursos) {
-    peticionCursos = fetch(`${API_BASE}/public/cursos`).then(res => { if (!res.ok) throw new Error(); return res.json(); });
+    peticionCursos = pedir(`${API_BASE}/public/cursos`).then(res => { if (!res.ok) throw new Error(); return res.json(); });
     peticionCursos.catch(() => { peticionCursos = null; });
     setTimeout(() => { peticionCursos = null; }, 60000);
   }
@@ -371,15 +411,14 @@ function BuscadorCursos() {
   const { cursos } = useCursosPublicos();
   const [texto, setTexto] = useState('');
   const [abierto, setAbierto] = useState(false);
-  const limpio = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const q = limpio(texto.trim());
-  const coincide = cursos.filter(c => !q || [c.titulo, c.localidad, c.categoria, c.centro_nombre].some(v => limpio(v).includes(q)));
+  const q = sinTildes(texto.trim());
+  const coincide = cursos.filter(c => !q || [c.titulo, c.localidad, c.categoria, c.centro_nombre].some(v => sinTildes(v).includes(q)));
   const lista = (q ? coincide : [...coincide].sort((a, b) => b.visitas - a.visitas)).slice(0, 4);
-  const familias = q ? FAMILIAS.filter(f => limpio(f.nombre).includes(q)).slice(0, 4) : [];
+  const familias = q ? FAMILIAS.filter(f => sinTildes(f.nombre).includes(q)).slice(0, 4) : [];
   const ir = (ruta: string) => { setAbierto(false); setTexto(''); navigate(ruta); };
 
   return (
-    <form className="pub-busqueda" role="search" onSubmit={(e) => { e.preventDefault(); ir(`/cursos?q=${encodeURIComponent(texto.trim())}`); }}
+    <form className="pub-busqueda" role="search" onSubmit={(e) => { e.preventDefault(); ir(texto.trim() ? `/cursos?q=${encodeURIComponent(texto.trim())}` : '/cursos'); }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setAbierto(false); }}
       onKeyDown={(e) => { if (e.key === 'Escape') setAbierto(false); }}>
       <Search size={18} aria-hidden="true" />
@@ -511,7 +550,7 @@ function useAcademias() {
   const [academias, setAcademias] = useState<any[]>([]);
   const [listo, setListo] = useState(false);
   useEffect(() => {
-    fetch(`${API_BASE}/public/academias`).then(r => r.ok ? r.json() : []).then(setAcademias).catch(() => {}).finally(() => setListo(true));
+    pedir(`${API_BASE}/public/academias`).then(r => r.ok ? r.json() : []).then(setAcademias).catch(() => {}).finally(() => setListo(true));
   }, []);
   return { academias, listo };
 }
@@ -652,7 +691,7 @@ function AlumnosHome() {
 
       {academias.length > 0 && (
         <section className="pub-ancho pub-bloque">
-          <div className="pub-bloque-cabeza"><h2>Centros en Cursenda</h2><Link to="/centros-de-formacion">Ver todas</Link></div>
+          <div className="pub-bloque-cabeza"><h2>Centros en Cursenda</h2><Link to="/centros-de-formacion">Ver todos</Link></div>
           <div className="pub-academias-logos">
             {academias.slice(0, 8).map(a => <Link key={a.id} to={`/centro-de-formacion/${a.id}`}><LogoAcademia academia={a} /><span>{a.nombre}</span></Link>)}
           </div>
@@ -776,15 +815,14 @@ function AlumnosLista() {
   ].filter(o => { const h = o.valor; return cursos.some(c => (h === 'corto' ? c.duracion_horas < 300 : h === 'medio' ? c.duracion_horas >= 300 && c.duracion_horas <= 500 : c.duracion_horas > 500)); });
 
   // Busca igual con tilde o sin ella
-  const normalizar = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const texto = normalizar(busqueda.trim());
+  const texto = sinTildes(busqueda.trim());
   const filtrados = cursos.filter(c =>
     (!categoria || c.categoria === categoria) &&
     (!modalidades.length || modalidades.includes(c.modalidad)) &&
     (!situaciones.length || c.dirigido_a === 'Todos' || situaciones.includes(c.dirigido_a)) &&
     dentroDeDuracion(c.duracion_horas) &&
     (!zona || (c.modalidad !== 'Online' && cleanLocalidad(c.localidad) === zona)) &&
-    (!texto || [c.titulo, c.localidad, c.categoria, c.centro_nombre, c.descripcion].some(v => normalizar(v).includes(texto)))
+    (!texto || [c.titulo, c.localidad, c.categoria, c.centro_nombre, c.descripcion].some(v => sinTildes(v).includes(texto)))
   );
 
   const grupos: { titulo: string; cursos: any[] }[] = [];
@@ -898,6 +936,7 @@ function AlumnosDetalle() {
   const [curso, setCurso] = useState<any>(null);
   useTitulo(curso ? `${tituloSinCodigo(curso.titulo)}: curso gratis ${curso.modalidad === 'Online' ? 'online' : `en ${curso.localidad}`} | Cursenda` : null);
   const [loading, setLoading] = useState(true);
+  const [falloCarga, setFalloCarga] = useState(false);
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -908,18 +947,28 @@ function AlumnosDetalle() {
   const { cursos: todos } = useCursosPublicos();
 
   useEffect(() => {
+    // Si se pasa a otro curso antes de que llegue la respuesta, la del anterior ya no cuenta
+    let vigente = true;
     window.scrollTo(0, 0);
     setSubmitSuccess(false);
+    setSubmitError('');
+    setFalloCarga(false);
     setLoading(true);
-    fetch(`${API_BASE}/public/cursos/${id}`)
-      .then(res => res.ok ? res.json() : null)
+    pedir(`${API_BASE}/public/cursos/${id}`)
+      .then(res => {
+        if (res.ok) return res.json();
+        if (res.status === 404) return null;
+        throw new Error('No se ha podido cargar el curso');
+      })
       .then(datos => {
+        if (!vigente) return;
         setCurso(datos);
         // Registrar visita
-        if (datos) fetch(`${API_BASE}/public/cursos/${id}/visita`, { method: 'POST' });
+        if (datos) pedir(`${API_BASE}/public/cursos/${id}/visita`, { method: 'POST' }).catch(() => {});
       })
-      .catch(err => console.error(err))
-      .finally(() => setLoading(false));
+      .catch(() => { if (vigente) setFalloCarga(true); })
+      .finally(() => { if (vigente) setLoading(false); });
+    return () => { vigente = false; };
   }, [id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -927,15 +976,14 @@ function AlumnosDetalle() {
     setSubmitError('');
     setEnviando(true);
     try {
-      const res = await fetch(`${API_BASE}/public/solicitudes`, {
+      const res = await pedir(`${API_BASE}/public/solicitudes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ curso_id: id, nombre, email, telefono, rgpd })
       });
-      const data = await res.json();
       if (res.ok) setSubmitSuccess(true);
-      else setSubmitError(data.error || 'No se ha podido enviar la solicitud.');
-    } catch (err) {
+      else setSubmitError(await errorDe(res, 'No se ha podido enviar la solicitud. Vuelve a intentarlo dentro de un momento.'));
+    } catch {
       setSubmitError('No se ha podido enviar. Comprueba tu conexión y vuelve a intentarlo.');
     } finally {
       setEnviando(false);
@@ -943,6 +991,9 @@ function AlumnosDetalle() {
   };
 
   if (loading) return <div className="pub"><CabeceraPublica /><p className="pub-aviso pub-ancho">Cargando el curso...</p></div>;
+  if (falloCarga) {
+    return <div className="pub"><CabeceraPublica /><p className="pub-aviso pub-ancho">No se ha podido cargar el curso. <button type="button" className="pub-enlace" onClick={() => window.location.reload()}>Volver a intentarlo</button></p></div>;
+  }
   if (!curso) return <NoEncontrada />;
 
   const codigo = codigoCertificado(curso.titulo);
@@ -1054,9 +1105,9 @@ function AlumnosDetalle() {
                 <h2>Pide tu plaza</h2>
                 <p>El curso es gratis y pedir plaza no te compromete a nada.</p>
                 {submitError && <p className="pub-error" role="alert">{submitError}</p>}
-                <label>Nombre y apellidos<input required autoComplete="name" value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
-                <label>Teléfono<input required type="tel" autoComplete="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
-                <label>Correo<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+                <label>Nombre y apellidos<input required autoComplete="name" maxLength={120} value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
+                <label>Teléfono<input required type="tel" autoComplete="tel" maxLength={30} value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
+                <label>Correo<input required type="email" autoComplete="email" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
                 <label className="pub-rgpd">
                   <input required type="checkbox" checked={rgpd} onChange={(e) => setRgpd(e.target.checked)} />
                   <span>Acepto que mis datos se entreguen a {curso.centro_nombre} para gestionar mi plaza (<Link to="/legal/privacidad" target="_blank">política de privacidad</Link>).</span>
@@ -1113,7 +1164,7 @@ function LandingCentros() {
 
   // Si llega con /centros#acceso, baja hasta el formulario
   useEffect(() => {
-    if (window.location.hash) document.querySelector(window.location.hash)?.scrollIntoView();
+    if (window.location.hash) document.getElementById(window.location.hash.slice(1))?.scrollIntoView();
   }, []);
 
   const handleDemoSubmit = async (e: React.FormEvent) => {
@@ -1121,7 +1172,7 @@ function LandingCentros() {
     setError('');
     setEnviando(true);
     try {
-      const res = await fetch(`${API_BASE}/public/demo`, {
+      const res = await pedir(`${API_BASE}/public/demo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre_centro: nombreCentro, nombre_contacto: contacto, email, telefono, rgpd })
@@ -1129,10 +1180,9 @@ function LandingCentros() {
       if (res.ok) {
         setSuccess(true);
       } else {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || 'No se ha podido enviar. Vuelve a intentarlo.');
+        setError(await errorDe(res, 'No se ha podido enviar. Vuelve a intentarlo.'));
       }
-    } catch (err) {
+    } catch {
       setError('No se ha podido enviar. Comprueba tu conexión y vuelve a intentarlo.');
     } finally {
       setEnviando(false);
@@ -1191,10 +1241,10 @@ function LandingCentros() {
               <h2>Prueba un mes gratis</h2>
               <p>Déjanos tus datos y te enviamos un enlace para crear la cuenta de tu centro.</p>
               {error && <p className="pub-error" role="alert">{error}</p>}
-              <label>Nombre del centro<input required value={nombreCentro} onChange={(e) => setNombreCentro(e.target.value)} /></label>
-              <label>Tu nombre<input required autoComplete="name" value={contacto} onChange={(e) => setContacto(e.target.value)} /></label>
-              <label>Correo<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-              <label>Teléfono<input required type="tel" autoComplete="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
+              <label>Nombre del centro<input required autoComplete="organization" maxLength={200} value={nombreCentro} onChange={(e) => setNombreCentro(e.target.value)} /></label>
+              <label>Tu nombre<input required autoComplete="name" maxLength={200} value={contacto} onChange={(e) => setContacto(e.target.value)} /></label>
+              <label>Correo<input required type="email" autoComplete="email" maxLength={200} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+              <label>Teléfono<input required type="tel" autoComplete="tel" maxLength={30} value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
               <label className="pub-rgpd">
                 <input required type="checkbox" checked={rgpd} onChange={(e) => setRgpd(e.target.checked)} />
                 <span>Acepto que Cursenda use estos datos para contactarme (<Link to="/legal/privacidad" target="_blank">política de privacidad</Link>).</span>
@@ -1210,11 +1260,12 @@ function LandingCentros() {
 }
 
 // --- PORTAL COMERCIAL: LOGIN ---
-function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
+function LoginCentros({ onLogin, sesionCaducada }: { onLogin: (user: any) => void; sesionCaducada?: boolean }) {
   useTitulo('Entrar al panel | Cursenda');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [enviando, setEnviando] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1226,22 +1277,24 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
       return;
     }
 
+    setEnviando(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const res = await pedir(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
 
       if (res.ok) {
-        onLogin(data);
+        onLogin(await res.json());
         navigate('/centros/dashboard');
       } else {
-        setError(data.error || 'No se ha podido entrar.');
+        setError(await errorDe(res, 'No se ha podido entrar.'));
       }
-    } catch (err) {
-      setError('Error de red. Inténtelo de nuevo.');
+    } catch {
+      setError('No se ha podido entrar. Comprueba tu conexión y vuelve a intentarlo.');
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -1255,17 +1308,23 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
         <p className="auth-subtitle">Para centros que publican sus cursos en Cursenda.</p>
 
         <form onSubmit={handleSubmit}>
+          {sesionCaducada && !error && (
+            <div className="alert-box alert-warning" role="status" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+              Tu sesión ha caducado. Vuelve a entrar.
+            </div>
+          )}
           {error && (
-            <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+            <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
               {error}
             </div>
           )}
 
           <div className="form-group">
-            <label className="form-label">Correo electrónico</label>
-            <input 
-              type="email" 
-              className="form-control" 
+            <label className="form-label" htmlFor="entrar-correo">Correo electrónico</label>
+            <input
+              id="entrar-correo"
+              type="email"
+              className="form-control"
               autoComplete="email"
               required
               value={email}
@@ -1274,10 +1333,11 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
           </div>
 
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-            <label className="form-label">Contraseña</label>
-            <input 
-              type="password" 
-              className="form-control" 
+            <label className="form-label" htmlFor="entrar-clave">Contraseña</label>
+            <input
+              id="entrar-clave"
+              type="password"
+              className="form-control"
               autoComplete="current-password"
               required
               value={password}
@@ -1285,7 +1345,7 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Entrar</button>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={enviando}>{enviando ? 'Entrando...' : 'Entrar'}</button>
         </form>
 
         <div className="auth-links">
@@ -1297,33 +1357,22 @@ function LoginCentros({ onLogin }: { onLogin: (user: any) => void }) {
   );
 }
 
-// --- PORTAL COMERCIAL: RECUPERAR / ACTIVAR ---
+// --- PORTAL COMERCIAL: RECUPERAR LA CONTRASEÑA ---
 function RecuperarCentros() {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
-
-  // Campos recuperación estándar
+  useTitulo('Recuperar la contraseña | Cursenda');
   const [email, setEmail] = useState('');
   const [recoverySent, setRecoverySent] = useState(false);
-
-  // Campos activación invitación
-  const [nombreCentro, setNombreCentro] = useState('');
-  const [password, setPassword] = useState('');
-  const [contacto, setContacto] = useState('');
-  const [telefono, setTelefono] = useState('');
-  const [activationError, setActivationError] = useState('');
-  const [activationSuccess, setActivationSuccess] = useState(false);
-
-
   const [recoveryError, setRecoveryError] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
   const handleRecoverySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRecoveryError('');
     if (!email) return;
 
+    setEnviando(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/recuperar`, {
+      const res = await pedir(`${API_BASE}/auth/recuperar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -1331,47 +1380,12 @@ function RecuperarCentros() {
       if (res.ok) {
         setRecoverySent(true);
       } else {
-        const data = await res.json().catch(() => ({}));
-        setRecoveryError(data.error || 'No se pudo enviar la petición. Inténtelo de nuevo.');
+        setRecoveryError(await errorDe(res, 'No se ha podido enviar la petición. Vuelve a intentarlo.'));
       }
-    } catch (err) {
-      setRecoveryError('Error de red. Inténtelo de nuevo.');
-    }
-  };
-
-  const handleActivationSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setActivationError('');
-
-    if (!nombreCentro.trim() || !password.trim()) {
-      setActivationError('El nombre del centro y la contraseña son obligatorios.');
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/auth/register-invitation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          nombre: nombreCentro,
-          password,
-          nombre_contacto: contacto,
-          telefono
-        })
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setActivationSuccess(true);
-        setTimeout(() => {
-          window.location.href = '/centros/dashboard';
-        }, 2000);
-      } else {
-        setActivationError(data.error || 'Error al activar la cuenta');
-      }
-    } catch (err) {
-      setActivationError('Error de red. Inténtelo de nuevo.');
+    } catch {
+      setRecoveryError('No se ha podido enviar. Comprueba tu conexión y vuelve a intentarlo.');
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -1382,112 +1396,40 @@ function RecuperarCentros() {
           <Logo />
         </div>
 
-        {token ? (
-          // Vista activación de cuenta por invitación
-          <div>
-            <h2 className="auth-title">Activa tu cuenta</h2>
-            <p className="auth-subtitle">Pon los datos de tu centro para entrar al panel.</p>
+        <h2 className="auth-title">Recuperar la contraseña</h2>
 
-            {activationSuccess ? (
-              <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
-                <h4 style={{ color: 'var(--primary)' }}>Cuenta activada</h4>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Te llevamos a tu panel...</p>
-              </div>
-            ) : (
-              <form onSubmit={handleActivationSubmit}>
-                {activationError && (
-                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
-                    {activationError}
-                  </div>
-                )}
-
-                <div className="form-group">
-                  <label className="form-label">Nombre del centro *</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Ej: Aula Central"
-                    value={nombreCentro}
-                    onChange={(e) => setNombreCentro(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Contraseña de acceso *</label>
-                  <input 
-                    type="password" 
-                    className="form-control" 
-                    placeholder="Contraseña segura"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Nombre de contacto</label>
-                  <input 
-                    type="text" 
-                    className="form-control" 
-                    placeholder="Persona encargada"
-                    value={contacto}
-                    onChange={(e) => setContacto(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label className="form-label">Teléfono del centro</label>
-                  <input 
-                    type="tel" 
-                    className="form-control" 
-                    placeholder="Ej: 910000000"
-                    value={telefono}
-                    onChange={(e) => setTelefono(e.target.value)}
-                  />
-                </div>
-
-                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Activar cuenta y acceder</button>
-              </form>
-            )}
+        {recoverySent ? (
+          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+            <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
+            <h4 style={{ color: 'var(--primary)' }}>Petición recibida</h4>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Si el correo está registrado, te enviaremos un enlace para crear una contraseña nueva.</p>
+            <Link to="/centros/login" className="btn btn-secondary btn-sm" style={{ marginTop: '1.5rem' }}>Volver a entrar</Link>
           </div>
         ) : (
-          // Vista recuperación contraseña estándar
-          <div>
-            <h2 className="auth-title">Recuperar la contraseña</h2>
-            
-            {recoverySent ? (
-              <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-                <CheckCircle size={48} style={{ color: 'var(--success-text)', marginBottom: '1rem' }} />
-                <h4 style={{ color: 'var(--primary)' }}>Petición recibida</h4>
-                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Si el correo está registrado, te enviaremos un enlace para crear una contraseña nueva.</p>
-                <Link to="/centros/login" className="btn btn-secondary btn-sm" style={{ marginTop: '1.5rem' }}>Volver a entrar</Link>
+          <form onSubmit={handleRecoverySubmit}>
+            <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Escribe tu correo y te mandaremos un enlace para crear una contraseña nueva.</p>
+
+            {recoveryError && (
+              <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+                {recoveryError}
               </div>
-            ) : (
-              <form onSubmit={handleRecoverySubmit}>
-                <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Escribe tu correo y te mandaremos un enlace para crear una contraseña nueva.</p>
-
-                {recoveryError && (
-                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
-                    {recoveryError}
-                  </div>
-                )}
-
-                <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                  <label className="form-label">Correo electrónico</label>
-                  <input 
-                    type="email" 
-                    className="form-control" 
-                    autoComplete="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-
-                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Pedir enlace</button>
-              </form>
             )}
-          </div>
+
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="form-label" htmlFor="recuperar-correo">Correo electrónico</label>
+              <input
+                id="recuperar-correo"
+                type="email"
+                className="form-control"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={enviando}>{enviando ? 'Enviando...' : 'Pedir enlace'}</button>
+          </form>
         )}
       </div>
     </div>
@@ -1567,7 +1509,7 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
             <p>Su consentimiento, que da al marcar la casilla del formulario, y en el caso de los centros con cuenta, el contrato del servicio. Puede retirar su consentimiento cuando quiera.</p>
 
             <h2>Cuánto tiempo los guardamos</h2>
-            <p>Las solicitudes de plaza se guardan mientras el centro las necesite para gestionar la matrícula y, como máximo, 2 años. Las solicitudes de demo, hasta 1 año si no se contrata el servicio. Los datos de cuentas, mientras la cuenta esté activa.</p>
+            <p>Las solicitudes de plaza se guardan mientras el centro las necesite para gestionar la matrícula y, como máximo, 2 años. Las peticiones de acceso de los centros, hasta 1 año si no se contrata el servicio. Los datos de cuentas, mientras la cuenta esté activa.</p>
 
             <h2>Quién más los ve</h2>
             <p>Si pide plaza, el centro de formación del curso. Si un centro contrata un plan, el pago lo gestiona Stripe, que recibe los datos de facturación y de la tarjeta. No vendemos datos ni los usamos para publicidad. La web está alojada en un servidor propio en la Unión Europea.</p>
@@ -1624,17 +1566,19 @@ function NoEncontrada() {
 
 // --- PORTAL COMERCIAL: CONTRASEÑA NUEVA CON ENLACE ---
 function RestablecerCentros() {
+  useTitulo('Contraseña nueva | Cursenda');
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
   const [valido, setValido] = useState<boolean | null>(null);
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [error, setError] = useState('');
+  const [enviando, setEnviando] = useState(false);
   const [hecho, setHecho] = useState(false);
 
   useEffect(() => {
     if (!token) { setValido(false); return; }
-    fetch(`${API_BASE}/auth/restablecer/${encodeURIComponent(token)}`)
+    pedir(`${API_BASE}/auth/restablecer/${encodeURIComponent(token)}`)
       .then(r => r.json())
       .then(d => setValido(!!d.valido))
       .catch(() => setValido(false));
@@ -1646,17 +1590,19 @@ function RestablecerCentros() {
     if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
     if (password !== password2) { setError('Las contraseñas no coinciden.'); return; }
 
+    setEnviando(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/restablecer`, {
+      const res = await pedir(`${API_BASE}/auth/restablecer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password })
       });
-      const data = await res.json().catch(() => ({}));
       if (res.ok) setHecho(true);
-      else setError(data.error || 'No se pudo cambiar la contraseña.');
-    } catch (err) {
-      setError('Error de red. Inténtelo de nuevo.');
+      else setError(await errorDe(res, 'No se ha podido cambiar la contraseña.'));
+    } catch {
+      setError('No se ha podido guardar. Comprueba tu conexión y vuelve a intentarlo.');
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -1689,17 +1635,17 @@ function RestablecerCentros() {
           <form onSubmit={handleSubmit}>
             <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>Elige una contraseña de al menos 8 caracteres.</p>
             {error && (
-              <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
+              <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
             )}
             <div className="form-group">
-              <label className="form-label">Contraseña nueva</label>
-              <input type="password" className="form-control" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <label className="form-label" htmlFor="nueva-clave">Contraseña nueva</label>
+              <input id="nueva-clave" type="password" className="form-control" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label">Repite la contraseña</label>
-              <input type="password" className="form-control" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} />
+              <label className="form-label" htmlFor="nueva-clave-2">Repite la contraseña</label>
+              <input id="nueva-clave-2" type="password" className="form-control" autoComplete="new-password" value={password2} onChange={(e) => setPassword2(e.target.value)} />
             </div>
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Guardar contraseña</button>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={enviando}>{enviando ? 'Guardando...' : 'Guardar contraseña'}</button>
           </form>
         )}
       </div>
@@ -1709,6 +1655,7 @@ function RestablecerCentros() {
 
 // --- PORTAL COMERCIAL: UNIRSE AL EQUIPO DE UN CENTRO ---
 function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
+  useTitulo('Unirse al equipo | Cursenda');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token') || '';
@@ -1716,10 +1663,11 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
   const [nombre, setNombre] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     if (!token) { setInvitacion(null); return; }
-    fetch(`${API_BASE}/auth/invitacion-miembro/${encodeURIComponent(token)}`)
+    pedir(`${API_BASE}/auth/invitacion-miembro/${encodeURIComponent(token)}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setInvitacion(d))
       .catch(() => setInvitacion(null));
@@ -1731,21 +1679,23 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
     if (!nombre.trim()) { setError('Escribe tu nombre.'); return; }
     if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres.'); return; }
 
+    setEnviando(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/activar-miembro`, {
+      const res = await pedir(`${API_BASE}/auth/activar-miembro`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, nombre, password })
       });
-      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        onLogin(data);
+        onLogin(await res.json());
         navigate('/centros/dashboard');
       } else {
-        setError(data.error || 'No se pudo activar la cuenta.');
+        setError(await errorDe(res, 'No se ha podido crear la cuenta.'));
       }
-    } catch (err) {
-      setError('Error de red. Inténtelo de nuevo.');
+    } catch {
+      setError('No se ha podido crear la cuenta. Comprueba tu conexión y vuelve a intentarlo.');
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -1770,20 +1720,20 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
         {invitacion && (
           <form onSubmit={handleSubmit}>
             <p className="auth-subtitle" style={{ marginBottom: '1.5rem' }}>
-              Le han invitado a <strong>{invitacion.centro_nombre}</strong> como <strong>{rolTexto}</strong>. Su usuario será <strong>{invitacion.email}</strong>.
+              Te han invitado a <strong>{invitacion.centro_nombre}</strong> como <strong>{rolTexto}</strong>. Entrarás con el correo <strong>{invitacion.email}</strong>.
             </p>
             {error && (
-              <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
+              <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{error}</div>
             )}
             <div className="form-group">
-              <label className="form-label">Tu nombre</label>
-              <input type="text" className="form-control" autoComplete="name" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+              <label className="form-label" htmlFor="unirse-nombre">Tu nombre</label>
+              <input id="unirse-nombre" type="text" className="form-control" autoComplete="name" maxLength={120} value={nombre} onChange={(e) => setNombre(e.target.value)} />
             </div>
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-              <label className="form-label">Contraseña (mínimo 8 caracteres)</label>
-              <input type="password" className="form-control" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <label className="form-label" htmlFor="unirse-clave">Contraseña (mínimo 8 caracteres)</label>
+              <input id="unirse-clave" type="password" className="form-control" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Crear mi cuenta</button>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={enviando}>{enviando ? 'Creando la cuenta...' : 'Crear mi cuenta'}</button>
           </form>
         )}
       </div>
@@ -1795,6 +1745,11 @@ function UnirseCentros({ onLogin }: { onLogin: (user: any) => void }) {
 const parseFecha = (valor: string) => {
   if (!valor) return new Date(NaN);
   return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(valor) ? new Date(valor.replace(' ', 'T') + 'Z') : new Date(valor);
+};
+
+const formatFecha = (valor: string) => {
+  const d = parseFecha(valor);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-ES');
 };
 
 const formatFechaHora = (valor: string) => {
@@ -1828,15 +1783,17 @@ function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { u
   if (!user || user.rol === 'admin') return null;
 
   if (!user.acceso) {
+    // Quien ya pagó y se dio de baja no está "en prueba"
+    const motivo = user.suscripcion_estado === 'prueba' ? 'Tu mes de prueba ha terminado.' : 'Tu suscripción ya no está activa.';
     return (
       <div className="alert-box alert-error" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <span style={{ flex: 1 }}>
-          <strong>Tu mes de prueba ha terminado.</strong>{' '}
+          <strong>{motivo}</strong>{' '}
           {esPropietario
             ? 'Tus cursos no se muestran en la web y el panel queda bloqueado hasta que contrates un plan. Tus datos siguen guardados.'
             : 'Pide a la persona responsable de tu centro que contrate un plan para seguir usando Cursenda.'}
         </span>
-              </div>
+      </div>
     );
   }
 
@@ -1865,25 +1822,33 @@ function AvisoSuscripcion({ user, pagos, esPropietario, onIrAPlan, enPlan }: { u
 
 // Ventana para copiar un enlace (invitaciones, contraseña nueva)
 function EnlaceModal({ titulo, texto, enlace, onClose }: { titulo: string; texto: string; enlace: string; onClose: () => void }) {
-  const [copiado, setCopiado] = useState(false);
+  const [copiado, setCopiado] = useState<'' | 'si' | 'no'>('');
   const copiar = async () => {
     try {
       await navigator.clipboard.writeText(enlace);
-      setCopiado(true);
-    } catch (err) {
-      setCopiado(false);
+      setCopiado('si');
+    } catch {
+      setCopiado('no');
     }
   };
 
+  // Solo enseña un enlace, así que se puede cerrar también con Escape sin perder nada
+  useEffect(() => {
+    const alPulsar = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', alPulsar);
+    return () => window.removeEventListener('keydown', alPulsar);
+  }, [onClose]);
+
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(12, 59, 51, 0.65)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10001, padding: '1rem' }}>
-      <div style={{ backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '520px', border: '1px solid var(--lines)', padding: '1.75rem', textAlign: 'left' }}>
+      <div role="dialog" aria-modal="true" aria-label={titulo} style={{ backgroundColor: 'var(--white)', borderRadius: '16px', width: '100%', maxWidth: '520px', border: '1px solid var(--lines)', padding: '1.75rem', textAlign: 'left' }}>
         <h3 style={{ margin: '0 0 0.5rem', color: 'var(--primary)' }}>{titulo}</h3>
         <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>{texto}</p>
-        <input className="form-control" readOnly value={enlace} onFocus={(e) => e.target.select()} style={{ fontSize: '0.8125rem' }} />
+        <input className="form-control" readOnly aria-label="Enlace" value={enlace} onFocus={(e) => e.target.select()} style={{ fontSize: '0.8125rem' }} />
+        {copiado === 'no' && <p role="alert" style={{ margin: '0.5rem 0 0', fontSize: '0.8125rem', color: 'var(--error-text)' }}>No se ha podido copiar. Pulsa en el enlace para seleccionarlo y cópialo a mano.</p>}
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>Cerrar</button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={copiar}>{copiado ? 'Copiado' : 'Copiar enlace'}</button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={copiar}>{copiado === 'si' ? 'Copiado' : 'Copiar enlace'}</button>
         </div>
       </div>
     </div>
@@ -1934,37 +1899,26 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const [formCursoDescripcion, setFormCursoDescripcion] = useState('');
   const [formCursoEstado, setFormCursoEstado] = useState('publicado');
   const [formCursoError, setFormCursoError] = useState('');
+  // Mientras se guarda, el botón de la ventana no se puede volver a pulsar
+  const [guardando, setGuardando] = useState(false);
   const [busqueda, setBusqueda] = useState('');
 
   const navigate = useNavigate();
 
+  // Carga todo lo del panel. "Cargando..." solo se ve la primera vez: después se refresca sin que la pantalla salte.
   const loadData = async () => {
-    setLoading(true);
     try {
-      // Cargar centros
-      const resC = await fetch(`${API_BASE}/admin/centros`);
-      const dataC = await resC.json();
-      if (resC.ok) setAcademias(dataC);
-
-      // Cargar cursos
-      const resK = await fetch(`${API_BASE}/admin/cursos`);
-      const dataK = await resK.json();
-      if (resK.ok) setCursos(dataK);
-
-      // Cargar solicitudes
-      const resS = await fetch(`${API_BASE}/admin/solicitudes`);
-      const dataS = await resS.json();
-      if (resS.ok) setSolicitudes(dataS);
-
-      // Peticiones de demo y de recuperar contraseña
-      const resD = await fetch(`${API_BASE}/admin/demos`);
-      if (resD.ok) setDemos(await resD.json());
-      const resR = await fetch(`${API_BASE}/admin/recuperaciones`);
-      if (resR.ok) setRecuperaciones(await resR.json());
-
-    } catch (err) {
-      console.error(err);
-      setError('Error al cargar datos del panel de administrador.');
+      const respuestas = await Promise.all(['centros', 'cursos', 'solicitudes', 'demos', 'recuperaciones'].map(parte => pedir(`${API_BASE}/admin/${parte}`)));
+      if (!respuestas.every(r => r.ok)) throw new Error('No se han podido cargar los datos');
+      const [centros, losCursos, lasSolicitudes, lasDemos, lasRecuperaciones] = await Promise.all(respuestas.map(r => r.json()));
+      setAcademias(centros);
+      setCursos(losCursos);
+      setSolicitudes(lasSolicitudes);
+      setDemos(lasDemos);
+      setRecuperaciones(lasRecuperaciones);
+      setError('');
+    } catch {
+      setError('No se han podido cargar los datos. Recarga la página.');
     } finally {
       setLoading(false);
     }
@@ -1975,16 +1929,17 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   }, []);
 
   const handleEstadoDemo = async (id: number, estado: string) => {
-    const res = await fetch(`${API_BASE}/admin/demos/${id}`, {
+    const res = await pedir(`${API_BASE}/admin/demos/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ estado })
     });
     if (res.ok) setDemos(demos.map(d => d.id === id ? { ...d, estado } : d));
+    else alert(await errorDe(res, 'No se ha podido cambiar.'));
   };
 
   const handleEnlaceRecuperacion = async (url: string, para: string, peticionId?: number) => {
-    const res = await fetch(url, { method: 'POST' });
+    const res = await pedir(url, { method: 'POST' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       alert(data.error || 'No se pudo crear el enlace');
@@ -1996,7 +1951,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
   const handleReiniciarDemo = async () => {
     if (!window.confirm('¿Dejar la cuenta demo como nueva? Se borra lo que se haya cambiado en ella y se cargan los datos de ejemplo.')) return;
-    const res = await fetch(`${API_BASE}/admin/reiniciar-demo`, { method: 'POST' });
+    const res = await pedir(`${API_BASE}/admin/reiniciar-demo`, { method: 'POST' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       alert(data.error || 'No se pudo reiniciar la demo');
@@ -2008,7 +1963,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
   const handleAmpliarPrueba = async (ac: any) => {
     if (!window.confirm(`¿Dar 30 días más de prueba gratis a ${ac.nombre}?`)) return;
-    const res = await fetch(`${API_BASE}/admin/centros/${ac.id}/ampliar-prueba`, {
+    const res = await pedir(`${API_BASE}/admin/centros/${ac.id}/ampliar-prueba`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dias: 30 })
@@ -2022,31 +1977,32 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   };
 
   const handleDescartarRecuperacion = async (id: number) => {
-    const res = await fetch(`${API_BASE}/admin/recuperaciones/${id}/descartar`, { method: 'POST' });
+    const res = await pedir(`${API_BASE}/admin/recuperaciones/${id}/descartar`, { method: 'POST' });
     if (res.ok) setRecuperaciones(recuperaciones.map(r => r.id === id ? { ...r, atendida: 1 } : r));
+    else alert(await errorDe(res, 'No se ha podido descartar.'));
   };
 
   const handleLogout = async () => {
-    try {
-      await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
-      navigate('/centros/login');
-      onLogout();
-    } catch (err) {
-      console.error(err);
+    const res = await pedir(`${API_BASE}/auth/logout`, { method: 'POST' });
+    if (!res.ok) {
+      alert('No se ha podido cerrar la sesión. Comprueba tu conexión y vuelve a intentarlo.');
+      return;
     }
+    navigate('/centros/login');
+    onLogout();
   };
 
-  // Crear/Editar Academia
-  // Deja pasar el mes gratis desde la petición del formulario y da el enlace para enviárselo
   const handleGuardarAjustes = async (e: React.FormEvent) => {
     e.preventDefault();
     setAjustesEstado('');
-    const { legal_actualizado, demo_oculta, ...cambios } = formAjustes;
+    // La fecha de los textos legales la pone el servidor, y los cursos de ejemplo tienen su propio botón
+    const cambios = Object.entries(formAjustes).filter(([clave]) => clave !== 'legal_actualizado' && clave !== 'demo_oculta');
     try {
-      const res = await fetch(`${API_BASE}/admin/ajustes`, {
+      const res = await pedir(`${API_BASE}/admin/ajustes`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.fromEntries(Object.entries(cambios).map(([clave, valor]) => [clave, valor === AJUSTES_INICIALES[clave as keyof Ajustes] ? '' : valor])))
+        // Lo que se deja igual que el texto por defecto no se guarda
+        body: JSON.stringify(Object.fromEntries(cambios.map(([clave, valor]) => [clave, valor === AJUSTES_INICIALES[clave as keyof Ajustes] ? '' : valor])))
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2056,13 +2012,13 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
       setAjustes({ ...AJUSTES_INICIALES, ...data });
       cargarPrecios();
       setAjustesEstado('guardado');
-    } catch (err) {
+    } catch {
       setAjustesEstado('No se ha podido conectar. Vuelve a intentarlo.');
     }
   };
 
   const handleCursosEjemplo = async () => {
-    const res = await fetch(`${API_BASE}/admin/ajustes`, {
+    const res = await pedir(`${API_BASE}/admin/ajustes`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ demo_oculta: ajustes.demo_oculta ? '' : '1' })
@@ -2071,21 +2027,21 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
       setAjustes({ ...AJUSTES_INICIALES, ...(await res.json()) });
       cargarPrecios();
       loadData();
-    } else alert('No se ha podido cambiar.');
+    } else alert(await errorDe(res, 'No se ha podido cambiar.'));
   };
 
   const campoAjuste = (clave: keyof Ajustes, etiqueta: string, largo = false) => (
     <div className="form-group">
       <label className="form-label" htmlFor={`aj-${clave}`}>{etiqueta}</label>
       {largo
-        ? <textarea id={`aj-${clave}`} rows={3} className="form-control" value={formAjustes[clave]} onChange={(e) => setFormAjustes({ ...formAjustes, [clave]: e.target.value })} />
-        : <input id={`aj-${clave}`} className="form-control" value={formAjustes[clave]} onChange={(e) => setFormAjustes({ ...formAjustes, [clave]: e.target.value })} />}
+        ? <textarea id={`aj-${clave}`} rows={3} className="form-control" maxLength={LARGO_AJUSTES[clave]} value={formAjustes[clave]} onChange={(e) => setFormAjustes({ ...formAjustes, [clave]: e.target.value })} />
+        : <input id={`aj-${clave}`} className="form-control" maxLength={LARGO_AJUSTES[clave]} inputMode={clave.startsWith('precio_') ? 'numeric' : undefined} value={formAjustes[clave]} onChange={(e) => setFormAjustes({ ...formAjustes, [clave]: e.target.value })} />}
     </div>
   );
 
   const handleCrearCuentaDemo = async (d: any) => {
     if (!window.confirm(`¿Crear la cuenta de ${d.nombre_centro}? Empieza hoy su mes gratis.`)) return;
-    const res = await fetch(`${API_BASE}/admin/demos/${d.id}/crear-cuenta`, { method: 'POST' });
+    const res = await pedir(`${API_BASE}/admin/demos/${d.id}/crear-cuenta`, { method: 'POST' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       alert(data.error || 'No se ha podido crear la cuenta');
@@ -2096,34 +2052,33 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   };
 
   const handleEstadoCurso = async (c: any) => {
-    const res = await fetch(`${API_BASE}/admin/cursos/${c.id}`, {
+    const res = await pedir(`${API_BASE}/admin/cursos/${c.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...c, estado: c.estado === 'publicado' ? 'pausado' : 'publicado' })
+      body: JSON.stringify({ estado: c.estado === 'publicado' ? 'pausado' : 'publicado' })
     });
-    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error || 'No se ha podido cambiar el curso');
+      alert(await errorDe(res, 'No se ha podido cambiar el curso'));
       return;
     }
     loadData();
   };
 
   const handleArchivar = async (tipo: 'cursos' | 'solicitudes', id: number, archivar: boolean) => {
-    const res = await fetch(`${API_BASE}/admin/${tipo}/${id}/archivar`, {
+    const res = await pedir(`${API_BASE}/admin/${tipo}/${id}/archivar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archivar })
     });
     if (res.ok) loadData();
-    else alert('No se ha podido cambiar.');
+    else alert(await errorDe(res, 'No se ha podido cambiar.'));
   };
 
   const handleDeleteSolicitud = async (s: any) => {
     if (!window.confirm(`¿Eliminar la solicitud de ${s.nombre}? No se puede deshacer.`)) return;
-    const res = await fetch(`${API_BASE}/admin/solicitudes/${s.id}`, { method: 'DELETE' });
+    const res = await pedir(`${API_BASE}/admin/solicitudes/${s.id}`, { method: 'DELETE' });
     if (res.ok) setSolicitudes(solicitudes.filter(x => x.id !== s.id));
-    else alert('No se ha podido eliminar la solicitud');
+    else alert(await errorDe(res, 'No se ha podido eliminar la solicitud'));
   };
 
   const handleOpenAcademiaModal = (ac?: any) => {
@@ -2149,19 +2104,19 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     e.preventDefault();
     setFormAcademiaError('');
 
-    const payload: any = {
+    const payload = {
       nombre: formAcademiaNombre,
       email: formAcademiaEmail,
       plan: formAcademiaPlan,
       nombre_contacto: formAcademiaContacto,
       telefono: formAcademiaTelefono
     };
-    try {
-      const url = selectedAcademia ? `${API_BASE}/admin/centros/${selectedAcademia.id}` : `${API_BASE}/admin/centros`;
-      const method = selectedAcademia ? 'PUT' : 'POST';
+    const url = selectedAcademia ? `${API_BASE}/admin/centros/${selectedAcademia.id}` : `${API_BASE}/admin/centros`;
 
-      const res = await fetch(url, {
-        method,
+    setGuardando(true);
+    try {
+      const res = await pedir(url, {
+        method: selectedAcademia ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
@@ -2172,11 +2127,10 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
         if (!selectedAcademia && guardada.id) await handleEnlaceRecuperacion(`${API_BASE}/admin/centros/${guardada.id}/enlace-recuperacion`, guardada.email);
         loadData();
       } else {
-        const errData = await res.json();
-        setFormAcademiaError(errData.error || 'Error al guardar el centro');
+        setFormAcademiaError(await errorDe(res, 'No se ha podido guardar el centro'));
       }
-    } catch (err) {
-      setFormAcademiaError('No se ha podido conectar. Vuelve a intentarlo.');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -2184,17 +2138,9 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     if (!window.confirm('¿Eliminar este centro con todos sus cursos y solicitudes? No se puede deshacer.')) {
       return;
     }
-    try {
-      const res = await fetch(`${API_BASE}/admin/centros/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        loadData();
-      } else {
-        const errData = await res.json();
-        alert(errData.error || 'Error al eliminar el centro');
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await pedir(`${API_BASE}/admin/centros/${id}`, { method: 'DELETE' });
+    if (res.ok) loadData();
+    else alert(await errorDe(res, 'No se ha podido eliminar el centro'));
   };
 
   // Abrir Moderación de Curso
@@ -2204,9 +2150,9 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     setFormCursoCategoria(c.categoria);
     setFormCursoModalidad(c.modalidad);
     setFormCursoLocalidad(c.localidad);
-    setFormCursoDuracion(c.duracion_horas.toString());
-    setFormCursoPlazas(c.plazas.toString());
-    setFormCursoPlazasCubiertas(c.plazas_cubiertas.toString());
+    setFormCursoDuracion(String(c.duracion_horas));
+    setFormCursoPlazas(String(c.plazas));
+    setFormCursoPlazasCubiertas(String(c.plazas_cubiertas ?? 0));
     setFormCursoFechaInicio(c.fecha_inicio);
     setFormCursoDirigidoA(c.dirigido_a);
     setFormCursoDescripcion(c.descripcion);
@@ -2238,8 +2184,9 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
       estado: formCursoEstado
     };
 
+    setGuardando(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/cursos/${selectedCurso.id}`, {
+      const res = await pedir(`${API_BASE}/admin/cursos/${selectedCurso.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -2249,11 +2196,10 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
         setShowCursoModal(false);
         loadData();
       } else {
-        const errData = await res.json();
-        setFormCursoError(errData.error || 'Error al guardar el curso');
+        setFormCursoError(await errorDe(res, 'No se ha podido guardar el curso'));
       }
-    } catch (err) {
-      setFormCursoError('No se ha podido conectar. Vuelve a intentarlo.');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -2261,17 +2207,9 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
     if (!window.confirm('¿Eliminar este curso y sus solicitudes? No se puede deshacer.')) {
       return;
     }
-    try {
-      const res = await fetch(`${API_BASE}/admin/cursos/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        loadData();
-      } else {
-        const errData = await res.json();
-        alert(errData.error || 'Error al eliminar el curso');
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await pedir(`${API_BASE}/admin/cursos/${id}`, { method: 'DELETE' });
+    if (res.ok) loadData();
+    else alert(await errorDe(res, 'No se ha podido eliminar el curso'));
   };
 
   // Datos para las pantallas
@@ -2283,17 +2221,14 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   const demosNuevas = demos.filter(d => (d.estado || 'nueva') === 'nueva');
   const recuperacionesPendientes = recuperaciones.filter(r => !r.atendida);
   const diasDePrueba = (a: any) => {
-    const fin = parseFecha(a.prueba_hasta);
-    return fin ? Math.ceil((fin.getTime() - Date.now()) / 86400000) : 0;
+    const fin = parseFecha(a.prueba_hasta).getTime();
+    return isNaN(fin) ? 0 : Math.ceil((fin - Date.now()) / 86400000);
   };
   const enPrueba = (a: any) => a.suscripcion_estado === 'prueba' && !a.es_demo;
   const pruebasAcabando = academiasReales.filter(a => enPrueba(a) && diasDePrueba(a) > 0 && diasDePrueba(a) <= 7);
   const pruebasTerminadas = academiasReales.filter(a => enPrueba(a) && diasDePrueba(a) <= 0);
 
-  const contiene = (texto: string, ...campos: any[]) => {
-    const limpio = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    return !texto.trim() || campos.some(c => limpio(c).includes(limpio(texto.trim())));
-  };
+  const contiene = (texto: string, ...campos: any[]) => !texto.trim() || campos.some(c => sinTildes(c).includes(sinTildes(texto.trim())));
   const academiasVistas = academiasReales.filter(a => contiene(busqueda, a.nombre, a.email, a.nombre_contacto, a.telefono));
   const cursosVistos = cursos.filter(c => !!c.archivado === verArchivados && contiene(busqueda, c.titulo, c.centro_nombre, c.localidad, c.categoria));
   const solicitudesVistas = solicitudes.filter(s => !!s.archivada === verArchivados && contiene(busqueda, s.nombre, s.email, s.telefono, s.curso_titulo, s.centro_nombre));
@@ -2357,7 +2292,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
               <div>
                 <h1 className="admin-titulo">Resumen</h1>
                 <div className="admin-cifras">
-                  <button type="button" onClick={() => irA('academias')}><span>Academias, sin la demo</span><strong>{academiasReales.filter(a => !a.es_demo).length}</strong></button>
+                  <button type="button" onClick={() => irA('academias')}><span>Centros, sin la demo</span><strong>{academiasReales.filter(a => !a.es_demo).length}</strong></button>
                   <button type="button" onClick={() => irA('academias')}><span>Pagando</span><strong>{academiasPagando.length}</strong></button>
                   <div><span>Ingresos al mes, sin IVA</span><strong>{ingresosMes} €</strong></div>
                   <button type="button" onClick={() => irA('cursos')}><span>Cursos publicados</span><strong>{totalCursosPublicados}</strong></button>
@@ -2412,7 +2347,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                           </td>
                         </tr>
                       ))}
-                      {academiasVistas.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay academias.</td></tr>}
+                      {academiasVistas.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay centros.</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -2492,7 +2427,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
             {tab === 'demos' && (
               <div>
                 <h1 className="admin-titulo">Peticiones de acceso</h1>
-                <p className="admin-intro">Centros que han rellenado el formulario para probar Cursenda. Al crear la cuenta empieza su mes gratis y te doy un enlace para que se lo envíes.</p>
+                <p className="admin-intro">Centros que han rellenado el formulario para probar Cursenda. Al crear la cuenta empieza su mes gratis y aparece un enlace para que se lo envíes.</p>
                 <div className="table-container">
                   <table>
                     <thead><tr><th>Centro</th><th>Contacto</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
@@ -2509,7 +2444,11 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                               <option value="descartada">Descartada</option>
                             </select>
                           </td>
-                          <td><button type="button" onClick={() => handleCrearCuentaDemo(d)} className="btn btn-primary btn-sm">Crear cuenta</button></td>
+                          <td>
+                            {academias.some(a => String(a.email).toLowerCase() === String(d.email).toLowerCase())
+                              ? 'Cuenta creada'
+                              : d.estado !== 'descartada' && <button type="button" onClick={() => handleCrearCuentaDemo(d)} className="btn btn-primary btn-sm">Crear cuenta</button>}
+                          </td>
                         </tr>
                       ))}
                       {demos.length === 0 && <tr><td colSpan={5} className="admin-vacio">Todavía no hay peticiones.</td></tr>}
@@ -2535,7 +2474,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
                           <td>
                             {r.atendida ? 'Atendida' : (
                               <div className="admin-acciones">
-                                <button type="button" className="btn btn-primary btn-sm" onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/recuperaciones/${r.id}/enlace`, r.email, r.id)}>Crear enlace</button>
+                                {(r.centro_nombre || r.miembro_de) && <button type="button" className="btn btn-primary btn-sm" onClick={() => handleEnlaceRecuperacion(`${API_BASE}/admin/recuperaciones/${r.id}/enlace`, r.email, r.id)}>Crear enlace</button>}
                                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleDescartarRecuperacion(r.id)}>Descartar</button>
                               </div>
                             )}
@@ -2605,7 +2544,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
       {showAcademiaModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" role="dialog" aria-modal="true">
             <div className="modal-header">
               <h3 className="modal-title">{selectedAcademia ? 'Editar centro' : 'Nuevo centro'}</h3>
               <button type="button" aria-label="Cerrar" onClick={() => setShowAcademiaModal(false)} className="btn-close-modal"><X size={18} /></button>
@@ -2613,21 +2552,21 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
             <form onSubmit={handleSaveAcademia}>
               <div className="admin-modal-cuerpo">
                 {formAcademiaError && <div className="alert-box alert-error" role="alert">{formAcademiaError}</div>}
-                <div className="form-group"><label className="form-label" htmlFor="ac-nombre">Nombre del centro *</label><input id="ac-nombre" required className="form-control" value={formAcademiaNombre} onChange={(e) => setFormAcademiaNombre(e.target.value)} /></div>
-                <div className="form-group"><label className="form-label" htmlFor="ac-email">Correo de acceso *</label><input id="ac-email" required type="email" className="form-control" value={formAcademiaEmail} onChange={(e) => setFormAcademiaEmail(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="ac-nombre">Nombre del centro *</label><input id="ac-nombre" required maxLength={200} className="form-control" value={formAcademiaNombre} onChange={(e) => setFormAcademiaNombre(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="ac-email">Correo de acceso *</label><input id="ac-email" required type="email" maxLength={200} className="form-control" value={formAcademiaEmail} onChange={(e) => setFormAcademiaEmail(e.target.value)} /></div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="ac-plan">Plan</label>
                   <select id="ac-plan" className="form-control" value={formAcademiaPlan} onChange={(e) => setFormAcademiaPlan(e.target.value)}>
                     {planesCon(ajustes).map(p => <option key={p.id} value={p.id}>{p.nombre} ({p.precio})</option>)}
                   </select>
                 </div>
-                <div className="form-group"><label className="form-label" htmlFor="ac-contacto">Persona de contacto</label><input id="ac-contacto" className="form-control" value={formAcademiaContacto} onChange={(e) => setFormAcademiaContacto(e.target.value)} /></div>
-                <div className="form-group"><label className="form-label" htmlFor="ac-tel">Teléfono</label><input id="ac-tel" type="tel" className="form-control" value={formAcademiaTelefono} onChange={(e) => setFormAcademiaTelefono(e.target.value)} /></div>
-                {!selectedAcademia && <p className="admin-dato">Al guardar empieza su mes gratis y te doy un enlace para que ponga su contraseña.</p>}
+                <div className="form-group"><label className="form-label" htmlFor="ac-contacto">Persona de contacto</label><input id="ac-contacto" maxLength={200} className="form-control" value={formAcademiaContacto} onChange={(e) => setFormAcademiaContacto(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="ac-tel">Teléfono</label><input id="ac-tel" type="tel" maxLength={30} className="form-control" value={formAcademiaTelefono} onChange={(e) => setFormAcademiaTelefono(e.target.value)} /></div>
+                {!selectedAcademia && <p className="admin-dato">Al guardar empieza su mes gratis y aparece un enlace para que ponga su contraseña.</p>}
               </div>
               <div className="admin-modal-pie">
                 <button type="button" onClick={() => setShowAcademiaModal(false)} className="btn btn-secondary">Cancelar</button>
-                <button type="submit" className="btn btn-primary">Guardar</button>
+                <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>
           </div>
@@ -2636,7 +2575,7 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
 
       {showCursoModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" role="dialog" aria-modal="true">
             <div className="modal-header">
               <h3 className="modal-title">Editar curso</h3>
               <button type="button" aria-label="Cerrar" onClick={() => setShowCursoModal(false)} className="btn-close-modal"><X size={18} /></button>
@@ -2644,23 +2583,23 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
             <form onSubmit={handleSaveCurso}>
               <div className="admin-modal-cuerpo">
                 {formCursoError && <div className="alert-box alert-error" role="alert">{formCursoError}</div>}
-                <div className="form-group"><label className="form-label" htmlFor="cu-titulo">Título *</label><input id="cu-titulo" required className="form-control" value={formCursoTitulo} onChange={(e) => setFormCursoTitulo(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="cu-titulo">Título *</label><input id="cu-titulo" required maxLength={200} className="form-control" value={formCursoTitulo} onChange={(e) => setFormCursoTitulo(e.target.value)} /></div>
                 <div className="admin-dos">
                   <div className="form-group"><label className="form-label" htmlFor="cu-cat">Familia profesional</label><select id="cu-cat" className="form-control" value={formCursoCategoria} onChange={(e) => setFormCursoCategoria(e.target.value)}>{NOMBRES_FAMILIAS.map(c => <option key={c}>{c}</option>)}</select></div>
                   <div className="form-group"><label className="form-label" htmlFor="cu-mod">Modalidad</label><select id="cu-mod" className="form-control" value={formCursoModalidad} onChange={(e) => setFormCursoModalidad(e.target.value)}>{['Presencial', 'Online', 'Mixta'].map(c => <option key={c}>{c}</option>)}</select></div>
-                  <div className="form-group"><label className="form-label" htmlFor="cu-loc">Localidad *</label><input id="cu-loc" required className="form-control" value={formCursoLocalidad} onChange={(e) => setFormCursoLocalidad(e.target.value)} /></div>
-                  <div className="form-group"><label className="form-label" htmlFor="cu-horas">Horas *</label><input id="cu-horas" required type="number" min="1" className="form-control" value={formCursoDuracion} onChange={(e) => setFormCursoDuracion(e.target.value)} /></div>
-                  <div className="form-group"><label className="form-label" htmlFor="cu-plazas">Plazas *</label><input id="cu-plazas" required type="number" min="1" className="form-control" value={formCursoPlazas} onChange={(e) => setFormCursoPlazas(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-loc">Localidad *</label><input id="cu-loc" required maxLength={120} className="form-control" value={formCursoLocalidad} onChange={(e) => setFormCursoLocalidad(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-horas">Horas *</label><input id="cu-horas" required type="number" min="1" max="10000" className="form-control" value={formCursoDuracion} onChange={(e) => setFormCursoDuracion(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-plazas">Plazas *</label><input id="cu-plazas" required type="number" min="1" max="10000" className="form-control" value={formCursoPlazas} onChange={(e) => setFormCursoPlazas(e.target.value)} /></div>
                   <div className="form-group"><label className="form-label" htmlFor="cu-cub">Plazas ya cubiertas</label><input id="cu-cub" type="number" min="0" className="form-control" value={formCursoPlazasCubiertas} onChange={(e) => setFormCursoPlazasCubiertas(e.target.value)} /></div>
-                  <div className="form-group"><label className="form-label" htmlFor="cu-fecha">Fecha de inicio *</label><input id="cu-fecha" required className="form-control" value={formCursoFechaInicio} onChange={(e) => setFormCursoFechaInicio(e.target.value)} /></div>
+                  <div className="form-group"><label className="form-label" htmlFor="cu-fecha">Fecha de inicio *</label><input id="cu-fecha" required maxLength={60} className="form-control" value={formCursoFechaInicio} onChange={(e) => setFormCursoFechaInicio(e.target.value)} /></div>
                   <div className="form-group"><label className="form-label" htmlFor="cu-para">Dirigido a</label><select id="cu-para" className="form-control" value={formCursoDirigidoA} onChange={(e) => setFormCursoDirigidoA(e.target.value)}>{['Todos', 'Desempleados', 'Ocupados'].map(c => <option key={c}>{c}</option>)}</select></div>
                 </div>
                 <div className="form-group"><label className="form-label" htmlFor="cu-est">Estado</label><select id="cu-est" className="form-control" value={formCursoEstado} onChange={(e) => setFormCursoEstado(e.target.value)}><option value="publicado">Publicado</option><option value="pausado">Pausado</option></select></div>
-                <div className="form-group"><label className="form-label" htmlFor="cu-desc">Descripción *</label><textarea id="cu-desc" required rows={4} className="form-control" value={formCursoDescripcion} onChange={(e) => setFormCursoDescripcion(e.target.value)} /></div>
+                <div className="form-group"><label className="form-label" htmlFor="cu-desc">Descripción *</label><textarea id="cu-desc" required rows={4} maxLength={5000} className="form-control" value={formCursoDescripcion} onChange={(e) => setFormCursoDescripcion(e.target.value)} /></div>
               </div>
               <div className="admin-modal-pie">
                 <button type="button" onClick={() => setShowCursoModal(false)} className="btn btn-secondary">Cancelar</button>
-                <button type="submit" className="btn btn-primary">Guardar</button>
+                <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>
           </div>
@@ -2670,14 +2609,14 @@ function DashboardAdmin({ onLogout }: { user: any; onLogout: () => void }) {
   );
 }
 
-function DashboardCentros({ user, onLogout }: { user: any; onLogout: () => void }) {
+function DashboardCentros({ user, onLogout, onRefrescar }: { user: any; onLogout: () => void; onRefrescar: () => Promise<void> }) {
   if (user?.rol === 'admin') return <DashboardAdmin user={user} onLogout={onLogout} />;
-  return <DashboardCentro user={user} onLogout={onLogout} />;
+  return <DashboardCentro user={user} onLogout={onLogout} onRefrescar={onRefrescar} />;
 }
 
 const SECCIONES_CENTRO = ['cursos', 'solicitudes', 'stats', 'plan', 'plantillas', 'personal', 'integraciones', 'configuracion'] as const;
 
-function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }) {
+function DashboardCentro({ user, onLogout, onRefrescar }: { user: any; onLogout: () => void; onRefrescar: () => Promise<void> }) {
   const { ajustes } = useAjustes();
   usePrecios();
   const [tabElegida, setTab] = useSeccion(SECCIONES_CENTRO, 'cursos');
@@ -2755,19 +2694,16 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
     if (!archivo) return;
     setLogoError('');
     if (archivo.size > 200 * 1024) { setLogoError('El logo pesa más de 200 KB.'); return; }
-    try {
-      const res = await fetch(`${API_BASE}/centro/logo`, { method: 'PUT', headers: { 'Content-Type': archivo.type }, body: archivo });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) setLogoAcademia(data.logo);
-      else setLogoError(data.error || 'No se ha podido subir el logo.');
-    } catch (err) {
-      setLogoError('No se ha podido conectar. Vuelve a intentarlo.');
-    }
+    const res = await pedir(`${API_BASE}/centro/logo`, { method: 'PUT', headers: { 'Content-Type': archivo.type }, body: archivo });
+    if (res.ok) setLogoAcademia((await res.json()).logo);
+    else setLogoError(await errorDe(res, 'No se ha podido subir el logo.'));
   };
 
   const handleQuitarLogo = async () => {
-    const res = await fetch(`${API_BASE}/centro/logo`, { method: 'DELETE' });
+    setLogoError('');
+    const res = await pedir(`${API_BASE}/centro/logo`, { method: 'DELETE' });
     if (res.ok) setLogoAcademia(null);
+    else setLogoError(await errorDe(res, 'No se ha podido quitar el logo.'));
   };
 
   // Formulario Curso
@@ -2786,97 +2722,40 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
   const [formSalidas, setFormSalidas] = useState('');
   const [formHorario, setFormHorario] = useState('');
   const [formError, setFormError] = useState('');
+  // Mientras se guarda algo, su botón no se puede volver a pulsar (dos clics seguidos lo guardarían dos veces)
+  const [guardando, setGuardando] = useState(false);
 
   const navigate = useNavigate();
 
-  // Cargar datos
-  const loadCursos = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/cursos`);
-      if (res.ok) {
-        const data = await res.json();
-        setCursos(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
+  // Cargar datos. Si algo no llega, se avisa arriba en vez de dejar la pantalla vacía sin explicación.
+  const [falloCarga, setFalloCarga] = useState(false);
+  const cargar = async (ruta: string, guardar: (datos: any) => void) => {
+    const res = await pedir(`${API_BASE}${ruta}`);
+    const datos = res.ok ? await res.json().catch(() => null) : null;
+    if (datos) guardar(datos);
+    // La sesión caducada (401) y el fin de la prueba (402) ya tienen su propio aviso
+    else if (res.status !== 401 && res.status !== 402) setFalloCarga(true);
   };
 
-  const loadSolicitudes = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/solicitudes`);
-      if (res.ok) {
-        const data = await res.json();
-        setSolicitudes(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/estadisticas`);
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const loadFacturas = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/facturas`);
-      if (res.ok) {
-        const data = await res.json();
-        setFacturas(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const loadApiSettings = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/centro/api-settings`);
-      if (res.ok) {
-        const data = await res.json();
-        setWebhookUrl(data.webhook_url || '');
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
+  const loadCursos = () => cargar('/cursos', setCursos);
+  const loadSolicitudes = () => cargar('/solicitudes', setSolicitudes);
+  const loadStats = () => cargar('/estadisticas', setStats);
+  const loadFacturas = () => cargar('/facturas', setFacturas);
+  const loadApiSettings = () => cargar('/centro/api-settings', datos => setWebhookUrl(datos.webhook_url || ''));
+  const loadPlantillas = () => cargar('/plantillas', datos => setTemplates(datos.map(plantillaDesdeApi)));
 
   const handleSaveWebhook = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/centro/api-settings/webhook`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhook_url: webhookUrl })
-      });
-      if (res.ok) {
-        setWebhookError('');
-        setWebhookSaveSuccess(true);
-        setTimeout(() => setWebhookSaveSuccess(false), 3000);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setWebhookError(data.error || 'No se ha podido guardar.');
-      }
-    } catch (err) {
-      setWebhookError('No se ha podido conectar. Vuelve a intentarlo.');
-    }
-  };
-
-  const loadPlantillas = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/plantillas`);
-      if (res.ok) setTemplates((await res.json()).map(plantillaDesdeApi));
-    } catch (err) {
-      console.error(err);
+    const res = await pedir(`${API_BASE}/centro/api-settings/webhook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhook_url: webhookUrl })
+    });
+    if (res.ok) {
+      setWebhookError('');
+      setWebhookSaveSuccess(true);
+      setTimeout(() => setWebhookSaveSuccess(false), 3000);
+    } else {
+      setWebhookError(await errorDe(res, 'No se ha podido guardar.'));
     }
   };
 
@@ -2887,23 +2766,23 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
   };
   const ESTADO_TEXTO: Record<string, string> = { activo: 'Activo', pendiente: 'Invitación pendiente', desactivado: 'Desactivado' };
 
-  const loadEquipo = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/equipo`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setTeam([
-        { id: 0, nombre: data.propietario.nombre, email: data.propietario.email, rol: 'propietario', estado: 'activo', esPropietario: true },
-        ...data.miembros.map((m: any) => ({ ...m, nombre: m.nombre || '—' }))
-      ]);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const loadEquipo = () => cargar('/equipo', data => setTeam([
+    { id: 0, nombre: data.propietario.nombre, email: data.propietario.email, rol: 'propietario', estado: 'activo', esPropietario: true },
+    ...data.miembros.map((m: any) => ({ ...m, nombre: m.nombre || '—' }))
+  ]));
 
   useEffect(() => {
     if (!user) {
       navigate('/centros/login');
+      return;
+    }
+    // Sin prueba ni suscripción solo queda abierto "Plan y facturas": lo demás ni se pide
+    if (!user.acceso) {
+      if (esPropietario) {
+        loadFacturas();
+        loadPagos();
+        setTab('plan', true);
+      }
       return;
     }
     loadCursos();
@@ -2916,8 +2795,6 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
       loadEquipo();
       loadPagos();
     }
-    // Sin prueba ni suscripción, directo a "Plan y facturas"
-    if (user && !user.acceso && esPropietario) setTab('plan', true);
   }, [user]);
 
   // Manejar cursos
@@ -2928,9 +2805,9 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
       setFormCategoria(curso.categoria);
       setFormModalidad(curso.modalidad);
       setFormLocalidad(curso.localidad);
-      setFormDuracion(curso.duracion_horas.toString());
-      setFormPlazas(curso.plazas.toString());
-      setFormPlazasCubiertas(curso.plazas_cubiertas.toString());
+      setFormDuracion(String(curso.duracion_horas));
+      setFormPlazas(String(curso.plazas));
+      setFormPlazasCubiertas(String(curso.plazas_cubiertas ?? 0));
       setFormFechaInicio(curso.fecha_inicio);
       setFormDirigidoA(curso.dirigido_a);
       setFormDescripcion(curso.descripcion);
@@ -2963,7 +2840,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
     setFormError('');
 
     if (!formTitulo || !formLocalidad || !formDuracion || !formPlazas || !formFechaInicio || !formDescripcion) {
-      setFormError('Todos los campos obligatorios (*) deben ser rellenados.');
+      setFormError('Rellena todos los campos obligatorios (*).');
       return;
     }
 
@@ -2993,12 +2870,10 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
       horario: formHorario
     };
 
+    setGuardando(true);
     try {
-      const url = selectedCurso ? `${API_BASE}/cursos/${selectedCurso.id}` : `${API_BASE}/cursos`;
-      const method = selectedCurso ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
+      const res = await pedir(selectedCurso ? `${API_BASE}/cursos/${selectedCurso.id}` : `${API_BASE}/cursos`, {
+        method: selectedCurso ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
@@ -3008,11 +2883,10 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
         loadCursos();
         loadStats();
       } else {
-        const data = await res.json();
-        setFormError(data.error || 'Error al guardar el curso');
+        setFormError(await errorDe(res, 'No se ha podido guardar el curso.'));
       }
-    } catch (err) {
-      setFormError('No se ha podido conectar. Vuelve a intentarlo.');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -3036,12 +2910,13 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
     setFormTemplateError('');
 
     if (!formTemplateTitulo.trim() || !formTemplateContenido.trim()) {
-      setFormTemplateError('El título y el contenido son campos requeridos.');
+      setFormTemplateError('Escribe el título y el texto.');
       return;
     }
 
+    setGuardando(true);
     try {
-      const res = await fetch(selectedTemplate ? `${API_BASE}/plantillas/${selectedTemplate.id}` : `${API_BASE}/plantillas`, {
+      const res = await pedir(selectedTemplate ? `${API_BASE}/plantillas/${selectedTemplate.id}` : `${API_BASE}/plantillas`, {
         method: selectedTemplate ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3050,23 +2925,23 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
           texto: formTemplateContenido
         })
       });
-      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setFormTemplateError(data.error || 'No se pudo guardar la plantilla.');
+        setFormTemplateError(await errorDe(res, 'No se ha podido guardar la plantilla.'));
         return;
       }
-      const guardada = plantillaDesdeApi(data);
+      const guardada = plantillaDesdeApi(await res.json());
       setTemplates(selectedTemplate ? templates.map(t => t.id === guardada.id ? guardada : t) : [...templates, guardada]);
       setShowTemplateModal(false);
-    } catch (err) {
-      setFormTemplateError('No se ha podido conectar. Vuelve a intentarlo.');
+    } finally {
+      setGuardando(false);
     }
   };
 
   const handleDeleteTemplate = async (id: number) => {
     if (!window.confirm('¿Eliminar esta plantilla?')) return;
-    const res = await fetch(`${API_BASE}/plantillas/${id}`, { method: 'DELETE' });
+    const res = await pedir(`${API_BASE}/plantillas/${id}`, { method: 'DELETE' });
     if (res.ok) setTemplates(templates.filter(t => t.id !== id));
+    else alert(await errorDe(res, 'No se ha podido eliminar la plantilla.'));
   };
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -3074,101 +2949,116 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
     setInviteError('');
     if (!inviteEmail) return;
 
+    setGuardando(true);
     try {
-      const res = await fetch(`${API_BASE}/equipo`, {
+      const res = await pedir(`${API_BASE}/equipo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteEmail, rol: inviteRol })
       });
-      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setInviteError(data.error || 'No se pudo crear la invitación.');
+        setInviteError(await errorDe(res, 'No se ha podido crear la invitación.'));
         return;
       }
       setEnlaceEquipo({
         titulo: 'Invitación creada',
         texto: `Envíale este enlace a ${inviteEmail} para que cree su cuenta. Caduca en 7 días.`,
-        enlace: data.enlace
+        enlace: (await res.json()).enlace
       });
       setInviteEmail('');
       loadEquipo();
-    } catch (err) {
-      setInviteError('No se ha podido conectar. Vuelve a intentarlo.');
+    } finally {
+      setGuardando(false);
     }
+  };
+
+  // A quien todavía no ha usado su invitación se le puede sacar otro enlace; el anterior deja de valer
+  const handleReinvitar = async (member: any) => {
+    const res = await pedir(`${API_BASE}/equipo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: member.email, rol: member.rol })
+    });
+    if (!res.ok) {
+      alert(await errorDe(res, 'No se ha podido crear la invitación.'));
+      return;
+    }
+    setEnlaceEquipo({
+      titulo: 'Invitación nueva',
+      texto: `Envíale este enlace a ${member.email} para que cree su cuenta. Caduca en 7 días y el enlace anterior ya no vale.`,
+      enlace: (await res.json()).enlace
+    });
   };
 
   const handleRemoveTeamMember = async (id: number) => {
     const member = team.find(t => t.id === id);
     if (!member || member.esPropietario) return;
     if (!window.confirm(`¿Eliminar a ${member.nombre !== '—' ? member.nombre : member.email}?`)) return;
-    const res = await fetch(`${API_BASE}/equipo/${id}`, { method: 'DELETE' });
+    const res = await pedir(`${API_BASE}/equipo/${id}`, { method: 'DELETE' });
     if (res.ok) loadEquipo();
+    else alert(await errorDe(res, 'No se ha podido eliminar.'));
   };
 
   const handleToggleMiembro = async (member: any) => {
-    const res = await fetch(`${API_BASE}/equipo/${member.id}`, {
+    const res = await pedir(`${API_BASE}/equipo/${member.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ activo: member.estado === 'desactivado' })
     });
     if (res.ok) loadEquipo();
+    else alert(await errorDe(res, 'No se ha podido cambiar.'));
   };
 
   const handleEnlaceMiembro = async (member: any) => {
-    const res = await fetch(`${API_BASE}/equipo/${member.id}/enlace-recuperacion`, { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
+    const res = await pedir(`${API_BASE}/equipo/${member.id}/enlace-recuperacion`, { method: 'POST' });
     if (!res.ok) {
-      alert(data.error || 'No se pudo crear el enlace');
+      alert(await errorDe(res, 'No se ha podido crear el enlace.'));
       return;
     }
     setEnlaceEquipo({
       titulo: 'Enlace para contraseña nueva',
       texto: `Envíale este enlace a ${member.email}. Caduca en 24 horas y solo sirve una vez.`,
-      enlace: data.enlace
+      enlace: (await res.json()).enlace
     });
   };
 
   const handleToggleCursoEstado = async (id: number) => {
-    try {
-      const res = await fetch(`${API_BASE}/cursos/${id}/toggle-estado`, { method: 'POST' });
-      if (res.ok) {
-        loadCursos();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || 'No se ha podido cambiar el estado del curso.');
-      }
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await pedir(`${API_BASE}/cursos/${id}/toggle-estado`, { method: 'POST' });
+    if (res.ok) { loadCursos(); loadStats(); }
+    else alert(await errorDe(res, 'No se ha podido cambiar el estado del curso.'));
   };
 
-  // Manejar Leads
+  // Ficha de una solicitud.
+  // Se apunta cuál está abierta: si se abre otra antes de que lleguen las notas, las de la anterior ya no cuentan.
+  const leadAbierto = useRef<number | null>(null);
+  const [notasError, setNotasError] = useState('');
   const handleOpenLeadModal = async (lead: any) => {
+    leadAbierto.current = lead.id;
     setSelectedLead(lead);
     setShowLeadModal(true);
     setNewNoteText('');
+    setLeadNotes([]);
+    setNotasError('');
     // Por defecto, la primera plantilla de WhatsApp
     setPlantillaContacto(templates.find(t => t.canal === 'WhatsApp')?.id ?? '');
-    
-    try {
-      const res = await fetch(`${API_BASE}/solicitudes/${lead.id}/notas`);
-      if (res.ok) {
-        const data = await res.json();
-        setLeadNotes(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
+
+    const res = await pedir(`${API_BASE}/solicitudes/${lead.id}/notas`);
+    const notas = res.ok ? await res.json().catch(() => null) : null;
+    const fallo = notas ? '' : await errorDe(res, 'No se han podido cargar las notas.');
+    if (leadAbierto.current !== lead.id) return;
+    if (notas) setLeadNotes(notas);
+    else setNotasError(fallo);
   };
 
   // Contactar desde la ficha: plantilla rellenada con los datos del alumno
   const [plantillaContacto, setPlantillaContacto] = useState<number | ''>('');
 
+  // Lo nuevo se pasa como función para que un "$" en un nombre o en un título se quede tal cual
   const rellenarPlantilla = (texto: string, lead: any) => texto
-    .replace(/\[Nombre\]/g, (lead.nombre || '').split(' ')[0])
-    .replace(/\[Curso\]/g, lead.curso_titulo || '')
-    .replace(/\[Centro\]/g, user?.nombre || '')
-    .replace(/\[Fecha\]/g, lead.curso_fecha || '');
+    .replace(/\[Nombre\]/gi, () => (lead.nombre || '').split(' ')[0])
+    .replace(/\[Curso\]/gi, () => lead.curso_titulo || '')
+    .replace(/\[Centro\]/gi, () => user?.nombre || '')
+    .replace(/\[Fecha\]/gi, () => lead.curso_fecha || '');
 
   // wa.me necesita el número con prefijo de país y sin espacios
   const telefonoWhatsApp = (tel: string) => {
@@ -3176,17 +3066,28 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
     return /^[6789]\d{8}$/.test(digitos) ? '34' + digitos : digitos;
   };
 
+  // Guarda una nota en la solicitud abierta y dice si se ha guardado
   const guardarNota = async (texto: string) => {
-    const res = await fetch(`${API_BASE}/solicitudes/${selectedLead.id}/notas`, {
+    const lead = selectedLead;
+    const res = await pedir(`${API_BASE}/solicitudes/${lead.id}/notas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ texto })
     });
-    if (res.ok) {
-      const nueva = await res.json();
-      setLeadNotes(prev => [nueva, ...prev]);
-      loadSolicitudes();
+    const nueva = res.ok ? await res.json().catch(() => null) : null;
+    if (!nueva) {
+      const fallo = await errorDe(res, 'No se ha podido guardar la nota.');
+      if (leadAbierto.current === lead.id) setNotasError(fallo);
+      return false;
     }
+    if (leadAbierto.current === lead.id) {
+      setLeadNotes(prev => [nueva, ...prev]);
+      setNotasError('');
+    }
+    // La solicitud pasa a estar gestionada
+    loadSolicitudes();
+    loadStats();
+    return true;
   };
 
   const handleContactar = (canal: 'whatsapp' | 'email') => {
@@ -3197,36 +3098,22 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
     if (canal === 'whatsapp') {
       window.open(`https://wa.me/${telefonoWhatsApp(lead.telefono)}${texto ? `?text=${encodeURIComponent(texto)}` : ''}`, '_blank', 'noopener');
     } else {
-      const asunto = `Su solicitud de plaza: ${lead.curso_titulo}`;
-      window.location.href = `mailto:${lead.email}?subject=${encodeURIComponent(asunto)}${texto ? `&body=${encodeURIComponent(texto)}` : ''}`;
+      const asunto = `Tu solicitud de plaza: ${lead.curso_titulo}`;
+      // En la dirección, lo que cortaría el enlace (?, &, #...) va codificado
+      window.location.href = `mailto:${String(lead.email).replace(/[?&#%\s]/g, c => encodeURIComponent(c))}?subject=${encodeURIComponent(asunto)}${texto ? `&body=${encodeURIComponent(texto)}` : ''}`;
     }
     guardarNota(`Contactado por ${canal === 'whatsapp' ? 'WhatsApp' : 'email'}${plantilla ? ` con la plantilla "${plantilla.titulo}"` : ''}.`);
   };
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNoteText.trim()) return;
+    if (!newNoteText.trim() || guardando) return;
 
+    setGuardando(true);
     try {
-      const res = await fetch(`${API_BASE}/solicitudes/${selectedLead.id}/notas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ texto: newNoteText })
-      });
-      
-      if (res.ok) {
-        setNewNoteText('');
-        // Recargar notas del lead
-        const resNotes = await fetch(`${API_BASE}/solicitudes/${selectedLead.id}/notas`);
-        const notesData = await resNotes.json();
-        setLeadNotes(notesData);
-
-        // Recargar solicitudes para reflejar estado "gestionado"
-        loadSolicitudes();
-        loadStats();
-      }
-    } catch (err) {
-      console.error(err);
+      if (await guardarNota(newNoteText)) setNewNoteText('');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -3240,21 +3127,15 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
   const [pagoCargando, setPagoCargando] = useState(false);
   const [pagoAviso, setPagoAviso] = useState<'ok' | 'cancelado' | null>(null);
 
-  const loadPagos = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/pagos/estado`);
-      if (res.ok) setPagos(await res.json());
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  const loadPagos = () => cargar('/pagos/estado', setPagos);
 
   // El aviso sale arriba del formulario: hay que llevarlo a la vista
   useEffect(() => {
     if (formError) document.querySelector('.modal-content .alert-box')?.scrollIntoView({ block: 'center' });
   }, [formError]);
 
-  // Al volver de Stripe: avisar y esperar a que llegue la confirmación
+  // Al volver de Stripe: avisar y esperar a que llegue la confirmación.
+  // Stripe puede tardar unos segundos en avisar, así que se vuelve a mirar varias veces (también la sesión, que es la que abre el panel).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pago = params.get('pago');
@@ -3267,31 +3148,35 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
         intentos++;
         loadPagos();
         loadFacturas();
+        onRefrescar();
         if (intentos >= 5) clearInterval(t);
       }, 2000);
       return () => clearInterval(t);
     }
   }, []);
 
+  // Si se vuelve de Stripe con el botón de atrás, la página sale tal como se dejó: hay que soltar el botón
+  useEffect(() => {
+    const alVolver = () => setPagoCargando(false);
+    window.addEventListener('pageshow', alVolver);
+    return () => window.removeEventListener('pageshow', alVolver);
+  }, []);
+
   const [menuAbierto, setMenuAbierto] = useState(false);
   const irAStripe = async (url: string, body?: any) => {
     setPagoError('');
     setPagoCargando(true);
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body || {})
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.url) {
-        window.location.href = data.url;
-        return;
-      }
-      setPagoError(data.error || 'No se pudo abrir la página de pago.');
-    } catch (err) {
-      setPagoError('No se ha podido conectar. Vuelve a intentarlo.');
+    const res = await pedir(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+    const data = res.ok ? await res.json().catch(() => ({})) : {};
+    if (data.url) {
+      window.location.href = data.url;
+      return;
     }
+    setPagoError(await errorDe(res, 'No se ha podido abrir la página de pago.'));
     setPagoCargando(false);
   };
 
@@ -3300,20 +3185,17 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
 
   // Cerrar Sesión
   const handleLogoutClick = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
-      if (res.ok) {
-        onLogout();
-        navigate('/centros');
-      }
-    } catch (err) {
-      console.error(err);
+    const res = await pedir(`${API_BASE}/auth/logout`, { method: 'POST' });
+    if (!res.ok) {
+      alert('No se ha podido cerrar la sesión. Comprueba tu conexión y vuelve a intentarlo.');
+      return;
     }
+    onLogout();
+    navigate('/centros');
   };
 
   // Contar solicitudes sin gestionar
   const countNuevas = solicitudes.filter(sol => !sol.gestionado && !sol.archivada).length;
-  const sinTildes = (v: any) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const solicitudesVistas = solicitudes.filter(s => {
     const buscado = sinTildes(solicitudSearch.trim());
     const matchesSearch = [s.nombre, s.email, s.telefono, s.curso_titulo].some(v => sinTildes(v).includes(buscado));
@@ -3327,23 +3209,23 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
   const cursosVistos = cursos.filter(c => verCursosArchivados ? c.archivado : !c.archivado);
 
   const handleArchivarCurso = async (c: any, archivar: boolean) => {
-    const res = await fetch(`${API_BASE}/cursos/${c.id}/archivar`, {
+    const res = await pedir(`${API_BASE}/cursos/${c.id}/archivar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archivar })
     });
     if (res.ok) { loadCursos(); loadStats(); }
-    else alert('No se ha podido cambiar el curso.');
+    else alert(await errorDe(res, 'No se ha podido cambiar el curso.'));
   };
 
   const handleArchivarSolicitud = async (s: any, archivar: boolean) => {
-    const res = await fetch(`${API_BASE}/solicitudes/${s.id}/archivar`, {
+    const res = await pedir(`${API_BASE}/solicitudes/${s.id}/archivar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ archivar })
     });
     if (res.ok) loadSolicitudes();
-    else alert('No se ha podido cambiar la solicitud.');
+    else alert(await errorDe(res, 'No se ha podido cambiar la solicitud.'));
   };
 
   const solicitudesPorMes = () => {
@@ -3370,7 +3252,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
           <ul className="nav-menu" onClick={(e) => { if ((e.target as HTMLElement).closest('button')) { setMenuAbierto(false); window.scrollTo(0, 0); } }}>
             {tabsPermitidas.includes('cursos') && (
             <li className={`nav-item ${tab === 'cursos' ? 'active' : ''}`}>
-              <button onClick={() => setTab('cursos')}>
+              <button type="button" onClick={() => setTab('cursos')}>
                 <BookOpen size={18} />
                 <span>Mis cursos</span>
               </button>
@@ -3378,7 +3260,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             )}
             {tabsPermitidas.includes('solicitudes') && (
             <li className={`nav-item ${tab === 'solicitudes' ? 'active' : ''}`}>
-              <button onClick={() => setTab('solicitudes')}>
+              <button type="button" onClick={() => setTab('solicitudes')}>
                 <Users size={18} />
                 <span>Solicitudes</span>
                 {countNuevas > 0 && <span className="nav-badge">{countNuevas}</span>}
@@ -3387,7 +3269,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             )}
             {tabsPermitidas.includes('plantillas') && (
             <li className={`nav-item ${tab === 'plantillas' ? 'active' : ''}`}>
-              <button onClick={() => setTab('plantillas')}>
+              <button type="button" onClick={() => setTab('plantillas')}>
                 <MessageSquare size={18} />
                 <span>Plantillas</span>
               </button>
@@ -3395,7 +3277,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             )}
             {tabsPermitidas.includes('stats') && (
             <li className={`nav-item ${tab === 'stats' ? 'active' : ''}`}>
-              <button onClick={() => setTab('stats')}>
+              <button type="button" onClick={() => setTab('stats')}>
                 <BarChart3 size={18} />
                 <span>Estadísticas</span>
               </button>
@@ -3403,7 +3285,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             )}
             {tabsPermitidas.includes('plan') && (
             <li className={`nav-item ${tab === 'plan' ? 'active' : ''}`}>
-              <button onClick={() => setTab('plan')}>
+              <button type="button" onClick={() => setTab('plan')}>
                 <Calendar size={18} />
                 <span>Plan y facturas</span>
               </button>
@@ -3411,7 +3293,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             )}
             {tabsPermitidas.includes('personal') && (
             <li className={`nav-item ${tab === 'personal' ? 'active' : ''}`}>
-              <button onClick={() => setTab('personal')}>
+              <button type="button" onClick={() => setTab('personal')}>
                 <Shield size={18} />
                 <span>Equipo</span>
               </button>
@@ -3419,7 +3301,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             )}
             {tabsPermitidas.includes('integraciones') && (
             <li className={`nav-item ${tab === 'integraciones' ? 'active' : ''}`}>
-              <button onClick={() => setTab('integraciones')}>
+              <button type="button" onClick={() => setTab('integraciones')}>
                 <Globe size={18} />
                 <span>Tu web</span>
               </button>
@@ -3427,7 +3309,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             )}
             {tabsPermitidas.includes('configuracion') && (
             <li className={`nav-item ${tab === 'configuracion' ? 'active' : ''}`}>
-              <button onClick={() => setTab('configuracion')}>
+              <button type="button" onClick={() => setTab('configuracion')}>
                 <Settings size={18} />
                 <span>Configuración</span>
               </button>
@@ -3441,7 +3323,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             <div className="center-profile-name">{user?.nombre || 'Mi Centro'}</div>
             {!esPropietario && <div className="center-profile-plan">{user?.usuario?.nombre}, {ROL_TEXTO[rolUsuario]}</div>}
           </div>
-          <button onClick={handleLogoutClick} className="btn-logout">
+          <button type="button" onClick={handleLogoutClick} className="btn-logout">
             <X size={16} />
             <span>Cerrar sesión</span>
           </button>
@@ -3451,6 +3333,12 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
       {/* Contenido principal */}
       <main className="dashboard-content">
         <AvisoSuscripcion user={user} pagos={pagos} esPropietario={esPropietario} onIrAPlan={() => setTab('plan')} enPlan={tab === 'plan'} />
+        {falloCarga && (
+          <div className="alert-box alert-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <span style={{ flex: 1 }}>No se han podido cargar todos los datos. Comprueba tu conexión.</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => window.location.reload()}>Volver a intentarlo</button>
+          </div>
+        )}
         {/* TAB: MIS CURSOS */}
         {tab === 'cursos' && (
           <div>
@@ -3460,7 +3348,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Publica y pausa los cursos de tu centro.</p>
               </div>
               {puedeEditar && (
-                <button onClick={() => handleOpenCursoModal()} className="btn btn-primary">
+                <button type="button" onClick={() => handleOpenCursoModal()} className="btn btn-primary">
                   <Plus size={18} />
                   <span>Publicar curso</span>
                 </button>
@@ -3524,7 +3412,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                         <tr key={c.id}>
                           <td>
                             <div style={{ fontWeight: '600', color: 'var(--primary)' }}>{c.titulo}</div>
-                            <div className="admin-dato">{c.localidad}. Empieza: {c.fecha_inicio}</div>
+                            <div className="admin-dato">{c.localidad ? `${c.localidad}. ` : ''}Empieza: {c.fecha_inicio}</div>
                           </td>
                           <td data-etiqueta="Solicitudes"><strong>{c.solicitudes_count || 0}</strong></td>
                           <td>
@@ -3568,12 +3456,14 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                   type="text" 
                   className="form-control" 
                   placeholder="Buscar por nombre, curso o correo" 
+                  aria-label="Buscar solicitudes"
                   value={solicitudSearch}
                   onChange={(e) => setSolicitudSearch(e.target.value)}
                   style={{ flexGrow: 1 }}
                 />
                 <select 
                   className="form-control" 
+                  aria-label="Ver solo las solicitudes"
                   value={solicitudStatusFilter} 
                   onChange={(e) => setSolicitudStatusFilter(e.target.value as any)}
                   style={{ width: '160px' }}
@@ -3585,10 +3475,12 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 </select>
               </div>
 
-              <a href={`${API_BASE}/solicitudes/export`} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center' }}>
-                <Download size={18} />
-                <span>Exportar CSV</span>
-              </a>
+              {puedeEditar && (
+                <a href={`${API_BASE}/solicitudes/export`} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  <Download size={18} />
+                  <span>Exportar CSV</span>
+                </a>
+              )}
             </div>
 
             {/* Tabla de Solicitudes */}
@@ -3611,7 +3503,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                     </tr>
                   </thead>
                   <tbody>
-                    {solicitudesVistas.length === 0 && <tr><td colSpan={6} className="admin-vacio">No hay solicitudes con esta búsqueda.</td></tr>}
+                    {solicitudesVistas.length === 0 && <tr><td colSpan={5} className="admin-vacio">No hay solicitudes con esta búsqueda.</td></tr>}
                     {solicitudesVistas
                       .map((s) => (
                       <tr key={s.id} style={!s.gestionado ? { backgroundColor: 'rgba(201, 150, 46, 0.03)' } : undefined}>
@@ -3621,7 +3513,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                           <div className="admin-dato">{s.email}</div>
                         </td>
                         <td style={{ color: 'var(--primary)' }}>{s.curso_titulo}</td>
-                        <td>{parseFecha(s.fecha_creacion).toLocaleDateString('es-ES')}</td>
+                        <td>{formatFecha(s.fecha_creacion)}</td>
                         <td>
                           {(() => {
                             const status = s.estado_detalle || (s.gestionado ? 'Llamado' : 'Nuevo');
@@ -3645,20 +3537,18 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                             return (
                               <select
                                 value={status}
+                                aria-label={`Estado de la solicitud de ${s.nombre}`}
                                 onChange={async (e) => {
-                                  const val = e.target.value;
-                                  try {
-                                    const res = await fetch(`${API_BASE}/solicitudes/${s.id}/estado`, {
-                                      method: 'PUT',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ estado_detalle: val })
-                                    });
-                                    if (res.ok) {
-                                      loadSolicitudes();
-                                      loadStats();
-                                    }
-                                  } catch (err) {
-                                    console.error(err);
+                                  const res = await pedir(`${API_BASE}/solicitudes/${s.id}/estado`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ estado_detalle: e.target.value })
+                                  });
+                                  if (res.ok) {
+                                    loadSolicitudes();
+                                    loadStats();
+                                  } else {
+                                    alert(await errorDe(res, 'No se ha podido cambiar el estado.'));
                                   }
                                 }}
                                 style={{
@@ -3684,6 +3574,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button 
+                              type="button"
                               onClick={() => handleOpenLeadModal(s)} 
                               className="btn btn-primary btn-sm"
                             >
@@ -3730,6 +3621,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 <h3 style={{ color: 'var(--primary)', marginBottom: '1.5rem' }}>Visitas por curso</h3>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  {cursos.length === 0 && <p className="admin-vacio">Todavía no tienes cursos.</p>}
                   {cursos.map((c) => {
                     const pct = stats?.visitas_totales > 0 ? (c.visitas / stats.visitas_totales) * 100 : 0;
                     return (
@@ -3780,11 +3672,11 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
               </div>
             )}
             {pagoError && (
-              <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.875rem' }}>{pagoError}</div>
+              <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.875rem' }}>{pagoError}</div>
             )}
             {pagos?.modo_prueba && (
               <div className="alert-box alert-warning" style={{ fontSize: '0.8125rem' }}>
-                <span><strong>Stripe en modo pruebas:</strong> no se cobra de verdad. Use la tarjeta 4242 4242 4242 4242, cualquier fecha futura y cualquier CVC.</span>
+                <span><strong>Stripe en modo pruebas:</strong> no se cobra de verdad. Usa la tarjeta 4242 4242 4242 4242, cualquier fecha futura y cualquier CVC.</span>
               </div>
             )}
 
@@ -3809,21 +3701,25 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1rem 0', marginBottom: '1.5rem' }}>
                       <span>{user?.suscripcion_estado === 'prueba' ? 'Primer cobro:' : 'Próxima renovación:'}</span>
-                      <strong>{new Date(user?.fecha_renovacion).toLocaleDateString('es-ES')}</strong>
+                      <strong>{formatFecha(user?.fecha_renovacion)}</strong>
                     </div>
                     <button type="button" className="btn btn-primary" style={{ width: '100%' }} disabled={pagoCargando} onClick={handlePortal}>
                       {pagoCargando ? 'Abriendo...' : 'Gestionar pago'}
                     </button>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.75rem', textAlign: 'center' }}>
-                      Cambie la tarjeta o el plan, descargue facturas o dé de baja la suscripción.
+                      Cambia la tarjeta o el plan, descarga tus facturas o date de baja.
                     </p>
                   </>
+                ) : user?.es_demo ? (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>
+                    Esta es una cuenta de demostración: aquí no se contrata ningún plan.
+                  </p>
                 ) : (
                   <>
                     <h4 style={{ fontSize: '0.875rem', color: 'var(--primary)', margin: '1.5rem 0 0.5rem' }}>Elige tu plan</h4>
                     <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
                       {pagos?.dias_prueba > 2
-                        ? `Si añades tu tarjeta ahora, no se te cobrará nada hasta que acabe la prueba (${new Date(String(pagos.prueba_hasta).replace(' ', 'T') + 'Z').toLocaleDateString('es-ES')}). Puedes cancelar cuando quieras.`
+                        ? `Si añades tu tarjeta ahora, no se te cobrará nada hasta que acabe la prueba (${formatFecha(pagos.prueba_hasta)}). Puedes cancelar cuando quieras.`
                         : 'El cobro es mensual y puedes cancelar cuando quieras.'}
                     </p>
 
@@ -3876,7 +3772,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                             {f.estado === 'pendiente' && <span className="badge badge-paused" style={{ marginLeft: '0.5rem' }}>Pendiente</span>}
                           </td>
                           <td>{f.fecha}</td>
-                          <td><strong>{Number(f.importe).toFixed(2)} €</strong></td>
+                          <td><strong>{Number(f.importe).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong></td>
                         </tr>
                       ))}
                     </tbody>
@@ -3896,7 +3792,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Mensajes ya escritos para contactar con quien pide plaza.</p>
               </div>
               {puedeEditar && (
-                <button onClick={() => handleOpenTemplateModal()} className="btn btn-primary">
+                <button type="button" onClick={() => handleOpenTemplateModal()} className="btn btn-primary">
                   <Plus size={18} />
                   <span>Nueva plantilla</span>
                 </button>
@@ -3908,6 +3804,9 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
               <span>Desde la ficha de cada solicitud, eliges una plantilla y se abre WhatsApp o tu correo con el mensaje escrito. [Nombre], [Curso], [Centro] y [Fecha] se cambian solos por sus datos.</span>
             </div>
 
+            {templates.length === 0 && (
+              <p className="admin-vacio">Todavía no tienes plantillas.{puedeEditar ? ' Crea la primera con «Nueva plantilla».' : ''}</p>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
               {templates.map((t) => (
                 <div key={t.id} className="table-container" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '280px' }}>
@@ -3916,37 +3815,47 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                       <h3 style={{ fontSize: '1rem', color: 'var(--primary)', margin: 0, fontWeight: 700 }}>{t.titulo}</h3>
                       <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center', flexShrink: 0 }}>
                         <span className="badge badge-published" style={{ textTransform: 'uppercase', fontSize: '0.6875rem' }}>{t.canal}</span>
+                        {/* El margen negativo deja el dibujo donde estaba y da más sitio al dedo para acertar */}
                         <button 
+                          type="button"
                           onClick={() => handleOpenTemplateModal(t)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: '2px', display: puedeEditar ? 'flex' : 'none', alignItems: 'center' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', padding: '8px', margin: '-7px', display: puedeEditar ? 'flex' : 'none', alignItems: 'center' }}
                           title="Editar plantilla"
+                          aria-label={`Editar la plantilla ${t.titulo}`}
                         >
-                          <Edit size={13} />
+                          <Edit size={14} />
                         </button>
                         <button 
+                          type="button"
                           onClick={() => handleDeleteTemplate(t.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error-text)', padding: '2px', display: puedeEditar ? 'flex' : 'none', alignItems: 'center' }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--error-text)', padding: '8px', margin: '-7px', display: puedeEditar ? 'flex' : 'none', alignItems: 'center' }}
                           title="Eliminar plantilla"
+                          aria-label={`Eliminar la plantilla ${t.titulo}`}
                         >
-                          <X size={13} />
+                          <X size={14} />
                         </button>
                       </div>
                     </div>
                     <p style={{ fontSize: '0.8125rem', color: 'var(--text)', whiteSpace: 'pre-line', lineHeight: '1.45', backgroundColor: '#FAF9F6', padding: '0.75rem', borderRadius: '4px', border: '1px solid var(--lines)', overflowY: 'auto', maxHeight: '120px' }}>{t.contenido}</p>
                   </div>
                   <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(t.contenido);
-                      setCopiedTemplateId(t.id);
-                      setTimeout(() => setCopiedTemplateId(null), 2000);
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(t.contenido);
+                        setCopiedTemplateId(t.id);
+                        setTimeout(() => setCopiedTemplateId(null), 2000);
+                      } catch {
+                        alert('No se ha podido copiar. Selecciona el texto y cópialo a mano.');
+                      }
                     }} 
-                    className={`btn ${copiedTemplateId === t.id ? 'btn-success' : 'btn-secondary'} btn-sm`} 
+                    className="btn btn-secondary btn-sm"
                     style={{ width: '100%', marginTop: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.375rem' }}
                   >
                     {copiedTemplateId === t.id ? (
                       <>
                         <Check size={14} />
-                        <span>¡Copiado!</span>
+                        <span>Copiado</span>
                       </>
                     ) : (
                       <span>Copiar texto</span>
@@ -3998,17 +3907,22 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                         <td>
                           {!t.esPropietario ? (
                             <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
-                              {t.estado !== 'pendiente' && (
-                                <button onClick={() => handleEnlaceMiembro(t)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
+                              {t.estado === 'pendiente' ? (
+                                <button type="button" onClick={() => handleReinvitar(t)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
+                                  Nuevo enlace
+                                </button>
+                              ) : (
+                                <button type="button" onClick={() => handleEnlaceMiembro(t)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
                                   Contraseña
                                 </button>
                               )}
                               {t.estado !== 'pendiente' && (
-                                <button onClick={() => handleToggleMiembro(t)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
+                                <button type="button" onClick={() => handleToggleMiembro(t)} className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
                                   {t.estado === 'desactivado' ? 'Activar' : 'Desactivar'}
                                 </button>
                               )}
                               <button 
+                                type="button"
                                 onClick={() => handleRemoveTeamMember(t.id)} 
                                 className="btn btn-secondary btn-sm"
                                 style={{ color: 'var(--error-text)', padding: '2px 8px', fontSize: '0.75rem' }}
@@ -4031,30 +3945,32 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 <h3 style={{ color: 'var(--primary)', marginBottom: '0.5rem' }}>Invitar a alguien</h3>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>Se crea un enlace para que esa persona ponga su contraseña. Envíaselo por email o WhatsApp.</p>
                 {inviteError && (
-                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+                  <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
                     {inviteError}
                   </div>
                 )}
                 <form onSubmit={handleInvite}>
                   <div className="form-group">
-                    <label className="form-label">Correo electrónico</label>
+                    <label className="form-label" htmlFor="invitar-correo">Correo electrónico</label>
                     <input 
+                      id="invitar-correo"
                       type="email" 
                       className="form-control" 
                       placeholder="ejemplo@centro.com"
+                      maxLength={200}
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                    <label className="form-label">Rol del usuario</label>
-                    <select className="form-control" value={inviteRol} onChange={(e) => setInviteRol(e.target.value)}>
+                    <label className="form-label" htmlFor="invitar-rol">Qué puede hacer</label>
+                    <select id="invitar-rol" className="form-control" value={inviteRol} onChange={(e) => setInviteRol(e.target.value)}>
                       <option value="gestor">Gestor: cursos, solicitudes y plantillas</option>
                       <option value="colaborador">Colaborador: solo solicitudes</option>
                     </select>
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Crear invitación</button>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={guardando}>{guardando ? 'Creando...' : 'Crear invitación'}</button>
                 </form>
               </div>
             </div>
@@ -4105,7 +4021,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                   onChange={(e) => setWebhookUrl(e.target.value)}
                 />
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <button onClick={handleSaveWebhook} className="btn btn-primary btn-sm">Guardar</button>
+                  <button type="button" onClick={handleSaveWebhook} className="btn btn-primary btn-sm">Guardar</button>
                   {webhookSaveSuccess && <span style={{ fontSize: '0.8125rem', color: 'var(--success-text)', fontWeight: 600 }}>Guardado</span>}
                   {webhookError && <span role="alert" style={{ fontSize: '0.8125rem', color: 'var(--error-text)' }}>{webhookError}</span>}
                 </div>
@@ -4141,33 +4057,37 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
               )}
 
               {confError && (
-                <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{confError}</div>
+                <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{confError}</div>
               )}
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 setConfError('');
+                setGuardando(true);
                 try {
-                  const res = await fetch(`${API_BASE}/centro/perfil`, {
+                  const res = await pedir(`${API_BASE}/centro/perfil`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ nombre: confRazonSocial, cif: confCif, telefono: confTelefono, direccion: confDireccion, web: confWeb })
                   });
-                  const data = await res.json().catch(() => ({}));
                   if (!res.ok) {
-                    setConfError(data.error || 'No se pudieron guardar los cambios.');
+                    setConfError(await errorDe(res, 'No se han podido guardar los cambios.'));
                     return;
                   }
                   setConfSaveSuccess(true);
                   setTimeout(() => setConfSaveSuccess(false), 3000);
-                } catch (err) {
-                  setConfError('No se ha podido conectar. Vuelve a intentarlo.');
+                  // Para que el nombre nuevo salga también en el menú
+                  onRefrescar();
+                } finally {
+                  setGuardando(false);
                 }
               }}>
                 <div className="form-group">
-                  <label className="form-label">Nombre del centro</label>
+                  <label className="form-label" htmlFor="conf-nombre">Nombre del centro</label>
                   <input 
+                    id="conf-nombre"
                     type="text" 
                     className="form-control" 
+                    maxLength={200}
                     value={confRazonSocial}
                     onChange={(e) => setConfRazonSocial(e.target.value)}
                     required
@@ -4176,19 +4096,23 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">CIF o NIF</label>
+                    <label className="form-label" htmlFor="conf-cif">CIF o NIF</label>
                     <input 
+                      id="conf-cif"
                       type="text" 
                       className="form-control" 
+                      maxLength={20}
                       value={confCif}
                       onChange={(e) => setConfCif(e.target.value)}
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Teléfono</label>
+                    <label className="form-label" htmlFor="conf-telefono">Teléfono</label>
                     <input 
+                      id="conf-telefono"
                       type="tel" 
                       className="form-control" 
+                      maxLength={30}
                       value={confTelefono}
                       onChange={(e) => setConfTelefono(e.target.value)}
                     />
@@ -4196,10 +4120,12 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Dirección</label>
+                  <label className="form-label" htmlFor="conf-direccion">Dirección</label>
                   <input 
+                    id="conf-direccion"
                     type="text" 
                     className="form-control" 
+                    maxLength={200}
                     value={confDireccion}
                     onChange={(e) => setConfDireccion(e.target.value)}
                   />
@@ -4207,28 +4133,32 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
 
                 <div className="form-row" style={{ marginBottom: '1.5rem' }}>
                   <div className="form-group">
-                    <label className="form-label">Web</label>
+                    <label className="form-label" htmlFor="conf-web">Web</label>
                     <input 
+                      id="conf-web"
                       type="url" 
                       className="form-control" 
+                      placeholder="https://"
+                      maxLength={200}
                       value={confWeb}
                       onChange={(e) => setConfWeb(e.target.value)}
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Correo de acceso</label>
+                    <label className="form-label" htmlFor="conf-correo">Correo de acceso</label>
                     <input 
+                      id="conf-correo"
                       type="email" 
                       className="form-control" 
                       value={confEmail}
                       readOnly
-                      title="Es el usuario para entrar. Para cambiarlo, escribe a soporte."
                       style={{ backgroundColor: 'var(--bg)' }}
                     />
+                    <p className="admin-dato" style={{ marginTop: 6 }}>Es tu usuario para entrar. Para cambiarlo, escríbenos a {ajustes.legal_email}.</p>
                   </div>
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Guardar cambios</button>
+                <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar cambios'}</button>
               </form>
             </div>
           </div>
@@ -4238,26 +4168,28 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
       {/* MODAL CURSO: CREAR/EDITAR */}
       {showCursoModal && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" role="dialog" aria-modal="true">
             <div className="modal-header">
               <h3 className="modal-title">{selectedCurso ? 'Editar curso' : 'Publicar curso'}</h3>
-              <button onClick={() => setShowCursoModal(false)} className="btn-close-modal">
+              <button type="button" aria-label="Cerrar" onClick={() => setShowCursoModal(false)} className="btn-close-modal">
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handleSaveCurso}>
               <div className="modal-body">
                 {formError && (
-                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+                  <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
                     {formError}
                   </div>
                 )}
 
                 <div className="form-group">
-                  <label className="form-label">Título del curso *</label>
+                  <label className="form-label" htmlFor="curso-titulo">Título del curso *</label>
                   <input 
+                    id="curso-titulo"
                     type="text" 
                     className="form-control" 
+                    maxLength={200}
                     placeholder="Ej: IFCD0210 - Desarrollo de aplicaciones web"
                     value={formTitulo}
                     onChange={(e) => { setFormTitulo(e.target.value); const familia = familiaDelTitulo(e.target.value); if (familia) setFormCategoria(familia); }}
@@ -4266,14 +4198,14 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Familia profesional *</label>
-                    <select className="form-control" value={formCategoria} onChange={(e) => setFormCategoria(e.target.value)}>
+                    <label className="form-label" htmlFor="cu-familia">Familia profesional *</label>
+                    <select id="cu-familia" className="form-control" value={formCategoria} onChange={(e) => setFormCategoria(e.target.value)}>
                       {NOMBRES_FAMILIAS.map(f => <option key={f}>{f}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Modalidad *</label>
-                    <select className="form-control" value={formModalidad} onChange={(e) => setFormModalidad(e.target.value)}>
+                    <label className="form-label" htmlFor="cu-modalidad">Modalidad *</label>
+                    <select id="cu-modalidad" className="form-control" value={formModalidad} onChange={(e) => setFormModalidad(e.target.value)}>
                       <option value="Presencial">Presencial</option>
                       <option value="Online">Online</option>
                       <option value="Mixta">Mixta</option>
@@ -4283,19 +4215,24 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Localidad *</label>
+                    <label className="form-label" htmlFor="cu-localidad">Localidad *</label>
                     <input 
+                      id="cu-localidad"
                       type="text" 
                       className="form-control" 
-                      placeholder="Ej: Madrid o Remoto"
+                      maxLength={120}
+                      placeholder="Ej: Madrid"
                       value={formLocalidad}
                       onChange={(e) => setFormLocalidad(e.target.value)}
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Duración en horas *</label>
+                    <label className="form-label" htmlFor="curso-horas">Duración en horas *</label>
                     <input 
+                      id="curso-horas"
                       type="number" 
+                      min="1"
+                      max="10000"
                       className="form-control" 
                       placeholder="Ej: 300"
                       value={formDuracion}
@@ -4306,9 +4243,12 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Plazas *</label>
+                    <label className="form-label" htmlFor="curso-plazas">Plazas *</label>
                     <input 
+                      id="curso-plazas"
                       type="number" 
+                      min="1"
+                      max="10000"
                       className="form-control" 
                       placeholder="Ej: 20"
                       value={formPlazas}
@@ -4316,9 +4256,11 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Plazas ya cubiertas</label>
+                    <label className="form-label" htmlFor="cu-cubiertas">Plazas ya cubiertas</label>
                     <input 
+                      id="cu-cubiertas"
                       type="number" 
+                      min="0"
                       className="form-control" 
                       placeholder="Ej: 5"
                       value={formPlazasCubiertas}
@@ -4329,9 +4271,11 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label className="form-label">Fecha de inicio *</label>
+                    <label className="form-label" htmlFor="curso-fecha">Fecha de inicio *</label>
                     <input 
+                      id="curso-fecha"
                       type="text" 
+                      maxLength={60}
                       className="form-control" 
                       placeholder="Ej: 15 de enero de 2027 o Inmediata"
                       value={formFechaInicio}
@@ -4339,8 +4283,8 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Dirigido a *</label>
-                    <select className="form-control" value={formDirigidoA} onChange={(e) => setFormDirigidoA(e.target.value)}>
+                    <label className="form-label" htmlFor="cu-dirigido">Dirigido a *</label>
+                    <select id="cu-dirigido" className="form-control" value={formDirigidoA} onChange={(e) => setFormDirigidoA(e.target.value)}>
                       <option value="Todos">Todos</option>
                       <option value="Desempleados">Desempleados</option>
                       <option value="Ocupados">Ocupados</option>
@@ -4349,10 +4293,12 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Descripción del curso *</label>
+                  <label className="form-label" htmlFor="cu-descripcion">Descripción del curso *</label>
                   <textarea 
+                    id="cu-descripcion"
                     className="form-control" 
                     rows={4} 
+                    maxLength={5000}
                     placeholder="Qué se aprende, requisitos y titulación"
                     value={formDescripcion}
                     onChange={(e) => setFormDescripcion(e.target.value)}
@@ -4362,24 +4308,24 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 <p className="admin-dato" style={{ marginBottom: '0.75rem' }}>Lo siguiente es opcional. Solo se ve en la ficha si lo rellenas. Pon una cosa por línea.</p>
                 <div className="form-group">
                   <label className="form-label" htmlFor="cu-aprende">Qué van a aprender</label>
-                  <textarea id="cu-aprende" className="form-control" rows={3} value={formAprenderas} onChange={(e) => setFormAprenderas(e.target.value)}></textarea>
+                  <textarea id="cu-aprende" className="form-control" rows={3} maxLength={2000} value={formAprenderas} onChange={(e) => setFormAprenderas(e.target.value)}></textarea>
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="cu-requ">Requisitos</label>
-                  <textarea id="cu-requ" className="form-control" rows={3} value={formRequisitos} onChange={(e) => setFormRequisitos(e.target.value)}></textarea>
+                  <textarea id="cu-requ" className="form-control" rows={3} maxLength={2000} value={formRequisitos} onChange={(e) => setFormRequisitos(e.target.value)}></textarea>
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="cu-horario">Horario</label>
-                  <input id="cu-horario" className="form-control" placeholder="Ej: De lunes a viernes, de 9:00 a 14:00" value={formHorario} onChange={(e) => setFormHorario(e.target.value)} />
+                  <input id="cu-horario" className="form-control" maxLength={2000} placeholder="Ej: De lunes a viernes, de 9:00 a 14:00" value={formHorario} onChange={(e) => setFormHorario(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label" htmlFor="cu-salidas">En qué pueden trabajar</label>
-                  <textarea id="cu-salidas" className="form-control" rows={3} value={formSalidas} onChange={(e) => setFormSalidas(e.target.value)}></textarea>
+                  <textarea id="cu-salidas" className="form-control" rows={3} maxLength={2000} value={formSalidas} onChange={(e) => setFormSalidas(e.target.value)}></textarea>
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowCursoModal(false)} className="btn btn-secondary">Cancelar</button>
-                <button type="submit" className="btn btn-primary">Guardar</button>
+                <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>
           </div>
@@ -4389,10 +4335,10 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
       {/* MODAL DETALLE LEAD / CONTACTO */}
       {showLeadModal && selectedLead && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '650px' }}>
+          <div className="modal-content" role="dialog" aria-modal="true" style={{ maxWidth: '650px' }}>
             <div className="modal-header">
               <h3 className="modal-title">Solicitud</h3>
-              <button onClick={() => setShowLeadModal(false)} className="btn-close-modal">
+              <button type="button" aria-label="Cerrar" onClick={() => setShowLeadModal(false)} className="btn-close-modal">
                 <X size={20} />
               </button>
             </div>
@@ -4445,16 +4391,19 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
               {/* Agregar Nota */}
               <form onSubmit={handleAddNote} style={{ marginBottom: '2rem' }}>
                 <div className="form-group">
-                  <label className="form-label">Añadir una nota</label>
+                  <label className="form-label" htmlFor="nota-nueva">Añadir una nota</label>
                   <textarea 
+                    id="nota-nueva"
                     className="form-control" 
                     rows={2} 
+                    maxLength={2000}
                     placeholder="Ej: Llamado hoy. No responde, volver a llamar mañana."
                     value={newNoteText}
                     onChange={(e) => setNewNoteText(e.target.value)}
                   ></textarea>
                 </div>
-                <button type="submit" className="btn btn-primary btn-sm" style={{ float: 'right' }}>Guardar nota</button>
+                {notasError && <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>{notasError}</div>}
+                <button type="submit" className="btn btn-primary btn-sm" style={{ float: 'right' }} disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar nota'}</button>
                 <div style={{ clear: 'both' }}></div>
               </form>
 
@@ -4479,7 +4428,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
             </div>
 
             <div className="modal-footer">
-              <button onClick={() => setShowLeadModal(false)} className="btn btn-secondary">Cerrar</button>
+              <button type="button" onClick={() => setShowLeadModal(false)} className="btn btn-secondary">Cerrar</button>
             </div>
           </div>
         </div>
@@ -4488,26 +4437,28 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
       {/* MODAL PLANTILLA: CREAR/EDITAR */}
       {showTemplateModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '550px' }}>
+          <div className="modal-content" role="dialog" aria-modal="true" style={{ maxWidth: '550px' }}>
             <div className="modal-header">
               <h3 className="modal-title">{selectedTemplate ? 'Editar plantilla' : 'Nueva plantilla'}</h3>
-              <button onClick={() => setShowTemplateModal(false)} className="btn-close-modal">
+              <button type="button" aria-label="Cerrar" onClick={() => setShowTemplateModal(false)} className="btn-close-modal">
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handleSaveTemplate}>
               <div className="modal-body">
                 {formTemplateError && (
-                  <div className="alert-box alert-error" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
+                  <div className="alert-box alert-error" role="alert" style={{ padding: '0.75rem', fontSize: '0.8125rem' }}>
                     {formTemplateError}
                   </div>
                 )}
 
                 <div className="form-group">
-                  <label className="form-label">Título *</label>
+                  <label className="form-label" htmlFor="plantilla-titulo">Título *</label>
                   <input 
+                    id="plantilla-titulo"
                     type="text" 
                     className="form-control" 
+                    maxLength={120}
                     placeholder="Ej: Primer contacto WhatsApp"
                     value={formTemplateTitulo}
                     onChange={(e) => setFormTemplateTitulo(e.target.value)}
@@ -4515,8 +4466,9 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Canal *</label>
+                  <label className="form-label" htmlFor="plantilla-canal">Canal *</label>
                   <select 
+                    id="plantilla-canal"
                     className="form-control" 
                     value={formTemplateCanal} 
                     onChange={(e) => setFormTemplateCanal(e.target.value)}
@@ -4527,10 +4479,12 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Mensaje *</label>
+                  <label className="form-label" htmlFor="plantilla-mensaje">Mensaje *</label>
                   <textarea 
+                    id="plantilla-mensaje"
                     className="form-control" 
                     rows={6} 
+                    maxLength={4000}
                     placeholder="Puedes usar [Nombre], [Curso], [Centro] y [Fecha]"
                     value={formTemplateContenido}
                     onChange={(e) => setFormTemplateContenido(e.target.value)}
@@ -4539,7 +4493,7 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowTemplateModal(false)} className="btn btn-secondary">Cancelar</button>
-                <button type="submit" className="btn btn-primary">Guardar plantilla</button>
+                <button type="submit" className="btn btn-primary" disabled={guardando}>{guardando ? 'Guardando...' : 'Guardar plantilla'}</button>
               </div>
             </form>
           </div>
@@ -4549,28 +4503,41 @@ function DashboardCentro({ user, onLogout }: { user: any; onLogout: () => void }
   );
 }
 
+// Al cambiar de página se empieza arriba. Con atrás y adelante, el navegador recuerda dónde estabas.
+function SubirAlCambiarDePagina() {
+  const { pathname, hash } = useLocation();
+  const tipo = useNavigationType();
+  useEffect(() => {
+    if (tipo === 'PUSH' && !hash) window.scrollTo(0, 0);
+  }, [pathname, hash, tipo]);
+  return null;
+}
+
 // --- APP COMPONENT WITH ROUTING ---
 function App() {
   const [ajustes, setAjustes] = useState<Ajustes>(AJUSTES_INICIALES);
   useEffect(() => {
-    fetch(`${API_BASE}/public/ajustes`)
+    pedir(`${API_BASE}/public/ajustes`)
       .then(res => res.ok ? res.json() : {})
       .then(datos => setAjustes({ ...AJUSTES_INICIALES, ...datos }))
       .catch(() => {});
   }, []);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [sesionCaducada, setSesionCaducada] = useState(false);
 
-  // Comprobar si hay sesión iniciada al cargar
+  // Mira quién ha entrado. Se llama al cargar y cuando cambia lo que el centro puede hacer (al pagar o al acabarse la prueba).
+  // Si falla la conexión, la sesión se queda como estaba.
   const checkSession = async () => {
     try {
-      const res = await fetch(`${API_BASE}/auth/sesion`);
+      const res = await pedir(`${API_BASE}/auth/sesion`);
       if (res.ok) {
-        const data = await res.json();
-        if (data) setCurrentUser(data);
+        const nueva = await res.json();
+        // Si no ha cambiado nada se deja la que había, para que el panel no vuelva a cargarlo todo
+        setCurrentUser((antes: any) => (JSON.stringify(antes) === JSON.stringify(nueva) ? antes : nueva));
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Una respuesta que no se entiende no cambia nada
     } finally {
       setLoading(false);
     }
@@ -4580,7 +4547,31 @@ function App() {
     checkSession();
   }, []);
 
+  // Con el panel abierto, la sesión puede caducar o la prueba acabarse: el servidor lo dice al contestar
+  const usuario = useRef<any>(null);
+  const refrescando = useRef(false);
+  useEffect(() => { usuario.current = currentUser; }, [currentUser]);
+  useEffect(() => {
+    const alCaducar = () => {
+      if (!usuario.current) return;
+      setSesionCaducada(true);
+      setCurrentUser(null);
+    };
+    const alQuedarSinAcceso = () => {
+      if (!usuario.current?.acceso || refrescando.current) return;
+      refrescando.current = true;
+      checkSession().finally(() => { refrescando.current = false; });
+    };
+    window.addEventListener('sesion-caducada', alCaducar);
+    window.addEventListener('sin-acceso', alQuedarSinAcceso);
+    return () => {
+      window.removeEventListener('sesion-caducada', alCaducar);
+      window.removeEventListener('sin-acceso', alQuedarSinAcceso);
+    };
+  }, []);
+
   const handleLogin = (user: any) => {
+    setSesionCaducada(false);
     setCurrentUser(user);
   };
 
@@ -4588,18 +4579,20 @@ function App() {
     setCurrentUser(null);
   };
 
-  if (loading) {
-    return (
+  // Solo el panel necesita saber quién ha entrado antes de pintarse; las páginas públicas no esperan
+  const panel = loading
+    ? (
       <div className="pantalla-carga" role="status">
         <span className="logo-text">cursenda<span className="logo-dot">.</span></span>
         <span className="pantalla-carga-texto">Cargando…</span>
       </div>
-    );
-  }
+    )
+    : <DashboardCentros user={currentUser} onLogout={handleLogout} onRefrescar={checkSession} />;
 
   return (
     <AjustesContexto.Provider value={{ ajustes, setAjustes }}>
     <BrowserRouter>
+      <SubirAlCambiarDePagina />
       <Routes>
         {/* Alumnos */}
         <Route path="/" element={<AlumnosHome />} />
@@ -4612,9 +4605,11 @@ function App() {
 
         {/* Centros */}
         <Route path="/centros" element={<LandingCentros />} />
-        <Route path="/centros/login" element={<LoginCentros onLogin={handleLogin} />} />
+        <Route path="/centros/login" element={<LoginCentros onLogin={handleLogin} sesionCaducada={sesionCaducada} />} />
         <Route path="/centros/recuperar" element={<RecuperarCentros />} />
         <Route path="/centros/restablecer" element={<RestablecerCentros />} />
+        <Route path="/centros/unirse" element={<UnirseCentros onLogin={handleLogin} />} />
+        <Route path="/centros/dashboard" element={panel} />
 
         {/* Legal */}
         <Route path="/legal/aviso-legal" element={<LegalPage tipo="aviso-legal" />} />
@@ -4622,11 +4617,6 @@ function App() {
         <Route path="/legal/cookies" element={<LegalPage tipo="cookies" />} />
 
         <Route path="*" element={<NoEncontrada />} />
-        <Route path="/centros/unirse" element={<UnirseCentros onLogin={handleLogin} />} />
-        <Route 
-          path="/centros/dashboard" 
-          element={<DashboardCentros user={currentUser} onLogout={handleLogout} />} 
-        />
       </Routes>
     </BrowserRouter>
     </AjustesContexto.Provider>

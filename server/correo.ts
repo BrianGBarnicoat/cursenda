@@ -14,7 +14,8 @@ export function encolarCorreo(para: string, asunto: string, texto: string) {
     mkdirSync(CARPETA, { recursive: true, mode: 0o700 });
     const nombre = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
     const temporal = path.join(CARPETA, `${nombre}.tmp`);
-    writeFileSync(temporal, JSON.stringify({ para, asunto, texto: `${texto}\n\n--\nCursenda\n${WEB}\n` }), { mode: 0o600 });
+    // El asunto va en una sola línea, aunque lleve el nombre que alguien ha escrito en un formulario
+    writeFileSync(temporal, JSON.stringify({ para, asunto: asunto.replace(/\s+/g, ' ').trim(), texto: `${texto}\n\n--\nCursenda\n${WEB}\n` }), { mode: 0o600 });
     renameSync(temporal, path.join(CARPETA, `${nombre}.json`));
   } catch (err: any) {
     // Un aviso que no sale nunca debe romper la solicitud de nadie

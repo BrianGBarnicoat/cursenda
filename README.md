@@ -1,15 +1,15 @@
 # Cursenda
 
-Portal de cursos subvencionados. Los alumnos buscan cursos y piden plaza, y las academias
+Portal de cursos subvencionados. Los alumnos buscan cursos y piden plaza, y los centros
 gestionan sus cursos y solicitudes desde su panel.
 
-Está en [gbarnicoat.uk](https://gbarnicoat.uk).
+Está en [cursenda.es](https://cursenda.es).
 
 ## Qué tiene
 
 - **Alumnos:** buscador de cursos, ficha de cada curso y formulario para pedir plaza.
 - **Centros:** panel con sus cursos, solicitudes, notas de contacto, estadísticas, plan y facturas.
-- **Admin:** gestión de todas las academias, cursos y solicitudes.
+- **Admin:** gestión de todos los centros, cursos y solicitudes.
 
 ## Cómo está hecho
 

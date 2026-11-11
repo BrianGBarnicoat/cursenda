@@ -72,6 +72,15 @@ sudo openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
 sudo systemctl start cursenda
 ```
 
+Los logos de los centros van en otro archivo de la misma copia (`cursenda-FECHA.logos.tar.gz.enc`):
+
+```bash
+sudo openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+  -pass file:/etc/cursenda/backup.key \
+  -in /srv/cursenda/backups/cursenda-FECHA.logos.tar.gz.enc \
+  | sudo -u cursenda tar -xzf - -C /srv/cursenda/data
+```
+
 Ojo: guardar `/etc/cursenda/backup.key` fuera del servidor. Sin ella las copias no sirven.
 
 ## Pasarlo a otro servidor
@@ -85,6 +94,4 @@ Ojo: guardar `/etc/cursenda/backup.key` fuera del servidor. Sin ella las copias 
 
 ## Pendiente
 
-- Para mandar emails habrá que usar un servicio externo (Resend, Brevo…), porque Cursenda no puede
-  usar el correo de este servidor.
 - Las copias siguen en la misma máquina. Habría que sacarlas fuera.

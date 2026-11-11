@@ -311,7 +311,9 @@ const soloPropietario = requireRol('propietario');
 // Si se acabó la prueba y no paga, solo puede entrar a "Plan y facturas"
 function requiereAcceso(req: any, res: any, next: any) {
   if (!req.centro?.acceso) {
-    return res.status(402).json({ error: 'Tu mes de prueba ha terminado. Contrata un plan para seguir usando Cursenda.', codigo: 'sin_suscripcion' });
+    // Quien ya pagó y se dio de baja no está "en prueba"
+    const motivo = req.centro?.suscripcion_estado === 'prueba' ? 'Tu mes de prueba ha terminado.' : 'Tu suscripción ya no está activa.';
+    return res.status(402).json({ error: `${motivo} Contrata un plan para seguir usando Cursenda.`, codigo: 'sin_suscripcion' });
   }
   next();
 }
@@ -2139,7 +2141,8 @@ async function metaDe(ruta: string): Promise<Meta> {
     `, [curso[1]]);
     if (c) {
       const modos: Record<string, string> = { Online: 'Online', Presencial: 'Onsite', Mixta: 'Blended' };
-      const nombre = c.titulo.replace(/^[A-Z]{4}\d{4}\s*[-–]\s*/, '');
+      // El código se quita del título vaya con guion ("IFCD0210 - Desarrollo...") o solo con un espacio, igual que en la web
+      const nombre = c.titulo.replace(/^[A-Z]{4}\d{4}(?:\s*[-–:]\s*|\s+)/, '');
       const dondeTitulo = c.modalidad === 'Online' ? 'online' : `en ${c.localidad}`;
       const web = ALLOWED_ORIGINS[0];
       return {

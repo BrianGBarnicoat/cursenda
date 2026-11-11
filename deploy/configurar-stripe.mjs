@@ -10,8 +10,8 @@ import Stripe from 'stripe';
 const ENV_FILE = process.env.ENV_FILE || '/etc/cursenda/cursenda.env';
 
 const PLANES = [
-  { plan: 'starter', nombre: 'Cursenda Starter', importe: 7900, descripcion: 'Hasta 5 cursos activos, gestión de leads y exportación CSV' },
-  { plan: 'pro', nombre: 'Cursenda Pro', importe: 14900, descripcion: 'Cursos ilimitados y estadísticas detalladas de visitas' }
+  { plan: 'starter', nombre: 'Cursenda Starter', importe: 7900, descripcion: 'Hasta 5 cursos activos a la vez, con sus solicitudes y exportación a Excel (CSV)' },
+  { plan: 'pro', nombre: 'Cursenda Pro', importe: 14900, descripcion: 'Cursos activos sin límite, con sus solicitudes y exportación a Excel (CSV)' }
 ];
 
 const EVENTOS = [
@@ -101,7 +101,7 @@ function errorStripe(err) {
 }
 process.on('unhandledRejection', errorStripe);
 process.on('uncaughtException', errorStripe);
-const web = (env.ALLOWED_ORIGINS || 'https://gbarnicoat.uk').split(',')[0].trim();
+const web = (env.ALLOWED_ORIGINS || 'https://cursenda.es').split(',')[0].trim();
 const modo = clave.includes('_test_') ? 'PRUEBAS' : 'REAL';
 console.log(`\n==> Stripe en modo ${modo}, web ${web}`);
 

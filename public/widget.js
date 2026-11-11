@@ -16,7 +16,8 @@
   }
 
   // Shadow DOM para que los estilos de la web del centro no rompan el widget (ni al revés)
-  var raiz = destino.attachShadow ? destino.attachShadow({ mode: 'open' }) : destino;
+  // Si el código se ha pegado dos veces, se aprovecha el que ya había en vez de fallar
+  var raiz = destino.shadowRoot || (destino.attachShadow ? destino.attachShadow({ mode: 'open' }) : destino);
 
   var estilos =
     ':host{all:initial;display:block}' +
@@ -54,12 +55,15 @@
       }
       var html = datos.cursos.map(function (c) {
         var libres = Math.max(0, c.plazas - c.plazas_cubiertas);
+        var plazas = libres === 0 ? 'Sin plazas libres' : libres === 1 ? 'Queda 1 plaza' : 'Quedan ' + libres + ' plazas';
+        // En los cursos online no importa dónde está el centro
+        var donde = c.modalidad === 'Online' ? 'Online' : texto(c.modalidad) + ' · ' + texto(c.localidad);
         return '<article class="c">' +
           '<span class="g">Gratis · 100% subvencionado</span>' +
           '<h3 class="t">' + texto(c.titulo) + '</h3>' +
-          '<p class="m">' + texto(c.modalidad) + ' · ' + texto(c.localidad) + ' · ' + texto(c.duracion_horas) + ' h</p>' +
-          '<p class="m">Empieza: ' + texto(c.fecha_inicio) + (libres ? ' · Quedan ' + libres + ' plazas' : '') + '</p>' +
-          '<a class="b" href="' + origen + '/curso/' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener">Pedir plaza</a>' +
+          '<p class="m">' + donde + ' · ' + texto(c.duracion_horas) + ' h</p>' +
+          '<p class="m">Empieza: ' + texto(c.fecha_inicio) + ' · ' + plazas + '</p>' +
+          '<a class="b" href="' + origen + '/curso/' + encodeURIComponent(c.id) + '" target="_blank" rel="noopener">' + (libres ? 'Pedir plaza' : 'Ver curso') + '</a>' +
           '</article>';
       }).join('');
       pintar(html + '<p class="p">Cursos publicados en <a href="' + origen + '" target="_blank" rel="noopener">Cursenda</a></p>');
