@@ -102,6 +102,21 @@
 }
 .cursos-b-tarjeta:hover { background: #FFFFFF; border-color: #111111; }
 
+/* Foto: todas del mismo formato; si no hay, un bloque liso con el nombre del área */
+.cursos-b-foto {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  margin: -12px -12px 18px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #E5E5E7;
+  text-decoration: none;
+}
+.cursos-b-foto img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur-lenta, 400ms) var(--curva-normal, ease); }
+.cursos-b-tarjeta:hover .cursos-b-foto img { transform: scale(1.03); }
+.cursos-b-foto span { padding: 16px; font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -0.02em; text-align: center; color: #6E6E73; }
+
 .cursos-b-area { font-size: 13px; font-weight: 500; color: #6E6E73; }
 .cursos-b-tarjeta h3 {
   margin-top: 10px;

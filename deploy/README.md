@@ -54,6 +54,16 @@ Cómo funciona:
 - Si falla un cobro, sigue funcionando mientras Stripe reintenta. Si al final no paga, se bloquea.
 - Las facturas salen solas en "Plan y facturas". Ojo: las de Stripe no valen para VeriFactu (obligatorio en 2027).
 
+## Activar el buscador de fotos para los cursos
+
+Los centros pueden subir una foto propia a cada curso sin configurar nada. Para que además puedan buscar
+fotos de banco hace falta una clave gratuita de [Pexels](https://www.pexels.com/api/):
+
+1. Añadir a `/etc/cursenda/cursenda.env` la línea `PEXELS_API_KEY=la-clave`.
+2. `systemctl restart cursenda`.
+
+Las fotos elegidas se copian al servidor (carpeta `logos/cursos`, junto a la base de datos) y entran en la copia diaria.
+
 ## Ver cómo va
 
 ```bash

@@ -190,7 +190,9 @@ async function abrir(): Promise<Database> {
     'ALTER TABLE cursos ADD COLUMN horario TEXT',
     'ALTER TABLE centros ADD COLUMN logo TEXT',
     'ALTER TABLE centros ADD COLUMN sesiones_desde INTEGER DEFAULT 0',
-    'ALTER TABLE centros ADD COLUMN plantillas_iniciales INTEGER DEFAULT 0'
+    'ALTER TABLE centros ADD COLUMN plantillas_iniciales INTEGER DEFAULT 0',
+    'ALTER TABLE cursos ADD COLUMN imagen TEXT',
+    'ALTER TABLE solicitudes ADD COLUMN seguimiento TEXT'
   ];
   for (const sql of columnasPago) {
     try {

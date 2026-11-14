@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
+import { avivarEscena } from './escenaViva';
 import './HeroApple3D.css';
 
 // La escultura (three) se descarga aparte, después del texto
@@ -105,8 +106,8 @@ export default function HeroApple3D({ provincias = [], cursos = [], areas = [], 
                   value={texto}
                   maxLength={80}
                   autoComplete="off"
-                  onFocus={() => setAyudas(true)}
-                  onChange={(e) => { setTexto(e.target.value); setAyudas(true); }}
+                  onFocus={() => { setAyudas(true); avivarEscena(0.5); }}
+                  onChange={(e) => { setTexto(e.target.value); setAyudas(true); avivarEscena(1); }}
                 />
               </label>
               <label className="hero-a3d-campo">

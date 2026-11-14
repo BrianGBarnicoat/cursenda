@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AlBajar from './AlBajar';
+import { avivarEscena } from './escenaViva';
 import './AreasSection.css';
 
 export type Area = { nombre: string; destino: string; cursos: number };
@@ -30,7 +31,7 @@ export default function AreasSection({ areas, visibles = 9 }: Props) {
           <ul className="areas-s-rejilla">
             {lista.map(a => (
               <li key={a.nombre}>
-                <Link to={a.destino}>
+                <Link to={a.destino} onMouseEnter={() => avivarEscena(0.7)} onFocus={() => avivarEscena(0.7)}>
                   <strong>{a.nombre}</strong>
                   <span>{a.cursos === 0 ? 'Sin cursos ahora' : a.cursos === 1 ? '1 curso' : `${a.cursos} cursos`}</span>
                 </Link>

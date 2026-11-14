@@ -24,10 +24,12 @@ import {
 import NavbarMinimal from './components/NavbarMinimal';
 import HeroApple3D from './components/HeroApple3D';
 import CourseSearchSection from './components/CourseSearchSection';
-import StudentArea from './components/StudentArea';
+import StudentArea, { type EstadoSolicitud } from './components/StudentArea';
 import CompaniesSection from './components/CompaniesSection';
 import AreasSection from './components/AreasSection';
 import { useAlumnoLocal } from './components/alumnoLocal';
+import { PALABRA_LOGO } from './components/logoTrazo';
+import SelectorFotoCurso, { type EleccionFoto } from './components/SelectorFotoCurso';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
   ? 'http://localhost:3000/api' 
@@ -66,10 +68,13 @@ const cleanLocalidad = (loc: string) => {
 // --- LOGO ---
 export function Logo({ light }: { light?: boolean }) {
   return (
-    <Link to="/" className={`logo-container ${light ? 'logo-light' : ''}`} aria-label="Cursenda, ir al inicio" style={{ textDecoration: 'none', display: 'inline-flex' }}>
-      <svg className="logo-marca" viewBox="4 -148 930 154" aria-hidden="true">
-        <path fill="currentColor" d="M62.20 2.40L62.20 2.40Q44.80 2.40 32.60-3.60Q20.40-9.60 13.90-21.90Q7.40-34.20 7.40-52.80L7.40-52.80Q7.40-71.40 14-83.70Q20.60-96 32.80-102Q45-108 62.20-108L62.20-108Q73.40-108 82.90-105.40Q92.40-102.80 99.50-97.40Q106.60-92 110.40-83.80Q114.20-75.60 114.20-64.20L114.20-64.20L82-64.20Q82-71 79.70-75.40Q77.40-79.80 73-82Q68.60-84.20 62-84.20L62-84.20Q54.40-84.20 49.70-81Q45-77.80 42.80-71.60Q40.60-65.40 40.60-56.20L40.60-56.20L40.60-49Q40.60-40 42.80-33.80Q45-27.60 50-24.50Q55-21.40 62.80-21.40L62.80-21.40Q69.60-21.40 74.10-23.50Q78.60-25.60 81-30.10Q83.40-34.60 83.40-41.40L83.40-41.40L114.20-41.40Q114.20-30.40 110.40-22.10Q106.60-13.80 99.60-8.40Q92.60-3 83-0.30Q73.40 2.40 62.20 2.40ZM161.80 2.40L161.80 2.40Q144.80 2.40 135.50-7Q126.20-16.40 126.20-35.80L126.20-35.80L126.20-105.40L159-105.40L159-40.40Q159-36.20 160.10-33Q161.20-29.80 163.20-27.60Q165.20-25.40 168.30-24.40Q171.40-23.40 175-23.40L175-23.40Q180.80-23.40 185.20-26.10Q189.60-28.80 192.20-33.50Q194.80-38.20 194.80-43.80L194.80-43.80L194.80-105.40L227.60-105.40L227.60 0L200.60 0L198.60-15L197.20-15Q193.60-9.80 188.10-5.80Q182.60-1.80 175.90 0.30Q169.20 2.40 161.80 2.40ZM277.40 0L244.60 0L244.60-105.40L271.60-105.40L274-89.20L275.40-89.20Q277.80-94.60 281.30-98.90Q284.80-103.20 289.90-105.60Q295-108 301.20-108L301.20-108Q304.80-108 307.80-107.30Q310.80-106.60 312.20-105.80L312.20-105.80L312.20-77.20L301.80-77.20Q295.60-77.20 290.90-75.50Q286.20-73.80 283.20-70.30Q280.20-66.80 278.80-61.80Q277.40-56.80 277.40-50.20L277.40-50.20L277.40 0ZM363.20 2.40L363.20 2.40Q352.80 2.40 343.70 0.20Q334.60-2 327.70-6.20Q320.80-10.40 316.90-16.60Q313.00-22.80 313.00-31L313.00-31L313.00-32.60Q313.00-33.20 313.20-33.80L313.20-33.80L344.20-33.80L344.20-32Q344.40-27.60 347.10-24.70Q349.80-21.80 354.20-20.50Q358.60-19.20 363.80-19.20L363.80-19.20Q367.60-19.20 371.90-20Q376.20-20.80 379.20-22.80Q382.20-24.80 382.20-28.60L382.20-28.60Q382.20-32.80 378.50-35Q374.80-37.20 368.70-38.70Q362.60-40.20 355.60-41.60L355.60-41.60Q348.60-43.20 341.50-45.20Q334.40-47.20 328.50-50.70Q322.60-54.20 319.00-59.80Q315.40-65.40 315.40-74L315.40-74Q315.40-83.20 319.30-89.70Q323.20-96.20 330.00-100.20Q336.80-104.20 345.70-106Q354.60-107.80 364.60-107.80L364.60-107.80Q373.80-107.80 382.10-106Q390.40-104.20 397.10-100.50Q403.80-96.80 407.60-91.10Q411.40-85.40 411.40-77.80L411.40-77.80Q411.40-76.80 411.30-75.70Q411.20-74.60 411.20-74.20L411.20-74.20L380.40-74.20L380.40-75.80Q380.40-79.20 378.20-81.40Q376-83.60 372.20-84.90Q368.40-86.20 363.80-86.20L363.80-86.20Q360.80-86.20 357.90-85.70Q355-85.20 352.60-84.30Q350.20-83.40 348.70-81.80Q347.20-80.20 347.20-77.80L347.20-77.80Q347.20-74.80 349.80-72.90Q352.40-71 356.90-69.80Q361.40-68.60 366.80-67.20L366.80-67.20Q374.20-65.60 382.40-63.90Q390.60-62.20 397.90-59.10Q405.20-56 409.70-49.90Q414.20-43.80 414.20-33.20L414.20-33.20Q414.20-23.20 410.20-16.30Q406.20-9.40 399.20-5.30Q392.20-1.20 383 0.60Q373.80 2.40 363.20 2.40ZM477.40 2.40L477.40 2.40Q459.40 2.40 446.80-3.50Q434.20-9.40 427.50-21.60Q420.80-33.80 420.80-52.80L420.80-52.80Q420.80-71.40 427.40-83.60Q434-95.80 446.40-101.80Q458.80-107.80 476.20-107.80L476.20-107.80Q493.40-107.80 505.30-102Q517.20-96.20 523.40-84.20Q529.60-72.20 529.60-53.20L529.60-53.20L529.60-46.20L454-46.20Q454-37.80 456.40-32Q458.80-26.20 463.80-23.20Q468.80-20.20 477.20-20.20L477.20-20.20Q482.20-20.20 486-21.40Q489.80-22.60 492.40-24.90Q495-27.20 496.40-30.40Q497.80-33.60 497.80-37.60L497.80-37.60L529.60-37.60Q529.60-28 526.10-20.50Q522.60-13 515.80-7.90Q509-2.80 499.30-0.20Q489.60 2.40 477.40 2.40ZM454.20-64.40L454.20-64.40L496.20-64.40Q496.20-69.60 494.90-73.50Q493.60-77.40 491.10-80Q488.60-82.60 485.10-83.90Q481.60-85.20 477-85.20L477-85.20Q469.80-85.20 465-82.80Q460.20-80.40 457.60-75.80Q455-71.20 454.20-64.40ZM574.40 0L541.60 0L541.60-105.40L568.60-105.40L571.00-90.40L572.40-90.40Q576.40-95.80 581.60-99.80Q586.80-103.80 593.40-105.80Q600.00-107.80 607.40-107.80L607.40-107.80Q618.80-107.80 626.70-103.60Q634.60-99.40 638.80-91Q643-82.60 643-69.60L643-69.60L643 0L610.20 0L610.20-65Q610.20-69.40 609.10-72.50Q608-75.60 606-77.80Q604.00-80 601.00-81Q598.00-82 594.20-82L594.20-82Q588.40-82 584.00-79.30Q579.60-76.60 577.00-72.10Q574.40-67.60 574.40-61.60L574.40-61.60L574.40 0ZM697.80 2.40L697.80 2.40Q684.40 2.40 674.60-3.60Q664.80-9.60 659.60-21.80Q654.40-34 654.40-53L654.40-53Q654.40-71.60 659.70-83.70Q665.00-95.80 674.60-101.80Q684.20-107.80 697.20-107.80L697.20-107.80Q703.40-107.80 709.10-106.40Q714.80-105 719.30-102Q723.80-99 727.00-94.60L727.00-94.60L728.20-94.60L728.20-144.80L761.00-144.80L761.00 0L734.20 0L731.80-14.60L730.40-14.60Q725.00-6 716.60-1.80Q708.20 2.40 697.80 2.40ZM708.00-23.20L708.00-23.20Q715.20-23.20 719.70-26.50Q724.20-29.80 726.30-35.90Q728.40-42 728.40-50.20L728.40-50.20L728.40-55Q728.40-61 727.20-66Q726.00-71 723.60-74.60Q721.20-78.20 717.30-80.20Q713.40-82.20 708.00-82.20L708.00-82.20Q700.60-82.20 696.10-79.20Q691.60-76.20 689.60-70.40Q687.60-64.60 687.60-56L687.60-56L687.60-49Q687.60-40.60 689.60-34.80Q691.60-29 696.10-26.10Q700.60-23.20 708.00-23.20ZM807.40 2.40L807.40 2.40Q800.80 2.40 794.50 1.10Q788.20-0.20 783.10-3.50Q778.00-6.80 775.00-12.60Q772.00-18.40 772.00-27.20L772.00-27.20Q772.00-38.60 776.80-45.80Q781.60-53 790.70-57.10Q799.80-61.20 812.70-62.80Q825.60-64.40 841.60-64.40L841.60-64.40L841.60-71Q841.60-75.60 839.80-78.70Q838.00-81.80 834.50-83.50Q831.00-85.20 825.20-85.20L825.20-85.20Q820.00-85.20 816.10-84Q812.20-82.80 810.20-80.50Q808.20-78.20 808.20-75L808.20-75L808.20-73.20L776.20-73.20Q776.00-74.20 776.00-75L776.00-75L776.00-76.80Q776.00-86.20 781.90-93.20Q787.80-100.20 798.80-104Q809.80-107.80 825.40-107.80L825.40-107.80Q840.00-107.80 850.90-104.20Q861.80-100.60 868.10-93.20Q874.40-85.80 874.40-73.80L874.40-73.80L874.40-28.80Q874.40-25.40 876.30-23.40Q878.20-21.40 881.00-21.40L881.00-21.40L887.80-21.40L887.80-1.20Q885.60-0.20 880.90 1.10Q876.20 2.40 869.60 2.40L869.60 2.40Q862.80 2.40 857.70 0.70Q852.60-1 849.30-4.10Q846.00-7.20 844.80-11.40L844.80-11.40L843.40-11.40Q839.60-7.40 834.50-4.20Q829.40-1 822.70 0.70Q816.00 2.40 807.40 2.40ZM819.60-20.20L819.60-20.20Q824.40-20.20 828.40-21.60Q832.40-23 835.30-25.50Q838.20-28 839.90-31.60Q841.60-35.20 841.60-39.40L841.60-39.40L841.60-46.40Q830.20-46.40 822.00-44.80Q813.80-43.20 809.40-39.80Q805.00-36.40 805.00-31.20L805.00-31.20Q805.00-27.40 806.90-24.90Q808.80-22.40 812.00-21.30Q815.20-20.20 819.60-20.20Z" />
-        <path fill="#C9962E" d="M930 0L895.20 0L895.20-33.40L930-33.40L930 0Z" />
+    <Link to="/" className={`logo-container ${light ? 'logo-light' : ''}`} aria-label="Cursenda, ir al inicio">
+      <svg className="logo-marca" viewBox="0 -80 527 84" aria-hidden="true">
+        <g transform="translate(0 -80) scale(2.7)">
+          <path d="M23.78 8.22A11 11 0 1 0 23.78 23.78" fill="none" stroke="currentColor" strokeWidth="4.6" strokeLinecap="round" />
+          <circle className="logo-punto" cx="25.4" cy="16" r="3.1" />
+        </g>
+        <path transform="translate(104 0)" fill="currentColor" d={PALABRA_LOGO} />
       </svg>
     </Link>
   );
@@ -225,7 +230,7 @@ function FilaCurso({ curso }: { curso: any }) {
   return (
     <article className="pub-curso">
       <Link to={`/curso/${curso.id}`} className="pub-curso-foto" tabIndex={-1} aria-hidden="true">
-        <ImagenFamilia categoria={curso.categoria} />
+        <ImagenFamilia categoria={curso.categoria} imagen={curso.imagen} />
       </Link>
       <div>
         <p className="pub-curso-inicio">{curso.fecha_inicio}{curso.es_demo ? <span className="pub-ejemplo">Curso de ejemplo</span> : null}</p>
@@ -380,14 +385,18 @@ const OTRA_FORMACION = 'Otra formación';
 // Para buscar y comparar sin que importen las mayúsculas ni las tildes
 const sinTildes = (v: unknown) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const slugSector = (nombre: string) => sinTildes(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const NOMBRES_FAMILIAS = [...FAMILIAS.map(f => f.nombre), OTRA_FORMACION];
+// Las áreas salen siempre en el mismo orden, el alfabético, con "Otra formación" al final (igual que en server/familias.ts)
+const NOMBRES_FAMILIAS = [...FAMILIAS.map(f => f.nombre).sort((a, b) => a.localeCompare(b, 'es')), OTRA_FORMACION];
 // El código del certificado indica la familia: SSCS0208 es de SSC
 const familiaDelTitulo = (titulo: string) => FAMILIAS.find(f => f.codigo === titulo.match(/^([A-Z]{3})[A-Z]\d{4}\b/)?.[1])?.nombre;
 
 // Foto si la hay; si no, el nombre del sector
-function ImagenFamilia({ categoria, className }: { categoria: string; className?: string }) {
-  const foto = getCourseImage(categoria);
-  if (foto) return <img className={className} src={foto} alt="" loading="lazy" style={{ objectPosition: FOCO_CATEGORIA[categoria] }} />;
+// La foto de un curso: la que ha puesto el centro o, si no ha puesto ninguna, la de su área
+const fotoDeCurso = (curso: { imagen?: string | null; categoria: string }) => curso.imagen ? `/fotos-curso/${curso.imagen}` : getCourseImage(curso.categoria);
+
+function ImagenFamilia({ categoria, imagen, className }: { categoria: string; imagen?: string | null; className?: string }) {
+  const foto = fotoDeCurso({ imagen, categoria });
+  if (foto) return <img className={className} src={foto} alt="" loading="lazy" style={imagen ? undefined : { objectPosition: FOCO_CATEGORIA[categoria] }} />;
   return <span className={`pub-icono-familia ${className || ''}`}>{categoria}</span>;
 }
 
@@ -511,7 +520,7 @@ function PortadaNueva() {
   }, [hash]);
 
   const zonas = [...new Set(cursos.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)).filter(Boolean))].sort();
-  const buscables = cursos.map(c => ({ ...c, titulo: tituloSinCodigo(c.titulo), provincia: cleanLocalidad(c.localidad) }));
+  const buscables = cursos.map(c => ({ ...c, titulo: tituloSinCodigo(c.titulo), provincia: cleanLocalidad(c.localidad), foto: fotoDeCurso(c) }));
 
   const areas = FAMILIAS.map(f => ({ nombre: f.nombre, destino: `/cursos/${slugSector(f.nombre)}`, cursos: cursos.filter(c => c.categoria === f.nombre).length }));
 
@@ -529,7 +538,7 @@ function PortadaNueva() {
       <main>
         <HeroApple3D provincias={zonas} cursos={buscables} areas={areas} />
         <AreasSection areas={areas} />
-        <CourseSearchSection cursos={buscables} estado={estado} guardados={elegidos.filter(c => c.estado === 'pendiente').map(c => c.id)} onGuardar={guardar} />
+        <CourseSearchSection cursos={buscables} estado={estado} guardados={elegidos.map(c => c.id)} onGuardar={guardar} />
         <CompaniesSection />
       </main>
       <div className="pub pub-solo-pie"><PiePublico /></div>
@@ -537,17 +546,52 @@ function PortadaNueva() {
   );
 }
 
+// Fecha de una solicitud tal como la guarda el navegador o la devuelve el servidor (UTC sin zona)
+const fechaDeSolicitud = (f?: string) => {
+  if (!f) return '';
+  const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(f) ? f : f.replace(' ', 'T') + 'Z');
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
 function EspacioAlumno() {
   useTitulo('Mi espacio | Cursenda');
-  const { alumno, cursos, guardarAlumno, quitarCurso, borrarTodo } = useAlumnoLocal();
-  const { cursos: publicados } = useCursosPublicos();
+  const { alumno, cursos, solicitudes, guardarAlumno, quitarCurso, borrarTodo } = useAlumnoLocal();
+  const { cursos: publicados, estado: estadoCursos } = useCursosPublicos();
   const zonas = [...new Set(publicados.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)).filter(Boolean))].sort();
+
+  // Cómo va cada solicitud lo dice el servidor, con el código que guardó este navegador al enviarla
+  const [estados, setEstados] = useState<Record<string, { estado: EstadoSolicitud; fecha: string }>>({});
+  const codigos = solicitudes.map(s => s.codigo).filter(Boolean).join(',');
+  useEffect(() => {
+    if (!codigos) return;
+    let vivo = true;
+    pedir(`${API_BASE}/public/solicitudes/estado`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigos: codigos.split(',') }) })
+      .then(res => res.ok ? res.json() : [])
+      .then((filas: any[]) => { if (vivo) setEstados(Object.fromEntries(filas.map(f => [f.codigo, { estado: f.estado, fecha: f.fecha }]))); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [codigos]);
+
+  // Los cursos guardados se comparan con los datos de hoy, no con los del día en que se guardaron
+  const guardados = cursos.map(g => {
+    const c = publicados.find(p => String(p.id) === String(g.id));
+    if (!c) return { id: g.id, titulo: g.titulo, centro_nombre: g.centro_nombre, modalidad: g.modalidad, lugar: g.localidad, disponible: estadoCursos !== 'listo' };
+    return {
+      id: c.id, titulo: tituloSinCodigo(c.titulo), centro_nombre: c.centro_nombre, modalidad: c.modalidad, lugar: cleanLocalidad(c.localidad),
+      duracion_horas: c.duracion_horas, fecha_inicio: c.fecha_inicio, plazas_libres: Math.max(0, (c.plazas || 0) - (c.plazas_cubiertas || 0)),
+      dirigido_a: c.dirigido_a, requisitos: c.requisitos, disponible: true,
+    };
+  });
+  const historial = solicitudes.map(s => {
+    const servidor = s.codigo ? estados[s.codigo] : undefined;
+    return { curso_id: s.curso_id, titulo: s.titulo, centro: s.centro, fecha: fechaDeSolicitud(servidor?.fecha || s.fecha), estado: servidor?.estado || 'enviada' as EstadoSolicitud };
+  });
 
   return (
     <>
       <CabeceraPublica />
       <main>
-        <StudentArea alumno={alumno} cursos={cursos} provincias={zonas} onGuardar={guardarAlumno} onQuitar={(c) => quitarCurso(c.id)} onBorrarTodo={borrarTodo} />
+        <StudentArea alumno={alumno} guardados={guardados} solicitudes={historial} provincias={zonas} onGuardar={guardarAlumno} onQuitar={(c) => quitarCurso(c.id)} onBorrarTodo={borrarTodo} />
       </main>
       <div className="pub pub-solo-pie"><PiePublico /></div>
     </>
@@ -781,7 +825,8 @@ function AlumnosDetalle() {
   const [loading, setLoading] = useState(true);
   const [falloCarga, setFalloCarga] = useState(false);
   // Si ya dejó sus datos en Mi espacio, el formulario sale relleno
-  const { alumno, marcarEnviada } = useAlumnoLocal();
+  const { alumno, apuntarSolicitud, guardarAlumno } = useAlumnoLocal();
+  const [perfilGuardado, setPerfilGuardado] = useState(false);
   const { hash } = useLocation();
   const [nombre, setNombre] = useState(alumno.nombre);
   const [email, setEmail] = useState(alumno.email);
@@ -833,9 +878,10 @@ function AlumnosDetalle() {
         body: JSON.stringify({ curso_id: id, nombre, email, telefono, rgpd })
       });
       if (res.ok) {
+        const { seguimiento } = await res.json().catch(() => ({}));
         setSubmitSuccess(true);
-        // Queda apuntado en Mi espacio; si el navegador no deja guardar, no pasa nada
-        try { marcarEnviada({ id: curso.id, titulo: tituloSinCodigo(curso.titulo), centro_nombre: curso.centro_nombre, modalidad: curso.modalidad, localidad: curso.localidad }); } catch { /* sin guardado local */ }
+        // Queda en el historial de Mi espacio, con el código para ver cómo va. Si el navegador no deja guardar, no pasa nada
+        try { apuntarSolicitud({ codigo: seguimiento || null, curso_id: curso.id, titulo: tituloSinCodigo(curso.titulo), centro: curso.centro_nombre, fecha: new Date().toISOString() }); } catch { /* sin guardado local */ }
       }
       else setSubmitError(await errorDe(res, 'No se ha podido enviar la solicitud. Vuelve a intentarlo dentro de un momento.'));
     } catch {
@@ -863,7 +909,7 @@ function AlumnosDetalle() {
     <div className="pub">
       <CabeceraPublica />
       <section className="pub-curso-portada">
-        {getCourseImage(curso.categoria) && <img src={getCourseImage(curso.categoria) as string} alt="" style={{ objectPosition: FOCO_CATEGORIA[curso.categoria] }} />}
+        {fotoDeCurso(curso) && <img src={fotoDeCurso(curso) as string} alt="" style={curso.imagen ? undefined : { objectPosition: FOCO_CATEGORIA[curso.categoria] }} />}
         <div className="pub-ancho">
           <Link to={`/cursos/${slugSector(curso.categoria)}`} className="pub-volver">{curso.categoria}</Link>
           <h1>{tituloSinCodigo(curso.titulo)}</h1>
@@ -940,8 +986,13 @@ function AlumnosDetalle() {
             {submitSuccess ? (
               <div className="pub-gracias">
                 <h2>Solicitud enviada</h2>
-                <p>{curso.centro_nombre} ya tiene tus datos y te llamará al {telefono}.</p>
-                <p><Link to="/cursos">Ver más cursos</Link></p>
+                <p>{curso.centro_nombre} ya tiene tus datos y te llamará al {telefono}. Te hemos mandado un correo de confirmación a {email}.</p>
+                {alumno.nombre === nombre.trim() && alumno.email === email.trim() && alumno.telefono === telefono.trim()
+                  ? null
+                  : perfilGuardado
+                    ? <p>Datos guardados en tu perfil.</p>
+                    : <p><button type="button" className="pub-enlace" onClick={() => { try { guardarAlumno({ ...alumno, nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() }); setPerfilGuardado(true); } catch { alert('Tu navegador no deja guardar datos.'); } }}>Guardar estos datos para la próxima vez</button></p>}
+                <p><Link to="/mi-espacio">Ver cómo va en Mi espacio</Link> · <Link to="/cursos">Ver más cursos</Link></p>
               </div>
             ) : curso.es_demo ? (
               <div>
@@ -958,7 +1009,7 @@ function AlumnosDetalle() {
             ) : (
               <form onSubmit={handleSubmit}>
                 <h2>Pide tu plaza</h2>
-                <p>El curso es gratis y pedir plaza no te compromete a nada.</p>
+                <p>El curso es gratis y pedir plaza no te compromete a nada.{alumno.nombre && alumno.email && alumno.telefono ? ' Hemos rellenado el formulario con tu perfil de Mi espacio.' : ''}</p>
                 {submitError && <p className="pub-error" role="alert">{submitError}</p>}
                 <label>Nombre y apellidos<input required autoComplete="name" maxLength={120} value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
                 <label>Teléfono<input required type="tel" autoComplete="tel" maxLength={30} value={telefono} onChange={(e) => setTelefono(e.target.value)} /></label>
@@ -1351,7 +1402,7 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
               <li><strong>Si tiene cuenta de centro:</strong> los datos de su cuenta y de su equipo, para darle acceso al panel y prestarle el servicio.</li>
             </ul>
 
-            <p><strong>Mi espacio:</strong> los datos de contacto y los cursos que guarde en <Link to="/mi-espacio">Mi espacio</Link> se quedan en el almacenamiento local de su navegador (localStorage). No se envían a Cursenda ni a ningún centro hasta que pide plaza en un curso. Puede borrarlos cuando quiera desde esa misma página, con «Borrar todo», o borrando los datos del navegador.</p>
+            <p><strong>Mi espacio:</strong> su perfil, los cursos que guarde y la lista de plazas que ha pedido en <Link to="/mi-espacio">Mi espacio</Link> se quedan en el almacenamiento local de su navegador (localStorage). No se envían a Cursenda ni a ningún centro hasta que pide plaza en un curso. Al pedirla, su navegador guarda un código con el que consulta cómo va esa solicitud, y le enviamos un correo de confirmación. Puede borrarlos cuando quiera desde esa misma página, con «Borrar todo», o borrando los datos del navegador.</p>
 
             <h2>Base legal</h2>
             <p>Su consentimiento, que da al marcar la casilla del formulario, y en el caso de los centros con cuenta, el contrato del servicio. Puede retirar su consentimiento cuando quiera.</p>
@@ -2555,6 +2606,7 @@ function DashboardCentro({ user, onLogout, onRefrescar }: { user: any; onLogout:
   const [formTitulo, setFormTitulo] = useState('');
   const [formCategoria, setFormCategoria] = useState('Informática y comunicaciones');
   const [formModalidad, setFormModalidad] = useState('Online');
+  const [fotoEleccion, setFotoEleccion] = useState<EleccionFoto | null>(null);
   const [formLocalidad, setFormLocalidad] = useState('');
   const [formDuracion, setFormDuracion] = useState('');
   const [formPlazas, setFormPlazas] = useState('');
@@ -2677,7 +2729,27 @@ function DashboardCentro({ user, onLogout, onRefrescar }: { user: any; onLogout:
       setFormHorario('');
     }
     setFormError('');
+    setFotoEleccion(null);
     setShowCursoModal(true);
+  };
+
+  // La foto elegida en el formulario se manda cuando el curso ya está guardado. Devuelve un aviso si no sale bien.
+  const aplicarFoto = async (cursoId: number, eleccion: EleccionFoto) => {
+    try {
+      const res = eleccion.tipo === 'propia'
+        ? await pedir(`${API_BASE}/cursos/${cursoId}/imagen`, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: eleccion.archivo })
+        : eleccion.tipo === 'banco'
+          ? await pedir(`${API_BASE}/cursos/${cursoId}/imagen/stock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ foto_id: eleccion.id }) })
+          : await pedir(`${API_BASE}/cursos/${cursoId}/imagen`, { method: 'DELETE' });
+      return res.ok ? '' : await errorDe(res, 'No se ha podido guardar la foto.');
+    } catch {
+      return 'No se ha podido guardar la foto. Comprueba tu conexión.';
+    }
+  };
+  const buscarFotos = async (texto: string) => {
+    const res = await pedir(`${API_BASE}/imagenes/buscar?q=${encodeURIComponent(texto)}`);
+    if (!res.ok) throw new Error(await errorDe(res, 'No se han podido buscar fotos.'));
+    return res.json();
   };
 
   const handleSaveCurso = async (e: React.FormEvent) => {
@@ -2724,9 +2796,12 @@ function DashboardCentro({ user, onLogout, onRefrescar }: { user: any; onLogout:
       });
 
       if (res.ok) {
+        const guardado = selectedCurso || await res.json().catch(() => null);
+        const avisoFoto = fotoEleccion && guardado?.id ? await aplicarFoto(guardado.id, fotoEleccion) : '';
         setShowCursoModal(false);
         loadCursos();
         loadStats();
+        if (avisoFoto) alert(`El curso se ha guardado, pero la foto no. ${avisoFoto}`);
       } else {
         setFormError(await errorDe(res, 'No se ha podido guardar el curso.'));
       }
@@ -4167,6 +4242,15 @@ function DashboardCentro({ user, onLogout, onRefrescar }: { user: any; onLogout:
                   <label className="form-label" htmlFor="cu-salidas">En qué pueden trabajar</label>
                   <textarea id="cu-salidas" className="form-control" rows={3} maxLength={2000} value={formSalidas} onChange={(e) => setFormSalidas(e.target.value)}></textarea>
                 </div>
+                <div className="form-group">
+                  <span className="form-label">Foto del curso</span>
+                  <SelectorFotoCurso
+                    actual={selectedCurso?.imagen ? `/fotos-curso/${selectedCurso.imagen}` : null}
+                    eleccion={fotoEleccion}
+                    onCambio={setFotoEleccion}
+                    buscar={buscarFotos}
+                  />
+                </div>
               </div>
               <div className="modal-footer">
                 <button type="button" onClick={() => setShowCursoModal(false)} className="btn btn-secondary">Cancelar</button>
@@ -4428,7 +4512,7 @@ function App() {
   const panel = loading
     ? (
       <div className="pantalla-carga" role="status">
-        <span className="logo-text">cursenda<span className="logo-dot">.</span></span>
+        <Logo />
         <span className="pantalla-carga-texto">Cargando…</span>
       </div>
     )

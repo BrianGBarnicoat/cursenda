@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken';
 import { getDatabase, enTransaccion, verifyPassword, hashPassword, hashAntiguo } from './db.js';
 import { reiniciarDemo, programarReinicioDemo } from './demo.js';
 import { familiaDe, slugSector, NOMBRES_SECTORES } from './familias.js';
-import { avisoContrasena, avisoPeticionAcceso, avisoPrueba, avisoSolicitud } from './correo.js';
+import { avisoContrasena, avisoPeticionAcceso, avisoPrueba, avisoSolicitud, confirmacionSolicitud } from './correo.js';
 import { ACCESO_SQL, VISIBLE_SQL, PLANES_DE_PAGO, pagosConfigurados, modoPruebaStripe, crearCheckout, crearPortal, handleWebhook } from './pagos.js';
 import crypto from 'crypto';
 import path from 'path';
@@ -949,14 +949,17 @@ app.post('/api/public/solicitudes', limiteSolicitudes, async (req, res) => {
 
     // Si ya la pidió con ese correo, no se repite ni se avisa otra vez al centro.
     // Mirarlo y apuntarla va en una sola orden: dos clics seguidos no la duplican.
+    // El código de seguimiento solo lo tiene el navegador que envía la solicitud: con él ve luego cómo va
+    const seguimiento = crypto.randomBytes(16).toString('hex');
     const apuntada = await db.run(`
-      INSERT INTO solicitudes (curso_id, nombre, email, telefono, gestionado)
-      SELECT ?, ?, ?, ?, 0
+      INSERT INTO solicitudes (curso_id, nombre, email, telefono, gestionado, seguimiento)
+      SELECT ?, ?, ?, ?, 0, ?
       WHERE NOT EXISTS (SELECT 1 FROM solicitudes WHERE curso_id = ? AND lower(email) = lower(?))
-    `, [cursoId, nombre, email, telefono, cursoId, email]);
+    `, [cursoId, nombre, email, telefono, seguimiento, cursoId, email]);
 
     if (apuntada.changes) {
       avisoSolicitud({ id: curso.centro_id, email: curso.centro_email }, curso.titulo);
+      confirmacionSolicitud({ email, nombre, curso: curso.titulo, centro: curso.centro_nombre });
 
       // Avisar también al programa del centro, si tiene uno conectado
       if (curso.webhook_url) {
@@ -976,9 +979,35 @@ app.post('/api/public/solicitudes', limiteSolicitudes, async (req, res) => {
       }
     }
 
-    res.status(201).json({ success: true, message: 'Solicitud enviada correctamente' });
+    // Si la solicitud ya existía no se da código: no es de quien la repite
+    res.status(201).json({ success: true, message: 'Solicitud enviada correctamente', seguimiento: apuntada.changes ? seguimiento : undefined });
   } catch (err) {
     res.status(500).json({ error: 'No se pudo enviar la solicitud. Inténtalo de nuevo.' });
+  }
+});
+
+// Cómo van las solicitudes de un alumno. Solo responde a quien trae el código que se le dio al enviarlas,
+// y nunca enseña lo que el centro apunta por dentro: solo un estado en palabras para el alumno.
+const ESTADO_PARA_ALUMNO: Record<string, string> = { Nuevo: 'recibida', Llamado: 'contactada', Interesado: 'contactada', Matriculado: 'matriculada', Descartado: 'cerrada' };
+const limiteSeguimiento = limitePorIp(120, UNA_HORA, 'Has mirado tus solicitudes demasiadas veces. Inténtalo de nuevo dentro de un rato.');
+app.post('/api/public/solicitudes/estado', limiteSeguimiento, async (req, res) => {
+  const codigos: string[] = Array.isArray(req.body?.codigos)
+    ? [...new Set<string>(req.body.codigos.filter((c: unknown) => typeof c === 'string' && /^[a-f0-9]{32}$/.test(c)))].slice(0, 30)
+    : [];
+  if (!codigos.length) return res.json([]);
+  try {
+    const db = await getDatabase();
+    const filas = await db.all(`
+      SELECT solicitudes.seguimiento as codigo, solicitudes.fecha_creacion as fecha, solicitudes.estado_detalle,
+             cursos.id as curso_id, cursos.titulo as curso, centros.nombre as centro
+      FROM solicitudes
+      JOIN cursos ON solicitudes.curso_id = cursos.id
+      JOIN centros ON cursos.centro_id = centros.id
+      WHERE solicitudes.seguimiento IN (${codigos.map(() => '?').join(',')})
+    `, codigos);
+    res.json(filas.map((f: any) => ({ codigo: f.codigo, fecha: f.fecha, curso_id: f.curso_id, curso: f.curso, centro: f.centro, estado: ESTADO_PARA_ALUMNO[f.estado_detalle] || 'recibida' })));
+  } catch {
+    res.status(500).json({ error: 'No se han podido consultar las solicitudes.' });
   }
 });
 
@@ -1633,8 +1662,10 @@ app.delete('/api/admin/centros/:id', authenticateAdmin, async (req: any, res) =>
       return res.status(400).json({ error: 'Este centro tiene una suscripción de pago en marcha. Dala de baja en Stripe antes de eliminarlo.' });
     }
 
+    const fotos = await db.all('SELECT imagen FROM cursos WHERE centro_id = ? AND imagen IS NOT NULL', [centro.id]);
     await db.run('DELETE FROM centros WHERE id = ?', [centro.id]);
     borrarLogo(centro.logo);
+    fotos.forEach((f: any) => borrarFoto(f.imagen));
     res.json({ success: true, message: 'Centro eliminado con éxito' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar el centro' });
@@ -1700,12 +1731,13 @@ app.delete('/api/admin/cursos/:id', authenticateAdmin, async (req, res) => {
 
   try {
     const db = await getDatabase();
-    const curso = await db.get('SELECT id FROM cursos WHERE id = ?', [id]);
+    const curso = await db.get('SELECT id, imagen FROM cursos WHERE id = ?', [id]);
     if (!curso) {
       return res.status(404).json({ error: 'Curso no encontrado' });
     }
 
     await db.run('DELETE FROM cursos WHERE id = ?', [id]);
+    borrarFoto(curso.imagen);
     res.json({ success: true, message: 'Curso eliminado con éxito' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar el curso' });
@@ -1988,6 +2020,123 @@ app.get('/logos/:archivo', (req, res) => {
   res.set('X-Content-Type-Options', 'nosniff');
   res.set('Cache-Control', 'public, max-age=86400');
   res.sendFile(archivo, { root: path.resolve(CARPETA_LOGOS) }, (err) => { if (err && !res.headersSent) res.status(404).end(); });
+});
+
+// --- FOTOS DE LOS CURSOS ---
+// Van en una carpeta dentro de la de los logos, así entran en la misma copia de seguridad.
+// Se sirven desde la propia web: la CSP no deja cargar imágenes de fuera.
+const CARPETA_FOTOS = path.join(CARPETA_LOGOS, 'cursos');
+const FOTO_VALIDA = /^[\w-]+\.(png|jpg|webp)$/;
+// (función y no constante: se usa en rutas que están más arriba en el archivo)
+function borrarFoto(nombre?: string | null) {
+  if (nombre && FOTO_VALIDA.test(nombre)) fs.rmSync(path.join(CARPETA_FOTOS, nombre), { force: true });
+}
+
+// Guarda la foto de un curso y borra la que tuviera. Devuelve el nombre del archivo o null si no es una imagen.
+async function guardarFoto(cursoId: number, anterior: string | null, datos: Buffer) {
+  const formato = formatoLogo(datos);
+  if (!formato) return null;
+  const db = await getDatabase();
+  fs.mkdirSync(CARPETA_FOTOS, { recursive: true, mode: 0o700 });
+  const nombre = `curso-${cursoId}-${crypto.randomBytes(6).toString('hex')}.${formato}`;
+  fs.writeFileSync(path.join(CARPETA_FOTOS, nombre), datos, { mode: 0o600 });
+  await db.run('UPDATE cursos SET imagen = ? WHERE id = ?', [nombre, cursoId]);
+  borrarFoto(anterior);
+  return nombre;
+}
+
+const cursoDelCentro = async (req: any) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) return null;
+  const db = await getDatabase();
+  return db.get('SELECT id, imagen FROM cursos WHERE id = ? AND centro_id = ?', [id, req.centro.id]);
+};
+
+// a) Foto propia: la web la reduce antes de mandarla, así que llega pequeña
+app.put('/api/cursos/:id/imagen', authenticateToken, puedeEditar, requiereAcceso,
+  express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '250kb' }), async (req: any, res) => {
+    try {
+      const curso = await cursoDelCentro(req);
+      if (!curso) return res.status(404).json({ error: 'Curso no encontrado o sin permisos' });
+      const nombre = Buffer.isBuffer(req.body) ? await guardarFoto(curso.id, curso.imagen, req.body) : null;
+      if (!nombre) return res.status(400).json({ error: 'La foto tiene que ser PNG, JPG o WebP.' });
+      res.json({ imagen: nombre });
+    } catch {
+      res.status(500).json({ error: 'No se ha podido guardar la foto.' });
+    }
+  });
+
+app.delete('/api/cursos/:id/imagen', authenticateToken, puedeEditar, requiereAcceso, async (req: any, res) => {
+  try {
+    const curso = await cursoDelCentro(req);
+    if (!curso) return res.status(404).json({ error: 'Curso no encontrado o sin permisos' });
+    const db = await getDatabase();
+    await db.run('UPDATE cursos SET imagen = NULL WHERE id = ?', [curso.id]);
+    borrarFoto(curso.imagen);
+    res.json({ imagen: null });
+  } catch {
+    res.status(500).json({ error: 'No se ha podido quitar la foto.' });
+  }
+});
+
+app.get('/fotos-curso/:archivo', (req, res) => {
+  const archivo = req.params.archivo;
+  if (!FOTO_VALIDA.test(archivo)) return res.status(404).end();
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Cache-Control', 'public, max-age=604800, immutable');
+  res.sendFile(archivo, { root: path.resolve(CARPETA_FOTOS) }, (err) => { if (err && !res.headersSent) res.status(404).end(); });
+});
+
+// b) Fotos de banco (Pexels). El servidor hace de intermediario: busca, y al elegir una la descarga y la guarda aquí.
+// Hace falta la clave PEXELS_API_KEY; sin ella el buscador avisa de que no está activado.
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY || '';
+const limiteFotos = limitePorIp(60, UNA_HORA, 'Has buscado demasiadas fotos. Inténtalo de nuevo dentro de un rato.');
+const pexels = (ruta: string) => fetch(`https://api.pexels.com/v1/${ruta}`, { headers: { Authorization: PEXELS_API_KEY }, redirect: 'error', signal: AbortSignal.timeout(8000) });
+// Solo se descargan imágenes del servidor de fotos de Pexels, y con tope de tamaño
+async function bajarDePexels(url: unknown, tope: number) {
+  if (typeof url !== 'string' || new URL(url).protocol !== 'https:' || new URL(url).hostname !== 'images.pexels.com') return null;
+  const r = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(10000) });
+  if (!r.ok || Number(r.headers.get('content-length') || 0) > tope) { await r.body?.cancel(); return null; }
+  const datos = Buffer.from(await r.arrayBuffer());
+  return datos.length <= tope && formatoLogo(datos) ? datos : null;
+}
+
+app.get('/api/imagenes/buscar', authenticateToken, puedeEditar, requiereAcceso, limiteFotos, async (req, res) => {
+  if (!PEXELS_API_KEY) return res.status(503).json({ error: 'El buscador de fotos no está activado todavía. Puedes subir una foto tuya.' });
+  const q = textoDe(req.query.q).slice(0, 80);
+  if (q.length < 2) return res.status(400).json({ error: 'Escribe qué foto buscas.' });
+  try {
+    const r = await pexels(`search?query=${encodeURIComponent(q)}&per_page=12&orientation=landscape&locale=es-ES`);
+    if (!r.ok) { await r.body?.cancel(); return res.status(502).json({ error: 'El banco de fotos no responde. Inténtalo dentro de un momento.' }); }
+    const datos: any = await r.json();
+    // Las miniaturas viajan dentro de la respuesta: el navegador no puede pedirlas fuera
+    const fotos = await Promise.all((datos.photos || []).slice(0, 12).map(async (f: any) => {
+      const mini = await bajarDePexels(f?.src?.tiny, 80 * 1024).catch(() => null);
+      return mini ? { id: Number(f.id), autor: textoDe(f.photographer).slice(0, 80), miniatura: `data:image/${formatoLogo(mini) === 'jpg' ? 'jpeg' : formatoLogo(mini)};base64,${mini.toString('base64')}` } : null;
+    }));
+    res.json(fotos.filter(Boolean));
+  } catch {
+    res.status(502).json({ error: 'El banco de fotos no responde. Inténtalo dentro de un momento.' });
+  }
+});
+
+app.post('/api/cursos/:id/imagen/stock', authenticateToken, puedeEditar, requiereAcceso, limiteFotos, async (req: any, res) => {
+  if (!PEXELS_API_KEY) return res.status(503).json({ error: 'El buscador de fotos no está activado todavía.' });
+  const fotoId = Number(req.body?.foto_id);
+  if (!Number.isInteger(fotoId) || fotoId < 1) return res.status(400).json({ error: 'Elige una foto.' });
+  try {
+    const curso = await cursoDelCentro(req);
+    if (!curso) return res.status(404).json({ error: 'Curso no encontrado o sin permisos' });
+    const r = await pexels(`photos/${fotoId}`);
+    if (!r.ok) { await r.body?.cancel(); return res.status(502).json({ error: 'No se ha podido traer esa foto.' }); }
+    const foto: any = await r.json();
+    const datos = await bajarDePexels(foto?.src?.large, 2 * 1024 * 1024);
+    const nombre = datos ? await guardarFoto(curso.id, curso.imagen, datos) : null;
+    if (!nombre) return res.status(502).json({ error: 'No se ha podido traer esa foto.' });
+    res.json({ imagen: nombre });
+  } catch {
+    res.status(502).json({ error: 'No se ha podido traer esa foto.' });
+  }
 });
 
 // --- Servir archivos estáticos del Frontend en Producción ---

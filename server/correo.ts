@@ -42,6 +42,11 @@ export function avisoSolicitud(centro: { id: number; email: string }, curso: str
     `Alguien ha pedido plaza en "${curso}".\n\nEntra en tu panel para ver sus datos y llamarle: ${WEB}/centros/dashboard`);
 }
 
+// A quien pide plaza se le confirma que su solicitud ha salido. Solo una vez por curso y correo.
+export const confirmacionSolicitud = (d: { email: string; nombre: string; curso: string; centro: string }) =>
+  encolarCorreo(d.email, 'Hemos enviado tu solicitud de plaza',
+    `Hola, ${d.nombre}:\n\nTu solicitud de plaza en "${d.curso}" ha llegado a ${d.centro}.\n\nEl centro te llamará o te escribirá para confirmarte si cumples los requisitos y qué documentos necesitas. Pedir plaza es gratis y no te compromete a nada.\n\nPuedes ver cómo va tu solicitud en ${WEB}/mi-espacio, desde el mismo navegador con el que la enviaste.\n\nSi no has pedido tú esta plaza, no hagas caso de este correo.`);
+
 export const avisoPrueba = (email: string, dias: number) =>
   encolarCorreo(email, dias <= 1 ? 'Mañana termina tu mes de prueba en Cursenda' : `Te quedan ${dias} días de prueba en Cursenda`,
     `Cuando termine la prueba, tus cursos dejarán de verse en la web y el panel quedará bloqueado hasta que contrates un plan. Tus datos se guardan.\n\nElige tu plan aquí: ${WEB}/centros/dashboard`);

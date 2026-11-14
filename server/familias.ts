@@ -22,4 +22,5 @@ export function familiaDe(titulo: string, categoria: string) {
 
 // Dirección limpia de cada sector: "Hostelería y turismo" es hosteleria-y-turismo
 export const slugSector = (nombre: string) => nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-export const NOMBRES_SECTORES = [...Object.values(FAMILIAS), OTRA_FORMACION];
+// Siempre en el mismo orden, el alfabético, con "Otra formación" al final (igual que en la web)
+export const NOMBRES_SECTORES = [...Object.values(FAMILIAS).sort((a, b) => a.localeCompare(b, 'es')), OTRA_FORMACION];

@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Float, MeshTransmissionMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { escenaViva } from './escenaViva';
 
 // La escena 3D va en su propio fichero: así three solo se descarga cuando hace falta
 // y el título de la portada no tiene que esperarlo.
@@ -11,6 +12,9 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 const HDR_ESTUDIO = '/hdr/studio_small_03_1k.hdr';
 const VERDE = '#0C3B33';
 const BLANCO = new THREE.Color('#FFFFFF');
+
+// Del material de cristal solo se tocan estas cuatro cosas mientras se mueve
+type Cristal = THREE.Material & { roughness: number; distortion: number; chromaticAberration: number; attenuationDistance: number };
 
 // Una esfera deformada con ondas suaves: sale una piedra de cristal, sin aristas.
 function crearEscultura() {
@@ -36,8 +40,11 @@ function crearEscultura() {
 
 function Escultura({ quieta }: { quieta: boolean }) {
   const grupo = useRef<THREE.Group>(null);
+  const cristal = useRef<Cristal>(null);
+  const luz = useRef<THREE.DirectionalLight>(null);
   const raton = useRef({ x: 0, y: 0 });
   const giro = useRef(0);
+  const viva = useRef(0);
   const geometria = useMemo(crearEscultura, []);
 
   useEffect(() => () => geometria.dispose(), [geometria]);
@@ -57,17 +64,43 @@ function Escultura({ quieta }: { quieta: boolean }) {
     const g = grupo.current;
     if (!g || quieta) return;
     const d = Math.min(delta, 0.05);
-    giro.current += d * 0.12;
-    g.rotation.y = THREE.MathUtils.damp(g.rotation.y, giro.current + raton.current.x * 0.45, 3, d);
-    g.rotation.x = THREE.MathUtils.damp(g.rotation.x, raton.current.y * 0.28, 3, d);
+    const { damp } = THREE.MathUtils;
+
+    // La energía que llega de la página (escribir, pasar por un área) se apaga sola en un par de segundos
+    escenaViva.energia = Math.max(0, escenaViva.energia - d * 0.6);
+    viva.current = damp(viva.current, escenaViva.energia, 5, d);
+    const e = viva.current;
+
+    // Al bajar por la página la pieza gira, sube un poco y se aleja
+    const bajada = Math.min(window.scrollY / Math.max(window.innerHeight, 1), 1.5);
+
+    giro.current += d * (0.12 + e * 0.5);
+    g.rotation.y = damp(g.rotation.y, giro.current + raton.current.x * 0.6 + bajada * 1.1, 3, d);
+    g.rotation.x = damp(g.rotation.x, raton.current.y * 0.35 + bajada * 0.5, 3, d);
+    g.position.x = damp(g.position.x, raton.current.x * 0.12, 2.5, d);
+    g.position.y = damp(g.position.y, bajada * 0.7 - raton.current.y * 0.08, 3, d);
+    g.scale.setScalar(damp(g.scale.x, 1 + e * 0.05 - bajada * 0.12, 4, d));
+
+    // Con energía el cristal se aclara, tiembla un poco y coge más verde y más brillo
+    const c = cristal.current;
+    if (c) {
+      c.roughness = 0.3 - e * 0.14;
+      c.distortion = 0.15 + e * 0.45;
+      c.chromaticAberration = 0.02 + e * 0.18;
+      c.attenuationDistance = 9 - e * 5.5;
+    }
+    if (luz.current) luz.current.intensity = 1.4 + e * 1.6;
   });
 
   return (
+    <>
+    <directionalLight ref={luz} position={[4, 5, 3]} intensity={1.4} />
     <Float speed={quieta ? 0 : 1.2} rotationIntensity={0.25} floatIntensity={0.7} floatingRange={[-0.08, 0.08]}>
       <group ref={grupo}>
         <mesh geometry={geometria}>
           <MeshTransmissionMaterial
-            samples={10}
+            ref={(m) => { cristal.current = m as unknown as Cristal | null; }}
+            samples={8}
             resolution={512}
             transmission={1}
             roughness={0.3}
@@ -95,6 +128,7 @@ function Escultura({ quieta }: { quieta: boolean }) {
         </mesh>
       </group>
     </Float>
+    </>
   );
 }
 
@@ -110,7 +144,6 @@ export default function HeroEscena({ quieta, parada = false }: { quieta: boolean
     >
       <color attach="background" args={['#FFFFFF']} />
       <ambientLight intensity={0.6} />
-      <directionalLight position={[4, 5, 3]} intensity={1.4} />
       <Escultura quieta={quieta} />
       <Environment files={HDR_ESTUDIO} />
     </Canvas>

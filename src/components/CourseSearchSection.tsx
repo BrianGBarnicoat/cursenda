@@ -13,6 +13,8 @@ export type CursoBuscable = {
   centro_nombre?: string | null;
   duracion_horas?: number | null;
   descripcion?: string | null;
+  /** Dirección de la foto del curso, si tiene. */
+  foto?: string | null;
 };
 
 type Modalidad = '' | 'Online' | 'Presencial' | 'Mixta';
@@ -139,6 +141,9 @@ export default function CourseSearchSection({ cursos, estado = 'listo', guardado
               const datos = [nombreModalidad(c.modalidad), lugar, c.duracion_horas ? `${c.duracion_horas} horas` : ''].filter(Boolean);
               return (
                 <AlBajar como="li" key={c.id} className="cursos-b-tarjeta" retraso={(i % 3) * 0.06}>
+                  <Link to={`/curso/${c.id}`} className="cursos-b-foto" tabIndex={-1} aria-hidden="true">
+                    {c.foto ? <img src={c.foto} alt="" loading="lazy" /> : <span>{c.categoria}</span>}
+                  </Link>
                   <span className="cursos-b-area">{c.categoria}</span>
                   <h3><Link to={`/curso/${c.id}`}>{sinCodigo(c.titulo)}</Link></h3>
                   {c.centro_nombre && <p className="cursos-b-centro">{c.centro_nombre}</p>}

@@ -1,4 +1,4 @@
-/* Espacio del alumno: dos bloques grises, "Mis datos" y "Mis cursos seleccionados". */
+/* Mi espacio: perfil, historial de solicitudes y comparador de cursos guardados. */
 .alumno-a {
   min-height: 100vh;
   background: #FFFFFF;
@@ -8,9 +8,7 @@
 }
 .alumno-a-ancho { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
-.alumno-a-cabecera { padding: 56px 0 16px; }
-.alumno-a-aviso { max-width: 70ch; margin-bottom: 28px; font-size: 15px; line-height: 1.5; color: #6E6E73; }
-.alumno-a-aviso .alumno-a-enlace { padding: 0; font-size: inherit; }
+.alumno-a-cabecera { padding: 56px 0 28px; }
 .alumno-a-cabecera h1 {
   font-family: inherit;
   font-size: clamp(34px, 4.4vw, 56px);
@@ -20,23 +18,31 @@
   color: #111111;
   overflow-wrap: anywhere;
 }
+.alumno-a-cabecera p { max-width: 70ch; margin-top: 12px; font-size: 16px; line-height: 1.5; color: #6E6E73; }
+.alumno-a-cabecera .alumno-a-enlace { padding: 0; font-size: inherit; }
 
-.alumno-a-bloques { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; gap: 16px; }
+/* Resumen en tres cifras */
+.alumno-a-resumen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0 0 16px; padding: 0; list-style: none; }
+.alumno-a-resumen li { display: grid; gap: 2px; padding: 20px 24px; border: 1px solid #E5E5E7; border-radius: 20px; background: #FFFFFF; }
+.alumno-a-resumen strong { font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: -0.03em; }
+.alumno-a-resumen span { font-size: 14px; color: #6E6E73; }
+
+.alumno-a-rejilla { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: start; gap: 16px; }
 
 .alumno-a-bloque { padding: 28px; border: 1px solid #E5E5E7; border-radius: 24px; background: #F5F5F7; }
-.alumno-a-bloque-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; margin-bottom: 16px; }
+.alumno-a-comparador { margin-top: 16px; }
+.alumno-a-bloque-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; }
 .alumno-a-bloque h2 { font-family: inherit; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: #111111; }
-.alumno-a-cuenta { font-size: 15px; color: #6E6E73; }
-.alumno-a-para { max-width: 52ch; margin: -8px 0 18px; font-size: 15px; line-height: 1.5; color: #6E6E73; }
+.alumno-a-para { max-width: 60ch; margin: 6px 0 18px; font-size: 15px; line-height: 1.5; color: #6E6E73; }
 
-/* Datos, en lectura */
+/* Perfil, en lectura */
 .alumno-a-datos { margin: 0; }
 .alumno-a-datos > div { display: grid; gap: 2px; padding: 14px 0; border-top: 1px solid #E5E5E7; }
 .alumno-a-datos dt { font-size: 13px; color: #6E6E73; }
 .alumno-a-datos dd { margin: 0; font-size: 17px; color: #111111; overflow-wrap: anywhere; }
 .alumno-a-datos dd.vacio { color: #6E6E73; }
 
-/* Datos, editando */
+/* Perfil, editando */
 .alumno-a-formulario { display: grid; gap: 14px; }
 .alumno-a-formulario label { display: grid; gap: 6px; }
 .alumno-a-formulario label span { font-size: 13px; color: #6E6E73; }
@@ -55,7 +61,8 @@
 }
 .alumno-a-formulario input:focus,
 .alumno-a-formulario select:focus { border-color: #111111; }
-.alumno-a-acciones { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.alumno-a-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.alumno-a-formulario .alumno-a-acciones { margin-top: 6px; }
 
 .alumno-a-error { margin: 0 0 4px; padding: 12px 14px; border: 1px solid #111111; border-radius: 12px; font-size: 15px; color: #111111; background: #FFFFFF; }
 
@@ -71,13 +78,16 @@
   color: #FFFFFF;
   background: #111111;
   text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+  transition: background-color var(--dur-rapida, 120ms) var(--curva-normal, ease), border-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
 }
 .alumno-a-boton:hover { background: #2C2C2E; }
+.alumno-a-boton.verde { border-color: #0C3B33; background: #0C3B33; }
+.alumno-a-boton.verde:hover { border-color: #0F4A40; background: #0F4A40; }
 .alumno-a-boton.claro { border-color: #E5E5E7; color: #111111; background: #FFFFFF; }
 .alumno-a-boton.claro:hover { border-color: #111111; background: #FFFFFF; }
-.alumno-a-boton:disabled, .alumno-a-enlace:disabled { opacity: 0.5; cursor: default; }
+.alumno-a-boton:disabled { opacity: 0.5; cursor: default; }
 
 .alumno-a-enlace {
   flex: none;
@@ -93,31 +103,57 @@
 }
 .alumno-a-enlace:hover { color: #111111; }
 
-/* Cursos */
-.alumno-a-cursos { margin: 0; padding: 0; list-style: none; }
-.alumno-a-cursos li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; border-top: 1px solid #E5E5E7; }
-.alumno-a-cursos li:last-child { padding-bottom: 0; }
-.alumno-a-curso-texto { flex: 1; min-width: 0; }
-.alumno-a-cursos .alumno-a-boton { flex: none; }
-.alumno-a-curso-texto a { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #111111; text-decoration: none; }
-.alumno-a-curso-texto a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.alumno-a-curso-texto p { margin-top: 3px; font-size: 15px; color: #6E6E73; }
+/* Historial */
+.alumno-a-historial { margin: 0; padding: 0; list-style: none; }
+.alumno-a-historial li { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid #E5E5E7; }
+.alumno-a-historial li:last-child { padding-bottom: 0; }
+.alumno-a-historial li > div:first-child { min-width: 0; }
+.alumno-a-historial a { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #111111; text-decoration: none; }
+.alumno-a-historial a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.alumno-a-historial p { margin-top: 3px; font-size: 15px; color: #6E6E73; }
+.alumno-a-estado-caja { display: grid; flex: none; justify-items: end; gap: 4px; max-width: 46%; text-align: right; }
+.alumno-a-estado-caja small { font-size: 13px; color: #6E6E73; }
 
 .alumno-a-estado {
   display: inline-block;
-  margin-top: 10px;
   padding: 4px 10px;
   border: 1px solid #E5E5E7;
   border-radius: 999px;
   font-size: 13px;
   font-weight: 500;
-  color: #6E6E73;
+  color: #111111;
   background: #FFFFFF;
 }
-.alumno-a-estado.enviada { color: #111111; }
-.alumno-a-estado.aceptada { border-color: #0C3B33; color: #FFFFFF; background: #0C3B33; }
+.alumno-a-estado.contactada { border-color: #111111; }
+.alumno-a-estado.matriculada { border-color: #0C3B33; color: #FFFFFF; background: #0C3B33; }
+.alumno-a-estado.cerrada { color: #6E6E73; }
 
-.alumno-a-confirmar { display: flex; flex: none; align-items: center; gap: 8px; }
+/* Comparador: una columna por curso; si no caben, se pasa con el dedo */
+.alumno-a-tabla-caja { overflow-x: auto; margin: 0 -28px -8px; padding: 0 28px 8px; }
+.alumno-a-tabla { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; text-align: left; }
+.alumno-a-tabla th, .alumno-a-tabla td {
+  padding: 14px 16px 14px 0;
+  border: 0;
+  border-top: 1px solid #E5E5E7;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #111111;
+  background: transparent;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.alumno-a-tabla thead th, .alumno-a-tabla thead td { border-top: 0; padding-top: 0; }
+.alumno-a-tabla thead th { min-width: 200px; }
+.alumno-a-tabla thead a { display: block; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: #111111; text-decoration: none; }
+.alumno-a-tabla thead a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.alumno-a-tabla thead .alumno-a-estado { margin-top: 8px; }
+.alumno-a-tabla tbody th, .alumno-a-tabla thead td, .alumno-a-tabla tfoot td:first-child { width: 130px; font-size: 13px; color: #6E6E73; }
+.alumno-a-tabla tfoot td { padding-bottom: 0; }
+.alumno-a-nada { color: #6E6E73; }
 
 .alumno-a-vacio { display: grid; justify-items: start; gap: 16px; padding-top: 16px; border-top: 1px solid #E5E5E7; }
 .alumno-a-vacio p { font-size: 17px; color: #6E6E73; }
@@ -127,8 +163,17 @@
 @media (max-width: 860px) {
   .alumno-a { padding-bottom: 64px; }
   .alumno-a-ancho { padding: 0 16px; }
-  .alumno-a-cabecera { padding: 36px 0 12px; }
-  .alumno-a-bloques { grid-template-columns: 1fr; }
+  .alumno-a-cabecera { padding: 36px 0 20px; }
+  .alumno-a-resumen { gap: 8px; }
+  .alumno-a-resumen li { padding: 14px 14px; border-radius: 16px; }
+  .alumno-a-resumen strong { font-size: 20px; }
+  .alumno-a-resumen span { font-size: 13px; }
+  .alumno-a-rejilla { grid-template-columns: 1fr; }
   .alumno-a-bloque { padding: 20px; border-radius: 20px; }
-  .alumno-a-cursos li { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .alumno-a-historial li { flex-direction: column; gap: 10px; }
+  .alumno-a-estado-caja { justify-items: start; max-width: none; text-align: left; }
+  .alumno-a-tabla-caja { margin: 0 -20px -8px; padding: 0 20px 8px; }
+  .alumno-a-tabla { table-layout: auto; }
+  .alumno-a-tabla tbody th, .alumno-a-tabla thead td, .alumno-a-tabla tfoot td:first-child { width: 92px; }
+  .alumno-a-tabla thead th { min-width: 210px; }
 }
