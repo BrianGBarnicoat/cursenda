@@ -19,8 +19,14 @@ import {
   Shield,
   Globe,
   Building,
-  ChevronDown, Search,
 } from 'lucide-react';
+
+import NavbarMinimal from './components/NavbarMinimal';
+import HeroApple3D from './components/HeroApple3D';
+import CourseSearchSection from './components/CourseSearchSection';
+import StudentArea from './components/StudentArea';
+import CompaniesSection from './components/CompaniesSection';
+import { useAlumnoLocal } from './components/alumnoLocal';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
   ? 'http://localhost:3000/api' 
@@ -406,96 +412,16 @@ function useCursosPublicos() {
   return { cursos, estado };
 }
 
-function BuscadorCursos() {
-  const navigate = useNavigate();
-  const { cursos } = useCursosPublicos();
-  const [texto, setTexto] = useState('');
-  const [abierto, setAbierto] = useState(false);
-  const q = sinTildes(texto.trim());
-  const coincide = cursos.filter(c => !q || [c.titulo, c.localidad, c.categoria, c.centro_nombre].some(v => sinTildes(v).includes(q)));
-  const lista = (q ? coincide : [...coincide].sort((a, b) => b.visitas - a.visitas)).slice(0, 4);
-  const familias = q ? FAMILIAS.filter(f => sinTildes(f.nombre).includes(q)).slice(0, 4) : [];
-  const ir = (ruta: string) => { setAbierto(false); setTexto(''); navigate(ruta); };
-
-  return (
-    <form className="pub-busqueda" role="search" onSubmit={(e) => { e.preventDefault(); ir(texto.trim() ? `/cursos?q=${encodeURIComponent(texto.trim())}` : '/cursos'); }}
-      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setAbierto(false); }}
-      onKeyDown={(e) => { if (e.key === 'Escape') setAbierto(false); }}>
-      <Search size={18} aria-hidden="true" />
-      <input aria-label="Buscar cursos" placeholder="¿Qué quieres aprender?" value={texto} onFocus={() => setAbierto(true)} onChange={(e) => { setTexto(e.target.value); setAbierto(true); }} />
-      {abierto && (q || window.innerWidth > 700) && (lista.length > 0 || familias.length > 0 || q) && (
-        <div className="pub-sugerencias">
-          {familias.length > 0 && <p className="pub-sugerencias-titulo">Sectores</p>}
-          {familias.map(f => <button type="button" key={f.codigo} onClick={() => ir(`/cursos/${slugSector(f.nombre)}`)}><span>{f.nombre}</span></button>)}
-          {lista.length > 0 && <p className="pub-sugerencias-titulo">{q ? 'Cursos' : 'Los más vistos'}</p>}
-          {lista.map(c => (
-            <button type="button" key={c.id} onClick={() => ir(`/curso/${c.id}`)}>
-              <ImagenFamilia categoria={c.categoria} className="pub-sugerencia-foto" />
-              <span><strong>{tituloSinCodigo(c.titulo)}</strong><small>{textoModalidad(c)}</small></span>
-            </button>
-          ))}
-          {q && lista.length === 0 && familias.length === 0 && <p className="pub-sugerencias-vacio">No hay cursos con esa búsqueda.</p>}
-        </div>
-      )}
-    </form>
-  );
-}
-
-function MenuExplorar() {
-  const [abierto, setAbierto] = useState(false);
-  const [todos, setTodos] = useState(false);
-  const { cursos } = useCursosPublicos();
-  const cuantos = (nombre: string) => cursos.filter(c => c.categoria === nombre).length;
-  const conCursos = FAMILIAS.filter(f => cuantos(f.nombre) > 0);
-  const vistos = todos || conCursos.length === 0 ? FAMILIAS : conCursos;
-  const cerrar = () => { setAbierto(false); setTodos(false); };
-  return (
-    <div className="pub-explorar" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) cerrar(); }} onKeyDown={(e) => { if (e.key === 'Escape') cerrar(); }}>
-      <button type="button" className="pub-explorar-boton" aria-expanded={abierto} onClick={() => abierto ? cerrar() : setAbierto(true)}>Explorar <ChevronDown size={16} /></button>
-      {abierto && (
-        <div className="pub-explorar-panel">
-          <div>
-            <p className="pub-explorar-titulo">Sectores</p>
-            <div className="pub-explorar-familias">
-              {vistos.map(f => (
-                <Link key={f.codigo} to={`/cursos/${slugSector(f.nombre)}`} onClick={cerrar}>
-                  <span>{f.nombre}</span>{cuantos(f.nombre) > 0 && <em>{cuantos(f.nombre)}</em>}
-                </Link>
-              ))}
-            </div>
-            {!todos && vistos !== FAMILIAS && <button type="button" className="pub-enlace pub-explorar-mas" onClick={() => setTodos(true)}>Ver todos los sectores</button>}
-          </div>
-          <div>
-            <p className="pub-explorar-titulo">Tu situación</p>
-            <Link to="/cursos?situacion=Desempleados" onClick={cerrar}>Estoy en paro</Link>
-            <Link to="/cursos?situacion=Ocupados" onClick={cerrar}>Estoy trabajando</Link>
-            <Link to="/cursos" onClick={cerrar}>Todos los cursos</Link>
-            <div className="pub-explorar-movil">
-              <Link to="/como-funciona" onClick={cerrar}>Cómo funciona</Link>
-              <Link to="/centros" onClick={cerrar}>Soy un centro</Link>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// La misma barra en todas las páginas públicas
+const ENLACES_BARRA = [
+  { texto: 'Explorar cursos', destino: '/cursos' },
+  { texto: 'Áreas', destino: '/#buscar-cursos' },
+  { texto: 'Empresas', destino: '/#empresas' },
+];
 
 function CabeceraPublica() {
-  return (
-    <header className="pub-cabecera">
-      <div className="pub-cabecera-principal pub-ancho">
-        <Logo />
-        <MenuExplorar />
-        <BuscadorCursos />
-        <nav>
-          <Link to="/centros-de-formacion" className="pub-solo-ancho">Centros</Link>
-          <Link to="/como-funciona" className="pub-solo-ancho">Cómo funciona</Link>
-          <Link to="/centros/login" className="pub-boton-borde">Entrar</Link>
-        </nav>
-      </div>
-    </header>
-  );
+  const navigate = useNavigate();
+  return <NavbarMinimal logo={<Logo />} enlaces={ENLACES_BARRA} onMiEspacio={() => navigate('/mi-espacio')} />;
 }
 
 function PiePublico() {
@@ -527,22 +453,6 @@ function PiePublico() {
         </div>
       </div>
     </footer>
-  );
-}
-
-// Tarjeta de curso para las secciones de la portada
-function TarjetaCurso({ curso }: { curso: any }) {
-  return (
-    <Link to={`/curso/${curso.id}`} className="pub-tarjeta">
-      <ImagenFamilia categoria={curso.categoria} className="pub-tarjeta-foto" />
-      <span className="pub-tarjeta-cuerpo">
-        <span className="pub-tarjeta-familia">{curso.categoria}</span>
-        <strong>{tituloSinCodigo(curso.titulo)}</strong>
-        <span>{textoModalidad(curso)}, {curso.duracion_horas} horas</span>
-        <span>Empieza: {curso.fecha_inicio}</span>
-        <span className="pub-tarjeta-pie">{textoPlazas(curso)}{curso.es_demo ? <em className="pub-ejemplo">Ejemplo</em> : null}</span>
-      </span>
-    </Link>
   );
 }
 
@@ -585,130 +495,57 @@ function LogoAcademia({ academia, grande }: { academia: { nombre: string; logo?:
     : <span className={`pub-logo-academia pub-logo-letra ${grande ? 'grande' : ''}`} aria-hidden="true">{academia.nombre.charAt(0)}</span>;
 }
 
-function AlumnosHome() {
+// --- PORTADA NUEVA Y ESPACIO DEL ALUMNO ---
+function PortadaNueva() {
   useTitulo('Cursos gratis subvencionados | Cursenda');
-  const { ajustes } = useAjustes();
   const { cursos, estado } = useCursosPublicos();
-  const { academias } = useAcademias();
-  const [activa, setActiva] = useState(0);
-  const [pausada, setPausada] = useState(false);
-  const [todasFamilias, setTodasFamilias] = useState(false);
+  const { cursos: elegidos, alternarCurso } = useAlumnoLocal();
+  const { hash } = useLocation();
 
-  // Franjas: las familias con foto, primero las que tienen cursos
-  const franjas = ['Informática y comunicaciones', 'Hostelería y turismo', 'Servicios socioculturales y a la comunidad', 'Comercio y marketing', 'Administración y gestión']
-    .map(nombre => ({ nombre, lista: cursos.filter(c => c.categoria === nombre) }))
-    .sort((a, b) => b.lista.length - a.lista.length);
-  const titulosCortos: Record<string, string> = { 'Informática y comunicaciones': 'Informática', 'Hostelería y turismo': 'Hostelería', 'Servicios socioculturales y a la comunidad': 'Atención a personas', 'Comercio y marketing': 'Comercio', 'Administración y gestión': 'Administración' };
-
+  // Con /#buscar-cursos o /#empresas se baja hasta ese apartado
   useEffect(() => {
-    if (pausada || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const turno = setInterval(() => setActiva(i => (i + 1) % franjas.length), 4500);
-    return () => clearInterval(turno);
-  }, [pausada, franjas.length]);
+    if (!hash) return;
+    document.getElementById(hash.slice(1))?.scrollIntoView();
+  }, [hash]);
 
-  const proximos = ordenarPorInicio(cursos).slice(0, 4);
-  const masVistos = [...cursos].sort((a, b) => b.visitas - a.visitas).slice(0, 4);
-  const conCursos = (nombre: string) => cursos.filter(c => c.categoria === nombre).length;
-  const familiasOrdenadas = [...FAMILIAS].sort((a, b) => conCursos(b.nombre) - conCursos(a.nombre) || a.nombre.localeCompare(b.nombre));
-  const familiasVistas = todasFamilias ? familiasOrdenadas : familiasOrdenadas.slice(0, 12);
+  const zonas = [...new Set(cursos.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)).filter(Boolean))].sort();
+  const buscables = cursos.map(c => ({ ...c, titulo: tituloSinCodigo(c.titulo), provincia: cleanLocalidad(c.localidad) }));
+
+  const guardar = (c: { id: number | string; titulo: string; centro_nombre?: string | null; modalidad?: string | null; localidad?: string | null }) => {
+    try {
+      alternarCurso({ id: c.id, titulo: c.titulo, centro_nombre: c.centro_nombre, modalidad: c.modalidad, localidad: c.localidad });
+    } catch {
+      alert('Tu navegador no deja guardar cursos. Puedes pedir plaza entrando en el curso.');
+    }
+  };
 
   return (
-    <div className="pub">
+    <>
       <CabeceraPublica />
-      <div className="pub-arriba">
-        <div className="pub-portada pub-ancho">
-          <h1>{ajustes.portada_titulo}</h1>
-          <div>
-            <p>{ajustes.portada_texto}</p>
-            <p className="pub-portada-acciones"><Link to="/cursos" className="pub-boton pub-boton-pedir">Ver los cursos</Link><Link to="/como-funciona">Cómo funciona</Link></p>
-          </div>
-        </div>
-        <nav className="pub-franjas" aria-label="Cursos por familia">
-          {franjas.map(({ nombre, lista }, i) => {
-            const siguiente = ordenarPorInicio(lista)[0];
-            return (
-              <Link key={nombre} to={`/cursos/${slugSector(nombre)}`} className={`pub-franja ${i === activa ? 'activa' : ''}`} style={{ animationDelay: `${i * 90}ms` }}
-                onMouseEnter={() => { setPausada(true); setActiva(i); }} onFocus={() => { setPausada(true); setActiva(i); }}>
-                <img src={getCourseImage(nombre) as string} alt="" style={{ objectPosition: FOCO_CATEGORIA[nombre] }} />
-                <span className="pub-franja-texto">
-                  <strong>{titulosCortos[nombre]}</strong>
-                  <span className="pub-franja-mas"><span>
-                    <span className="pub-franja-curso">{siguiente ? (lista.length === 1 ? tituloSinCodigo(siguiente.titulo) : `${lista.length} cursos. El próximo: ${tituloSinCodigo(siguiente.titulo)}`) : nombre}</span>
-                    <span className="pub-franja-ver">{lista.length ? 'Ver los cursos' : 'Ver este sector'}</span>
-                  </span></span>
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-
-      <section className="pub-ancho pub-situacion" aria-label="Elige tu situación">
-        <h2>¿En qué situación estás?</h2>
-        <div>
-          <Link to="/cursos?situacion=Desempleados"><strong>Estoy en paro</strong><span>Cursos para personas desempleadas</span></Link>
-          <Link to="/cursos?situacion=Ocupados"><strong>Estoy trabajando</strong><span>Cursos para personas con empleo</span></Link>
-          <Link to="/como-funciona"><strong>No sé por dónde empezar</strong><span>Quién puede apuntarse y qué certificados hay</span></Link>
-        </div>
-      </section>
-
-      {masVistos.length > 0 && (
-        <section className="pub-ancho pub-bloque pub-mas-vistos">
-          <div className="pub-bloque-cabeza"><h2>Los cursos más vistos</h2><Link to="/cursos">Ver todos</Link></div>
-          <div className="pub-tarjetas">{masVistos.map(c => <TarjetaCurso key={c.id} curso={c} />)}</div>
-        </section>
-      )}
-
-      <section className="pub-fondo">
-        <div className="pub-ancho pub-bloque">
-          <div className="pub-bloque-cabeza"><h2>¿Qué quieres aprender?</h2></div>
-          <div className={`pub-familias ${todasFamilias ? "todas" : ""}`}>
-            {familiasVistas.map(f => (
-              <Link key={f.codigo} to={`/cursos/${slugSector(f.nombre)}`}>
-                <span>{f.nombre}{conCursos(f.nombre) > 0 && <small>{conCursos(f.nombre) === 1 ? '1 curso' : `${conCursos(f.nombre)} cursos`}</small>}</span>
-              </Link>
-            ))}
-          </div>
-          {!todasFamilias && <p className="pub-ver-todos"><button type="button" className="pub-boton pub-boton-claro" onClick={() => setTodasFamilias(true)}>Ver más</button></p>}
-        </div>
-      </section>
-
-      <main className="pub-ancho pub-bloque">
-        <div className="pub-bloque-cabeza"><h2>Próximos cursos</h2><Link to="/cursos">Ver todos</Link></div>
-        {proximos.length === 0 ? <AvisoCursos estado={estado} /> : proximos.map(curso => <FilaCurso key={curso.id} curso={curso} />)}
+      <main>
+        <HeroApple3D provincias={zonas} />
+        <CourseSearchSection cursos={buscables} estado={estado} guardados={elegidos.filter(c => c.estado === 'pendiente').map(c => c.id)} onGuardar={guardar} />
+        <CompaniesSection />
       </main>
+      <div className="pub pub-solo-pie"><PiePublico /></div>
+    </>
+  );
+}
 
-      <section className="pub-fondo">
-        <div className="pub-ancho pub-bloque">
-          <div className="pub-bloque-cabeza"><h2>Cómo pedir plaza</h2></div>
-          <ol className="pub-pasos">
-            <li><strong>Elige un curso</strong><span>Busca por lo que quieres aprender, por familia o por localidad.</span></li>
-            <li><strong>Deja tus datos</strong><span>Pedir plaza es gratis y no te compromete a nada.</span></li>
-            <li><strong>El centro te llama</strong><span>Te confirma si cumples los requisitos y qué documentos necesitas.</span></li>
-          </ol>
-        </div>
-      </section>
+function EspacioAlumno() {
+  useTitulo('Mi espacio | Cursenda');
+  const { alumno, cursos, guardarAlumno, quitarCurso, borrarTodo } = useAlumnoLocal();
+  const { cursos: publicados } = useCursosPublicos();
+  const zonas = [...new Set(publicados.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)).filter(Boolean))].sort();
 
-      {academias.length > 0 && (
-        <section className="pub-ancho pub-bloque">
-          <div className="pub-bloque-cabeza"><h2>Centros en Cursenda</h2><Link to="/centros-de-formacion">Ver todos</Link></div>
-          <div className="pub-academias-logos">
-            {academias.slice(0, 8).map(a => <Link key={a.id} to={`/centro-de-formacion/${a.id}`}><LogoAcademia academia={a} /><span>{a.nombre}</span></Link>)}
-          </div>
-        </section>
-      )}
-
-      <section className="pub-ancho pub-preguntas-portada">
-        <h2 className="pub-titulo">Preguntas frecuentes</h2>
-        <details className="pub-pregunta"><summary>¿Tengo que pagar algo?</summary><p>Son cursos subvencionados: el SEPE describe los de su formación con Fundae como "100% gratuitos, financiados con fondos públicos". Confirma con el centro las condiciones del tuyo antes de matricularte.</p></details>
-        <details className="pub-pregunta"><summary>¿Puedo apuntarme si estoy trabajando?</summary><p>Depende de la convocatoria de cada curso. En cada ficha verás a quién va dirigido, y el centro te confirma si cumples los requisitos.</p></details>
-        <details className="pub-pregunta"><summary>¿Qué pasa cuando pido plaza?</summary><p>El centro recibe tus datos y te llama. Pedir plaza no te compromete a nada.</p></details>
-        <details className="pub-pregunta"><summary>¿Cursenda pertenece al SEPE?</summary><p>No. Es un portal independiente donde los centros publican sus cursos.</p></details>
-        <p className="pub-ver-todos"><Link to="/como-funciona">Toda la información, con fuentes oficiales</Link></p>
-      </section>
-
-      <PiePublico />
-    </div>
+  return (
+    <>
+      <CabeceraPublica />
+      <main>
+        <StudentArea alumno={alumno} cursos={cursos} provincias={zonas} onGuardar={guardarAlumno} onQuitar={(c) => quitarCurso(c.id)} onBorrarTodo={borrarTodo} />
+      </main>
+      <div className="pub pub-solo-pie"><PiePublico /></div>
+    </>
   );
 }
 
@@ -845,6 +682,7 @@ function AlumnosLista() {
         <div className="pub-ancho pub-lista-cabeza">
           <h1>{categoria || 'Todos los cursos'}</h1>
           <p className="pub-info-entrada">{filtrados.length === 1 ? '1 curso' : `${filtrados.length} cursos`}{categoria ? ` de ${categoria}` : ''}{busqueda ? ` con "${busqueda}"` : ''}</p>
+          <input className="pub-buscar-lista" type="search" aria-label="Buscar cursos" placeholder="Qué quieres aprender" maxLength={80} value={busqueda} onChange={(e) => ponerFiltro('q', e.target.value)} />
         </div>
       </div>
 
@@ -937,9 +775,12 @@ function AlumnosDetalle() {
   useTitulo(curso ? `${tituloSinCodigo(curso.titulo)}: curso gratis ${curso.modalidad === 'Online' ? 'online' : `en ${curso.localidad}`} | Cursenda` : null);
   const [loading, setLoading] = useState(true);
   const [falloCarga, setFalloCarga] = useState(false);
-  const [nombre, setNombre] = useState('');
-  const [email, setEmail] = useState('');
-  const [telefono, setTelefono] = useState('');
+  // Si ya dejó sus datos en Mi espacio, el formulario sale relleno
+  const { alumno, marcarEnviada } = useAlumnoLocal();
+  const { hash } = useLocation();
+  const [nombre, setNombre] = useState(alumno.nombre);
+  const [email, setEmail] = useState(alumno.email);
+  const [telefono, setTelefono] = useState(alumno.telefono);
   const [rgpd, setRgpd] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -971,6 +812,11 @@ function AlumnosDetalle() {
     return () => { vigente = false; };
   }, [id]);
 
+  // Quien llega con "Pedir plaza" desde una tarjeta baja directo al formulario
+  useEffect(() => {
+    if (curso && hash === '#pedir') document.getElementById('pedir')?.scrollIntoView();
+  }, [curso, hash]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError('');
@@ -981,7 +827,11 @@ function AlumnosDetalle() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ curso_id: id, nombre, email, telefono, rgpd })
       });
-      if (res.ok) setSubmitSuccess(true);
+      if (res.ok) {
+        setSubmitSuccess(true);
+        // Queda apuntado en Mi espacio; si el navegador no deja guardar, no pasa nada
+        try { marcarEnviada({ id: curso.id, titulo: tituloSinCodigo(curso.titulo), centro_nombre: curso.centro_nombre, modalidad: curso.modalidad, localidad: curso.localidad }); } catch { /* sin guardado local */ }
+      }
       else setSubmitError(await errorDe(res, 'No se ha podido enviar la solicitud. Vuelve a intentarlo dentro de un momento.'));
     } catch {
       setSubmitError('No se ha podido enviar. Comprueba tu conexión y vuelve a intentarlo.');
@@ -1191,14 +1041,8 @@ function LandingCentros() {
 
   return (
     <div className="pub">
+      <CabeceraPublica />
       <div className="pub-arriba">
-        <header className="pub-barra">
-          <Logo light={true} />
-          <nav>
-            <Link to="/" className="pub-solo-ancho">Ver los cursos</Link>
-            <Link to="/centros/login">Entrar</Link>
-          </nav>
-        </header>
         <div className="pub-ancho pub-aca-portada">
           <h1>{ajustes.academias_titulo}</h1>
           <p>{ajustes.academias_texto}</p>
@@ -1451,11 +1295,8 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
   }, [tipo]);
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg)' }}>
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', backgroundColor: 'var(--white)', borderBottom: '1px solid var(--lines)' }}>
-        <Logo />
-        <Link to="/" className="btn btn-secondary btn-sm">← Volver</Link>
-      </nav>
+    <div className="pub">
+      <CabeceraPublica />
       <article className="legal-page">
         <h1>{titulos[tipo]}</h1>
         <p className="legal-updated">Última actualización: {d.actualizado}</p>
@@ -1505,6 +1346,8 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
               <li><strong>Si tiene cuenta de centro:</strong> los datos de su cuenta y de su equipo, para darle acceso al panel y prestarle el servicio.</li>
             </ul>
 
+            <p><strong>Mi espacio:</strong> los datos de contacto y los cursos que guarde en <Link to="/mi-espacio">Mi espacio</Link> se quedan en el almacenamiento local de su navegador (localStorage). No se envían a Cursenda ni a ningún centro hasta que pide plaza en un curso. Puede borrarlos cuando quiera desde esa misma página, con «Borrar todo», o borrando los datos del navegador.</p>
+
             <h2>Base legal</h2>
             <p>Su consentimiento, que da al marcar la casilla del formulario, y en el caso de los centros con cuenta, el contrato del servicio. Puede retirar su consentimiento cuando quiera.</p>
 
@@ -1540,6 +1383,7 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
           </>
         )}
       </article>
+      <PiePublico />
     </div>
   );
 }
@@ -1548,18 +1392,14 @@ function LegalPage({ tipo }: { tipo: 'aviso-legal' | 'privacidad' | 'cookies' })
 function NoEncontrada() {
   useTitulo('Página no encontrada | Cursenda');
   return (
-    <div className="auth-container">
-      <div className="auth-card" style={{ textAlign: 'center' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-          <Logo />
-        </div>
-        <h2 className="auth-title">No encontramos esta página</h2>
-        <p className="auth-subtitle">El enlace está mal o el curso ya no está publicado.</p>
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.5rem', flexWrap: 'wrap' }}>
-          <Link to="/cursos" className="btn btn-primary btn-sm">Ver los cursos</Link>
-          <Link to="/centros" className="btn btn-secondary btn-sm">Soy un centro</Link>
-        </div>
-      </div>
+    <div className="pub">
+      <CabeceraPublica />
+      <main className="pub-ancho pub-no-encontrada">
+        <h1>No encontramos esta página</h1>
+        <p>El enlace está mal o el curso ya no está publicado.</p>
+        <p className="pub-portada-acciones"><Link to="/cursos" className="pub-boton">Ver los cursos</Link><Link to="/centros">Soy un centro</Link></p>
+      </main>
+      <PiePublico />
     </div>
   );
 }
@@ -4595,7 +4435,8 @@ function App() {
       <SubirAlCambiarDePagina />
       <Routes>
         {/* Alumnos */}
-        <Route path="/" element={<AlumnosHome />} />
+        <Route path="/" element={<PortadaNueva />} />
+        <Route path="/mi-espacio" element={<EspacioAlumno />} />
         <Route path="/cursos" element={<AlumnosLista />} />
         <Route path="/cursos/:sector" element={<AlumnosLista />} />
         <Route path="/como-funciona" element={<ComoFunciona />} />

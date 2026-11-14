@@ -1,0 +1,103 @@
+/* Barra de arriba: blanca, translúcida y fija. Va en hoja aparte porque la CSP no deja estilos en línea. */
+.nav-min {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #111111;
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur-normal, 240ms) var(--curva-normal, ease), background-color var(--dur-normal, 240ms) var(--curva-normal, ease);
+}
+.nav-min-borde, .nav-min-abierto { border-bottom-color: #E5E5E7; }
+.nav-min-abierto { background: rgba(255, 255, 255, 0.94); }
+
+/* Sin desenfoque, el fondo tiene que tapar más */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav-min { background: rgba(255, 255, 255, 0.96); }
+}
+
+.nav-min-fila {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 56px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.nav-min-logo {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #111111;
+  text-decoration: none;
+}
+.nav-min-logo span { color: #C9962E; }
+
+.nav-min-enlaces { display: flex; gap: 28px; margin-left: auto; }
+.nav-min-enlaces a {
+  font-size: 14px;
+  color: #6E6E73;
+  text-decoration: none;
+  transition: color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+}
+.nav-min-enlaces a:hover, .nav-min-enlaces a.active { color: #111111; }
+
+.nav-min-entrar {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #FFFFFF;
+  background: #111111;
+  cursor: pointer;
+  transition: background-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+}
+.nav-min-entrar:hover { background: #2C2C2E; }
+
+.nav-min-menu {
+  display: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: -10px;
+  border: 0;
+  border-radius: 999px;
+  color: #111111;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nav-min a:focus-visible, .nav-min button:focus-visible {
+  outline: 2px solid #0C3B33;
+  outline-offset: 3px;
+}
+
+.nav-min-panel { display: none; }
+
+@media (max-width: 760px) {
+  .nav-min-fila { gap: 12px; padding: 0 16px; }
+  .nav-min-enlaces, .nav-min-fila > .nav-min-entrar { display: none; }
+  .nav-min-menu { display: grid; margin-left: auto; }
+
+  .nav-min-panel:not([hidden]) {
+    display: grid;
+    gap: 20px;
+    padding: 8px 16px 24px;
+  }
+  .nav-min-panel nav { display: grid; }
+  .nav-min-panel a {
+    padding: 14px 0;
+    border-bottom: 1px solid #E5E5E7;
+    font-size: 17px;
+    color: #111111;
+    text-decoration: none;
+  }
+  .nav-min-panel .nav-min-entrar { padding: 13px 16px; font-size: 16px; }
+}

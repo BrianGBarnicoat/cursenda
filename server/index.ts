@@ -2185,6 +2185,8 @@ async function metaDe(ruta: string): Promise<Meta> {
   }
 
   if (ruta === '/') return META_PORTADA;
+  // El espacio del alumno existe, pero no se indexa
+  if (ruta === '/mi-espacio') return { titulo: 'Mi espacio | Cursenda', descripcion: 'Tus datos y los cursos que has seleccionado.', ruta, noindex: true };
   return { titulo: 'Página no encontrada | Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
 }
 

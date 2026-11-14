@@ -1,0 +1,106 @@
+/* Portada: texto y buscador a la izquierda, escultura de cristal a la derecha. */
+.hero-a3d {
+  background: #FFFFFF;
+  color: #111111;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  padding: 56px 0 0; /* hueco de la barra fija */
+}
+
+.hero-a3d-ancho {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: 32px;
+  max-width: 1200px;
+  min-height: min(720px, calc(100vh - 56px));
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.hero-a3d h1 {
+  font-family: inherit;
+  font-size: clamp(40px, 5.4vw, 72px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  color: #111111;
+  text-wrap: balance;
+}
+
+.hero-a3d-texto > p {
+  max-width: 46ch;
+  margin-top: 20px;
+  font-size: clamp(17px, 1.5vw, 20px);
+  line-height: 1.5;
+  color: #6E6E73;
+}
+
+/* Buscador en una sola pastilla */
+.hero-a3d-buscador {
+  display: flex;
+  align-items: center;
+  max-width: 560px;
+  margin-top: 36px;
+  padding: 6px;
+  border: 1px solid #E5E5E7;
+  border-radius: 999px;
+  background: #FFFFFF;
+  box-shadow: 0 8px 28px rgba(17, 17, 17, 0.06);
+  transition: border-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+}
+.hero-a3d-buscador:focus-within { border-color: #111111; }
+
+.hero-a3d-campo {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 18px;
+}
+.hero-a3d-campo + .hero-a3d-campo { flex: 0 1 190px; border-left: 1px solid #E5E5E7; }
+.hero-a3d-campo span { font-size: 12px; font-weight: 600; color: #111111; }
+
+.hero-a3d-campo input,
+.hero-a3d-campo select {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 15px;
+  color: #111111;
+  background: transparent;
+  text-overflow: ellipsis;
+}
+.hero-a3d-campo input::placeholder { color: #6E6E73; }
+.hero-a3d-campo select { cursor: pointer; }
+
+.hero-a3d-buscador button {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 26px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: #FFFFFF;
+  background: #0C3B33;
+  cursor: pointer;
+  transition: background-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+}
+.hero-a3d-buscador button:hover { background: #0F4A40; }
+.hero-a3d-buscador button:focus-visible { outline: 2px solid #111111; outline-offset: 3px; }
+
+.hero-a3d-escena { height: min(560px, 62vh); min-height: 360px; }
+.hero-a3d-escena canvas { display: block; }
+
+@media (max-width: 860px) {
+  .hero-a3d-ancho { grid-template-columns: 1fr; gap: 8px; min-height: 0; padding: 40px 16px 24px; }
+  .hero-a3d-escena { height: 300px; min-height: 0; }
+
+  .hero-a3d-buscador { flex-direction: column; align-items: stretch; gap: 0; padding: 8px; border-radius: 24px; }
+  .hero-a3d-campo { padding: 10px 14px; }
+  .hero-a3d-campo + .hero-a3d-campo { flex: 1 1 auto; border-left: 0; border-top: 1px solid #E5E5E7; }
+  .hero-a3d-campo input, .hero-a3d-campo select { font-size: 16px; } /* 16px: el móvil no hace zum al escribir */
+  .hero-a3d-buscador button { margin-top: 8px; }
+}

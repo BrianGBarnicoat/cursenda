@@ -20,6 +20,29 @@
   --warning-bg: #FCF8E3;
   --warning-text: #8A6D3B;
   --warning-border: #FBEED5;
+
+  /* Movimiento: los únicos tiempos y curvas que se usan en la web (ver MOTION.md) */
+  --dur-rapida: 120ms;
+  --dur-normal: 240ms;
+  --dur-lenta: 400ms;
+  --dur-entrada: 800ms;
+  --dur-foto: 6s;
+  --paso-escalera: 90ms;
+  --curva-entra: cubic-bezier(0.16, 1, 0.3, 1);
+  --curva-sale: cubic-bezier(0.7, 0, 0.84, 0);
+  --curva-normal: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Quien pide menos movimiento en su aparato no ve animaciones */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-rapida: 0.01ms;
+    --dur-normal: 0.01ms;
+    --dur-lenta: 0.01ms;
+    --dur-entrada: 0.01ms;
+    --dur-foto: 0.01ms;
+    --paso-escalera: 0s;
+  }
 }
 
 * {
@@ -144,7 +167,7 @@ button, input, select, textarea {
   cursor: pointer;
   font-weight: 500;
   text-align: left;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--dur-rapida) var(--curva-normal), color var(--dur-rapida) var(--curva-normal);
 }
 
 .nav-item button:hover, .nav-item a:hover {
@@ -214,7 +237,7 @@ button, input, select, textarea {
   cursor: pointer;
   font-size: 0.875rem;
   text-align: left;
-  transition: color 0.2s ease;
+  transition: color var(--dur-rapida) var(--curva-normal);
 }
 
 .btn-logout:hover {
@@ -231,7 +254,7 @@ button, input, select, textarea {
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color var(--dur-rapida) var(--curva-normal), color var(--dur-rapida) var(--curva-normal), border-color var(--dur-rapida) var(--curva-normal), box-shadow var(--dur-normal) var(--curva-normal), transform var(--dur-normal) var(--curva-normal);
   border: none;
   font-size: 0.875rem;
 }
@@ -282,7 +305,7 @@ button, input, select, textarea {
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--dur-normal) var(--curva-normal), box-shadow var(--dur-normal) var(--curva-normal);
 }
 
 .metric-card:hover {
@@ -455,7 +478,7 @@ tr:last-child td {
   border-radius: 6px;
   border: 1px solid var(--lines);
   background-color: var(--white);
-  transition: all 0.2s ease;
+  transition: border-color var(--dur-rapida) var(--curva-normal), box-shadow var(--dur-rapida) var(--curva-normal);
 }
 
 .form-control:focus {
@@ -548,7 +571,7 @@ tr:last-child td {
   height: 100%;
   background-color: var(--primary);
   border-radius: 4px;
-  transition: width 0.4s ease;
+  transition: width var(--dur-lenta) var(--curva-normal);
 }
 
 /* --- WARNING / INFO NOTICES --- */
@@ -1045,17 +1068,17 @@ tr:last-child td {
 
 /* Franjas de fotos: la activa se abre */
 .pub-franjas { display: flex; gap: 6px; height: min(56vh, 500px); min-height: 380px; padding: 0 6px; }
-.pub-franja { position: relative; display: block; flex: 1 1 0; min-width: 0; overflow: hidden; border-radius: 4px 4px 0 0; background: var(--primary-dark); transition: flex-grow .7s cubic-bezier(.22,.8,.25,1); animation: pub-sube .8s cubic-bezier(.22,.8,.25,1) both; }
+.pub-franja { position: relative; display: block; flex: 1 1 0; min-width: 0; overflow: hidden; border-radius: 4px 4px 0 0; background: var(--primary-dark); transition: flex-grow var(--dur-entrada) var(--curva-entra); animation: pub-sube var(--dur-entrada) var(--curva-entra) both; animation-delay: calc(var(--i, 0) * var(--paso-escalera)); }
 .pub a.pub-franja { color: var(--white); }
 .pub-franja.activa { flex-grow: 3.6; }
-.pub-franja img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 6s linear; }
+.pub-franja img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur-foto) linear; }
 .pub-franja.activa img { transform: scale(1.07); }
 .pub-franja::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,30,26,.86) 0%, rgba(6,30,26,.25) 45%, rgba(6,30,26,.08) 100%); }
 .pub-franja-texto { position: absolute; z-index: 1; left: 20px; right: 20px; bottom: 18px; display: block; }
 .pub-franja-texto strong { display: block; font-size: 24px; font-weight: 600; line-height: 1.15; white-space: nowrap; }
-.pub-franja-mas { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .5s ease, opacity .35s ease; }
+.pub-franja-mas { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--dur-lenta) var(--curva-normal), opacity var(--dur-lenta) var(--curva-normal); }
 .pub-franja-mas > span { overflow: hidden; min-width: 300px; }
-.pub-franja.activa .pub-franja-mas { grid-template-rows: 1fr; opacity: 1; transition-delay: .15s; }
+.pub-franja.activa .pub-franja-mas { grid-template-rows: 1fr; opacity: 1; transition-delay: var(--dur-rapida); }
 .pub-franja-curso { display: block; font-size: 16px; margin-top: 6px; max-width: 44ch; }
 .pub-franja-ver { display: inline-block; margin-top: 10px; padding: 6px 12px; border-radius: 3px; background: var(--pub-amarillo); color: var(--text); font-size: 15px; font-weight: 600; }
 @keyframes pub-sube { from { transform: translateY(46px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -1085,7 +1108,7 @@ tr:last-child td {
 
 /* Ficha del curso */
 .pub-curso-portada { position: relative; height: 400px; overflow: hidden; background: var(--primary); color: var(--white); }
-.pub-curso-portada img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: pub-acerca 7s ease-out both; }
+.pub-curso-portada img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: pub-acerca var(--dur-foto) var(--curva-entra) both; }
 @keyframes pub-acerca { from { transform: scale(1.06); } to { transform: none; } }
 .pub-curso-portada::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,30,26,.9) 0%, rgba(6,30,26,.15) 60%); }
 .pub-curso-portada > .pub-ancho { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 28px; }
@@ -1110,7 +1133,7 @@ tr:last-child td {
 .pub-rgpd a { text-decoration: underline; }
 .pub-boton-pedir { width: 100%; text-align: center; }
 .pub-pedir .pub-error { color: var(--error-text); background: var(--error-bg); padding: 10px 12px; border-radius: 4px; }
-.pub-gracias { animation: pub-entra .4s ease both; }
+.pub-gracias { animation: pub-entra var(--dur-lenta) var(--curva-entra) both; }
 @keyframes pub-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .pub-barra-movil { display: none; }
 .pub-solo-ancho { display: inline; }
@@ -1156,7 +1179,7 @@ tr:last-child td {
 .pub-aca-portada > p { color: var(--pub-claro); font-size: 19px; margin-top: 14px; max-width: 56ch; }
 .pub .pub-aca-acciones { display: flex; align-items: center; gap: 20px; margin: 22px 0 36px; }
 .pub .pub-aca-acciones a:not(.pub-boton) { color: var(--white); text-decoration: underline; font-size: 16px; }
-.pub-aca-panel { display: block; width: 100%; height: auto; border-radius: 6px 6px 0 0; animation: pub-sube .9s cubic-bezier(.22,.8,.25,1) both; }
+.pub-aca-panel { display: block; width: 100%; height: auto; border-radius: 6px 6px 0 0; animation: pub-sube var(--dur-entrada) var(--curva-entra) both; }
 .pub-aca-seccion { padding-top: 26px; padding-bottom: 56px; }
 .pub-aca-funciones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 56px; }
 .pub-aca-funciones > div { padding: 18px 0; border-bottom: 1px solid var(--pub-linea); }
@@ -1303,7 +1326,7 @@ tr:last-child td {
 .pub-situacion { padding-top: 32px; }
 .pub-situacion h2 { font-size: 26px; color: var(--primary); margin-bottom: 14px; }
 .pub-situacion > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.pub .pub-situacion a { display: flex; flex-direction: column; gap: 4px; padding: 18px 20px; border: 1px solid var(--pub-linea); border-radius: 4px; color: var(--text); transition: border-color .15s ease; }
+.pub .pub-situacion a { display: flex; flex-direction: column; gap: 4px; padding: 18px 20px; border: 1px solid var(--pub-linea); border-radius: 4px; color: var(--text); transition: border-color var(--dur-rapida) var(--curva-normal); }
 .pub-situacion a:hover { border-color: var(--primary); }
 .pub-situacion strong { font-size: 19px; font-weight: 600; color: var(--primary); }
 .pub-situacion span { color: var(--pub-suave); font-size: 15.5px; }
@@ -1327,7 +1350,7 @@ tr:last-child td {
 .pub-explorar { position: relative; }
 .pub-explorar-boton { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--pub-linea); border-radius: 4px; padding: 9px 14px; background: var(--white); color: var(--primary); font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
 .pub-explorar-boton:hover { border-color: var(--primary); }
-.pub-explorar-panel { position: absolute; top: calc(100% + 8px); left: 0; display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 28px; width: min(900px, calc(100vw - 32px)); max-height: min(70vh, 620px); overflow-y: auto; padding: 22px; background: var(--white); border: 1px solid var(--pub-linea); border-radius: 6px; box-shadow: 0 12px 32px rgba(12,59,51,.14); animation: pub-entra .15s ease both; }
+.pub-explorar-panel { position: absolute; top: calc(100% + 8px); left: 0; display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 28px; width: min(900px, calc(100vw - 32px)); max-height: min(70vh, 620px); overflow-y: auto; padding: 22px; background: var(--white); border: 1px solid var(--pub-linea); border-radius: 6px; box-shadow: 0 12px 32px rgba(12,59,51,.14); animation: pub-entra var(--dur-rapida) var(--curva-entra) both; }
 .pub-explorar-titulo { font-size: 14px; font-weight: 600; color: var(--pub-suave); margin: 0 0 8px; }
 .pub-explorar-panel > div:last-child .pub-explorar-titulo:not(:first-child) { margin-top: 18px; }
 .pub-explorar-familias { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
@@ -1360,7 +1383,7 @@ tr:last-child td {
 .pub-bloque-cabeza a { white-space: nowrap; text-decoration: underline; }
 .pub-fondo { background: var(--pub-fondo); }
 .pub-tarjetas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.pub .pub-tarjeta { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--pub-linea); border-radius: 6px; background: var(--white); color: var(--text); transition: border-color .15s ease, transform .15s ease; }
+.pub .pub-tarjeta { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--pub-linea); border-radius: 6px; background: var(--white); color: var(--text); transition: border-color var(--dur-rapida) var(--curva-normal); }
 .pub-tarjeta:hover { border-color: var(--primary); transform: translateY(-2px); }
 .pub-tarjeta-foto { width: 100%; height: 140px; object-fit: cover; border-radius: 0; }
 .pub-tarjeta-cuerpo { display: flex; flex-direction: column; gap: 4px; flex: 1; padding: 14px 16px; font-size: 15px; color: var(--pub-suave); }
@@ -1438,8 +1461,7 @@ tr:last-child td {
 @media (max-width: 1200px) { .pub-aviso-ejemplo.pub-ancho { margin-left: 16px; margin-right: 16px; } }
 
 /* Menos redondeos y menos adornos */
-.pub *, .auth-card, .auth-card *, .dashboard-layout *, .modal-content, .modal-content * { border-radius: 2px !important; }
-.pub-franja, .pub-curso-foto img, .pub-tarjeta-foto { border-radius: 0 !important; }
+.auth-card, .auth-card *, .dashboard-layout *, .modal-content, .modal-content * { border-radius: 2px !important; }
 .pub .pub-tarjeta:hover { transform: none; }
 .pub-cabecera-principal .logo-text { color: var(--primary); }
 .pub-icono-familia { padding: 10px; font-size: 13px; font-weight: 600; line-height: 1.25; text-align: center; color: var(--primary); }
@@ -1576,3 +1598,118 @@ tr:last-child td {
   .dashboard-content .btn, .modal-content .btn { min-height: 42px; }
   .dashboard-content textarea[readonly] { min-height: 130px; }
 }
+
+/* --- Movimiento nuevo (reglas en MOTION.md) --- */
+/* Las ventanas no salen de golpe: el fondo se oscurece y la ventana sube un poco */
+.modal-overlay { animation: mov-aparece var(--dur-normal) var(--curva-normal) both; }
+.modal-content { animation: pub-entra var(--dur-normal) var(--curva-entra) both; }
+@keyframes mov-aparece { from { opacity: 0; } to { opacity: 1; } }
+
+/* Los botones responden al pulsar */
+.pub-boton, .pub-boton-borde { transition: background-color var(--dur-rapida) var(--curva-normal), border-color var(--dur-rapida) var(--curva-normal), transform var(--dur-rapida) var(--curva-normal); }
+.pub-boton:not(:disabled):active, .pub-boton-borde:active { transform: translateY(1px); }
+
+/* Al cambiar de página el contenido entra suave */
+.pub > main, .pub > .pub-arriba { animation: mov-aparece var(--dur-lenta) var(--curva-normal) backwards; }
+
+/* En ordenador, tarjetas, sectores y pasos van apareciendo según se baja por la página.
+   Solo en navegadores que lo saben hacer sin programa; en el resto se ven fijos, como antes. */
+@media (min-width: 701px) and (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .pub-tarjeta, .pub-familias > *, .pub-pasos > li, .pub-titulo {
+      animation: mov-asoma linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+    }
+  }
+}
+@keyframes mov-asoma { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+/* El pie público debajo de las páginas nuevas: sin el alto mínimo de .pub */
+.pub.pub-solo-pie { min-height: 0; }
+
+/* --- DISEÑO NUEVO EN TODAS LAS PÁGINAS PÚBLICAS ---
+   Blanco y gris claro, texto casi negro, botones en pastilla. El verde queda solo para pedir plaza. */
+.pub {
+  --primary: #111111;
+  --primary-dark: #2C2C2E;
+  --text: #111111;
+  --pub-claro: #6E6E73;
+  --pub-suave: #6E6E73;
+  --pub-linea: #E5E5E7;
+  --pub-fondo: #F5F5F7;
+  --pub-amarillo: #0C3B33;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #111111;
+  padding-top: 56px; /* hueco de la barra fija */
+}
+.pub.pub-solo-pie { padding-top: 0; }
+.pub h1, .pub h2 { font-weight: 700; letter-spacing: -0.03em; }
+.pub h3 { font-weight: 600; letter-spacing: -0.02em; }
+.pub :focus-visible { outline: 2px solid #0C3B33; outline-offset: 3px; }
+.pub .logo-marca { color: #0C3B33; }
+
+/* Las cabeceras de página pasan de verde a blanco */
+.pub-arriba { background: #FFFFFF; color: #111111; }
+.pub .pub-aca-acciones a:not(.pub-boton), .pub .pub-portada-acciones a:not(.pub-boton), .pub .pub-compartir { color: #111111; }
+.pub-lista-cabeza { padding-top: 56px; padding-bottom: 8px; }
+.pub-lista-cabeza h1, .pub-aca-portada h1, .pub-academia-cabeza h1, .pub-no-encontrada h1 { font-size: clamp(34px, 4.4vw, 56px); line-height: 1.05; }
+.pub-aca-portada { padding-top: 56px; }
+.pub-academia-cabeza { padding-top: 56px; }
+.pub-aca-panel { border: 1px solid #E5E5E7; border-bottom: 0; border-radius: 20px 20px 0 0; }
+.pub-no-encontrada { padding-top: 96px; padding-bottom: 120px; }
+.pub-no-encontrada > p { margin-top: 12px; color: #6E6E73; }
+
+/* Botones en pastilla: negro por defecto, verde solo el de pedir plaza */
+.pub-boton, .pub-boton-borde, .pub-filtros-boton { border-radius: 999px; }
+.pub-boton { padding: 11px 20px; font-size: 15px; font-weight: 500; }
+.pub a.pub-boton-pedir, .pub button.pub-boton-pedir { color: #FFFFFF; }
+.pub-boton-pedir:hover { background: #0F4A40; }
+.pub button.pub-boton-claro { border-color: #E5E5E7; color: #111111; }
+.pub button.pub-boton-claro:hover { border-color: #111111; background: #FFFFFF; }
+
+/* Campos */
+.pub-select, .pub-pedir label > input:not([type="checkbox"]) { padding: 11px 12px; border: 1px solid #E5E5E7; border-radius: 12px; }
+.pub-select:focus, .pub-pedir label > input:not([type="checkbox"]):focus { border-color: #111111; outline: 0; }
+.pub-buscar-lista { display: block; width: 100%; max-width: 560px; margin-top: 20px; padding: 14px 22px; border: 1px solid #E5E5E7; border-radius: 999px; outline: 0; background: #F5F5F7; font-size: 17px; transition: border-color var(--dur-rapida) var(--curva-normal), background-color var(--dur-rapida) var(--curva-normal); }
+.pub-buscar-lista::placeholder { color: #6E6E73; }
+.pub-buscar-lista:focus { border-color: #111111; background: #FFFFFF; }
+
+/* Tarjetas y bloques */
+.pub .pub-familias a, .pub .pub-situacion a, .pub .pub-academias-logos a, .pub .pub-academias-lista a { border-radius: 16px; background: #F5F5F7; }
+.pub-mapa, .pub-aviso-ejemplo { border-radius: 16px; }
+.pub-curso-foto img, .pub-curso-foto .pub-icono-familia { border-radius: 12px; }
+.pub-logo-academia { border-radius: 10px; }
+.pub-pedir { border-radius: 24px; padding: 28px; background: #F5F5F7; }
+.pub-pedir .pub-error, .pub-ejemplo { border-radius: 8px; }
+.pub-titulo { border-bottom: 1px solid #E5E5E7; }
+.pub-detalle h2, .pub-aca-final .pub-pedir h2 { letter-spacing: -0.02em; }
+.pub-curso-inicio, .pub-tarjeta-familia { color: #6E6E73; font-weight: 500; }
+
+/* Ficha del curso */
+.pub-curso-portada { background: #F5F5F7; }
+.pub-curso-portada::after { background: linear-gradient(to top, rgba(17,17,17,.88) 0%, rgba(17,17,17,.15) 60%); }
+.pub-curso-portada:has(img) .pub-compartir, .pub-curso-portada:has(img) p { color: #FFFFFF; }
+.pub-curso-portada:not(:has(img)) { color: #111111; }
+.pub-curso-portada:not(:has(img))::after { content: none; }
+.pub-curso-portada:not(:has(img)) a.pub-volver { color: #111111; }
+.pub-ficha-menu { top: 56px; }
+.pub .pub-pedir { top: 120px; }
+.pub-detalle section, .pub-pedir { scroll-margin-top: 120px; }
+
+/* Páginas legales */
+.pub .legal-page { padding-top: 56px; }
+.pub .legal-page h1 { font-size: clamp(34px, 4.4vw, 56px); line-height: 1.05; margin-bottom: 8px; }
+.pub .legal-page h2 { font-size: 22px; letter-spacing: -0.02em; margin-top: 40px; }
+.pub .legal-page a { text-decoration: underline; text-underline-offset: 3px; }
+.pub .legal-updated { color: #6E6E73; }
+
+@media (max-width: 900px) {
+  .pub-curso-portada::after { background: linear-gradient(to top, rgba(17,17,17,.92) 0%, rgba(17,17,17,.7) 60%, rgba(17,17,17,.5) 100%); }
+  .pub-lista-cabeza, .pub-aca-portada, .pub-academia-cabeza, .pub .legal-page { padding-top: 32px; }
+  .pub-detalle section, .pub-pedir { scroll-margin-top: 72px; }
+}
+
+/* El contenido empieza a la misma altura que el logo de la barra */
+.pub-ancho { max-width: 1200px; padding-left: 24px; padding-right: 24px; }
+@media (max-width: 900px) { .pub-ancho { padding-left: 16px; padding-right: 16px; } }
