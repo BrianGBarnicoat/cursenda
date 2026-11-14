@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
+import AlBajar from './AlBajar';
 import './CompaniesSection.css';
 
 type Punto = { titulo: string; texto: string };
@@ -26,7 +27,7 @@ export default function CompaniesSection({ destino = '/centros#acceso', destinoE
       <div className="centros-s-ancho">
         <p className="centros-s-etiqueta">Centros de formación y empresas</p>
 
-        <div className="centros-s-cabecera">
+        <AlBajar className="centros-s-cabecera">
           <h2 id={idTitulo}>Tus cursos, delante de quien los busca.</h2>
           <div className="centros-s-lado">
             <p>
@@ -38,15 +39,15 @@ export default function CompaniesSection({ destino = '/centros#acceso', destinoE
               <Link to={destinoEntrar} className="centros-s-enlace">Ya tengo cuenta</Link>
             </div>
           </div>
-        </div>
+        </AlBajar>
 
         <ol className="centros-s-puntos">
           {puntos.map((p, i) => (
-            <li key={p.titulo}>
+            <AlBajar como="li" key={p.titulo} retraso={i * 0.08}>
               <span aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
               <h3>{p.titulo}</h3>
               <p>{p.texto}</p>
-            </li>
+            </AlBajar>
           ))}
         </ol>
       </div>

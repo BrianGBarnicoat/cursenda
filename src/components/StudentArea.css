@@ -27,6 +27,7 @@
 .alumno-a-bloque-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; margin-bottom: 16px; }
 .alumno-a-bloque h2 { font-family: inherit; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: #111111; }
 .alumno-a-cuenta { font-size: 15px; color: #6E6E73; }
+.alumno-a-para { max-width: 52ch; margin: -8px 0 18px; font-size: 15px; line-height: 1.5; color: #6E6E73; }
 
 /* Datos, en lectura */
 .alumno-a-datos { margin: 0; }

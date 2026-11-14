@@ -98,13 +98,14 @@ function Escultura({ quieta }: { quieta: boolean }) {
   );
 }
 
-export default function HeroEscena({ quieta }: { quieta: boolean }) {
+// "parada" deja de dibujar del todo: se usa cuando la escultura no está a la vista
+export default function HeroEscena({ quieta, parada = false }: { quieta: boolean; parada?: boolean }) {
   return (
     <Canvas
       dpr={[1, 1.75]}
-      camera={{ position: [0, 0, 5.2], fov: 35 }}
+      camera={{ position: [0, 0, 7.4], fov: 35 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
-      frameloop={quieta ? 'demand' : 'always'}
+      frameloop={parada ? 'never' : quieta ? 'demand' : 'always'}
       fallback={null}
     >
       <color attach="background" args={['#FFFFFF']} />

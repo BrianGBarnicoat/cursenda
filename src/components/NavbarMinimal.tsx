@@ -6,9 +6,9 @@ import './NavbarMinimal.css';
 type Enlace = { texto: string; destino: string };
 
 const ENLACES: Enlace[] = [
-  { texto: 'Explorar cursos', destino: '/cursos' },
+  { texto: 'Cursos', destino: '/cursos' },
   { texto: 'Áreas', destino: '/#areas' },
-  { texto: 'Empresas', destino: '/centros' },
+  { texto: 'Para centros', destino: '/centros' },
 ];
 
 type Props = {
@@ -17,9 +17,11 @@ type Props = {
   /** Logo propio; si no se pasa, se escribe "cursenda" con su punto. */
   logo?: ReactNode;
   enlaces?: Enlace[];
+  /** Enlace para que los centros entren a su panel. */
+  acceso?: Enlace;
 };
 
-export default function NavbarMinimal({ onMiEspacio, logo, enlaces = ENLACES }: Props) {
+export default function NavbarMinimal({ onMiEspacio, logo, enlaces = ENLACES, acceso }: Props) {
   const [abierto, setAbierto] = useState(false);
   const [conBorde, setConBorde] = useState(false);
   const { pathname, hash } = useLocation();
@@ -43,6 +45,13 @@ export default function NavbarMinimal({ onMiEspacio, logo, enlaces = ENLACES }: 
     return () => window.removeEventListener('keydown', tecla);
   }, [abierto]);
 
+  // Si el apartado de un enlace con # está en esta misma página, se baja hasta él aunque la dirección no cambie
+  const bajar = (destino: string) => {
+    setAbierto(false);
+    const id = destino.split('#')[1];
+    if (id) document.getElementById(id)?.scrollIntoView();
+  };
+
   const entrar = () => { setAbierto(false); onMiEspacio(); };
 
   return (
@@ -57,12 +66,15 @@ export default function NavbarMinimal({ onMiEspacio, logo, enlaces = ENLACES }: 
         <nav className="nav-min-enlaces" aria-label="Principal">
           {enlaces.map(e => (
             e.destino.includes('#')
-              ? <Link key={e.destino} to={e.destino}>{e.texto}</Link>
+              ? <Link key={e.destino} to={e.destino} onClick={() => bajar(e.destino)}>{e.texto}</Link>
               : <NavLink key={e.destino} to={e.destino}>{e.texto}</NavLink>
           ))}
         </nav>
 
-        <button type="button" className="nav-min-entrar" onClick={entrar}>Mi espacio</button>
+        <div className="nav-min-botones">
+          {acceso && <Link to={acceso.destino} className="nav-min-acceso">{acceso.texto}</Link>}
+          <button type="button" className="nav-min-entrar" onClick={entrar}>Mi espacio</button>
+        </div>
 
         <button
           type="button"
@@ -78,7 +90,8 @@ export default function NavbarMinimal({ onMiEspacio, logo, enlaces = ENLACES }: 
 
       <div id="nav-min-panel" className="nav-min-panel" hidden={!abierto}>
         <nav aria-label="Principal, móvil">
-          {enlaces.map(e => <Link key={e.destino} to={e.destino}>{e.texto}</Link>)}
+          {enlaces.map(e => <Link key={e.destino} to={e.destino} onClick={() => bajar(e.destino)}>{e.texto}</Link>)}
+          {acceso && <Link to={acceso.destino}>{acceso.texto}</Link>}
         </nav>
         <button type="button" className="nav-min-entrar" onClick={entrar}>Mi espacio</button>
       </div>

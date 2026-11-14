@@ -47,6 +47,19 @@
 }
 .nav-min-enlaces a:hover, .nav-min-enlaces a.active { color: #111111; }
 
+.nav-min-botones { display: flex; align-items: center; gap: 8px; }
+.nav-min-acceso {
+  padding: 7px 15px;
+  border: 1px solid #E5E5E7;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111111;
+  text-decoration: none;
+  transition: border-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+}
+.nav-min-acceso:hover { border-color: #111111; }
+
 .nav-min-entrar {
   border: 0;
   border-radius: 999px;
@@ -81,9 +94,9 @@
 
 .nav-min-panel { display: none; }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .nav-min-fila { gap: 12px; padding: 0 16px; }
-  .nav-min-enlaces, .nav-min-fila > .nav-min-entrar { display: none; }
+  .nav-min-enlaces, .nav-min-botones { display: none; }
   .nav-min-menu { display: grid; margin-left: auto; }
 
   .nav-min-panel:not([hidden]) {

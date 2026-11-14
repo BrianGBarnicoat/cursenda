@@ -1,0 +1,72 @@
+/* Apartado de áreas: una rejilla de enlaces, cada uno lleva a los cursos de esa área. */
+.areas-s {
+  background: #F5F5F7;
+  color: #111111;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  padding: 96px 0;
+  scroll-margin-top: 56px; /* la barra fija no tapa el título al llegar con #areas */
+}
+.areas-s-ancho { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+.areas-s-cabecera h2 {
+  font-family: inherit;
+  font-size: clamp(32px, 4vw, 52px);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  color: #111111;
+}
+.areas-s-cabecera p { max-width: 56ch; margin-top: 12px; font-size: 19px; line-height: 1.45; color: #6E6E73; }
+
+.areas-s-rejilla {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.areas-s-rejilla a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  padding: 20px 22px;
+  border: 1px solid #E5E5E7;
+  border-radius: 16px;
+  color: #111111;
+  background: #FFFFFF;
+  text-decoration: none;
+  transition: border-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+}
+.areas-s-rejilla a:hover { border-color: #111111; }
+.areas-s-rejilla strong { font-size: 17px; font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
+.areas-s-rejilla span { font-size: 14px; color: #6E6E73; }
+
+.areas-s-mas {
+  margin-top: 24px;
+  padding: 10px 18px;
+  border: 1px solid #E5E5E7;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111111;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: border-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
+}
+.areas-s-mas:hover { border-color: #111111; }
+
+.areas-s :focus-visible { outline: 2px solid #0C3B33; outline-offset: 3px; }
+
+@media (max-width: 900px) {
+  .areas-s-rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .areas-s { padding: 64px 0; }
+  .areas-s-ancho { padding: 0 16px; }
+  .areas-s-cabecera p { font-size: 17px; }
+  .areas-s-rejilla { grid-template-columns: 1fr; gap: 8px; margin-top: 24px; }
+  .areas-s-rejilla a { padding: 16px 18px; }
+}

@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import AlBajar from './AlBajar';
 import './CourseSearchSection.css';
 
 export type CursoBuscable = {
@@ -79,10 +80,10 @@ export default function CourseSearchSection({ cursos, estado = 'listo', guardado
   return (
     <section className="cursos-b" id="buscar-cursos" aria-labelledby={idTitulo}>
       <div className="cursos-b-ancho">
-        <header className="cursos-b-cabecera">
+        <AlBajar como="header" className="cursos-b-cabecera">
           <h2 id={idTitulo}>Encuentra tu curso.</h2>
           <p>Busca por lo que quieres aprender y elige dónde y cómo estudiarlo.</p>
-        </header>
+        </AlBajar>
 
         <form className="cursos-b-barra" role="search" onSubmit={(e) => e.preventDefault()}>
           <input
@@ -131,12 +132,12 @@ export default function CourseSearchSection({ cursos, estado = 'listo', guardado
 
         {estado === 'listo' && filtrados.length > 0 && (
           <ul className="cursos-b-rejilla">
-            {filtrados.slice(0, visibles).map(c => {
+            {filtrados.slice(0, visibles).map((c, i) => {
               const elegido = elegidos.has(String(c.id));
               const lugar = c.modalidad === 'Online' ? '' : lugarDe(c);
               const datos = [c.modalidad, lugar, c.duracion_horas ? `${c.duracion_horas} horas` : ''].filter(Boolean);
               return (
-                <li key={c.id} className="cursos-b-tarjeta">
+                <AlBajar como="li" key={c.id} className="cursos-b-tarjeta" retraso={(i % 3) * 0.06}>
                   <span className="cursos-b-area">{c.categoria}</span>
                   <h3><Link to={`/curso/${c.id}`}>{sinCodigo(c.titulo)}</Link></h3>
                   {c.centro_nombre && <p className="cursos-b-centro">{c.centro_nombre}</p>}
@@ -148,7 +149,7 @@ export default function CourseSearchSection({ cursos, estado = 'listo', guardado
                       {elegido ? 'Guardado' : 'Guardar en mi espacio'}
                     </button>
                   </div>
-                </li>
+                </AlBajar>
               );
             })}
           </ul>

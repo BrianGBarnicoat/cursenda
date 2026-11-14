@@ -35,12 +35,11 @@
   color: #6E6E73;
 }
 
-/* Buscador en una sola pastilla */
+/* Buscador en una sola pastilla, con las ayudas colgando debajo */
+.hero-a3d-buscar { position: relative; z-index: 5; max-width: 560px; margin-top: 36px; }
 .hero-a3d-buscador {
   display: flex;
   align-items: center;
-  max-width: 560px;
-  margin-top: 36px;
   padding: 6px;
   border: 1px solid #E5E5E7;
   border-radius: 999px;
@@ -90,6 +89,28 @@
 }
 .hero-a3d-buscador button:hover { background: #0F4A40; }
 .hero-a3d-buscador button:focus-visible { outline: 2px solid #111111; outline-offset: 3px; }
+
+.hero-a3d-ayudas {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-height: min(60vh, 440px);
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #E5E5E7;
+  border-radius: 20px;
+  background: #FFFFFF;
+  box-shadow: 0 16px 40px rgba(17, 17, 17, 0.1);
+  animation: hero-a3d-ayudas var(--dur-rapida, 120ms) var(--curva-entra, ease-out) both;
+}
+@keyframes hero-a3d-ayudas { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.hero-a3d-ayudas p { margin: 8px 12px 4px; font-size: 12px; font-weight: 600; color: #6E6E73; }
+.hero-a3d-ayudas a { display: grid; gap: 1px; padding: 10px 12px; border-radius: 12px; color: #111111; text-decoration: none; }
+.hero-a3d-ayudas a:hover, .hero-a3d-ayudas a:focus-visible { background: #F5F5F7; outline: 0; }
+.hero-a3d-ayudas strong { font-size: 15px; font-weight: 600; line-height: 1.3; }
+.hero-a3d-ayudas span { font-size: 13px; color: #6E6E73; }
+.hero-a3d-ayudas p.hero-a3d-ayudas-vacio { margin: 10px 12px; font-size: 15px; font-weight: 400; }
 
 .hero-a3d-escena { height: min(560px, 62vh); min-height: 360px; }
 .hero-a3d-escena canvas { display: block; }

@@ -121,7 +121,7 @@ export default function StudentArea({ alumno, cursos, onGuardar, onQuitar, onBor
     <section className="alumno-a">
       <div className="alumno-a-ancho">
         <header className="alumno-a-cabecera">
-          <h1>{nombreDePila ? `Hola, ${nombreDePila}.` : 'Tu espacio.'}</h1>
+          <h1>{nombreDePila ? `Hola, ${nombreDePila}.` : 'Mi espacio.'}</h1>
         </header>
 
         {onBorrarTodo && (
@@ -134,9 +134,10 @@ export default function StudentArea({ alumno, cursos, onGuardar, onQuitar, onBor
         <div className="alumno-a-bloques">
           <section className="alumno-a-bloque" aria-labelledby={`${id}-datos`}>
             <div className="alumno-a-bloque-cabecera">
-              <h2 id={`${id}-datos`}>Mis datos</h2>
+              <h2 id={`${id}-datos`}>Tus datos de contacto</h2>
               {!editando && <button type="button" className="alumno-a-boton claro" onClick={() => setEditando(true)}>Editar</button>}
             </div>
+            <p className="alumno-a-para">Con ellos se rellena solo el formulario cuando pides plaza en un curso. Así no los escribes cada vez.</p>
 
             {!editando ? (
               <dl className="alumno-a-datos">
@@ -194,15 +195,16 @@ export default function StudentArea({ alumno, cursos, onGuardar, onQuitar, onBor
 
           <section className="alumno-a-bloque" aria-labelledby={`${id}-cursos`}>
             <div className="alumno-a-bloque-cabecera">
-              <h2 id={`${id}-cursos`}>Mis cursos seleccionados</h2>
+              <h2 id={`${id}-cursos`}>Cursos guardados</h2>
               {cursos.length > 0 && <span className="alumno-a-cuenta">{cursos.length}</span>}
             </div>
+            <p className="alumno-a-para">Los cursos que guardas para mirarlos con calma y los que ya has pedido. Pide plaza cuando te decidas.</p>
 
             {errorCursos && <p className="alumno-a-error" role="alert">{errorCursos}</p>}
 
             {cursos.length === 0 ? (
               <div className="alumno-a-vacio">
-                <p>Todavía no has seleccionado ningún curso.</p>
+                <p>Todavía no has guardado ningún curso. En cada curso tienes el botón «Guardar en mi espacio».</p>
                 <Link to="/cursos" className="alumno-a-boton">Explorar cursos</Link>
               </div>
             ) : (

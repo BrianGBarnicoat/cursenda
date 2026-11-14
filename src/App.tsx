@@ -26,6 +26,7 @@ import HeroApple3D from './components/HeroApple3D';
 import CourseSearchSection from './components/CourseSearchSection';
 import StudentArea from './components/StudentArea';
 import CompaniesSection from './components/CompaniesSection';
+import AreasSection from './components/AreasSection';
 import { useAlumnoLocal } from './components/alumnoLocal';
 
 const API_BASE = window.location.hostname === 'localhost' && window.location.port !== '3000' 
@@ -414,14 +415,15 @@ function useCursosPublicos() {
 
 // La misma barra en todas las páginas públicas
 const ENLACES_BARRA = [
-  { texto: 'Explorar cursos', destino: '/cursos' },
-  { texto: 'Áreas', destino: '/#buscar-cursos' },
-  { texto: 'Empresas', destino: '/#empresas' },
+  { texto: 'Cursos', destino: '/cursos' },
+  { texto: 'Áreas', destino: '/#areas' },
+  { texto: 'Para centros', destino: '/centros' },
 ];
+const ACCESO_CENTROS = { texto: 'Acceso centros', destino: '/centros/login' };
 
 function CabeceraPublica() {
   const navigate = useNavigate();
-  return <NavbarMinimal logo={<Logo />} enlaces={ENLACES_BARRA} onMiEspacio={() => navigate('/mi-espacio')} />;
+  return <NavbarMinimal logo={<Logo />} enlaces={ENLACES_BARRA} acceso={ACCESO_CENTROS} onMiEspacio={() => navigate('/mi-espacio')} />;
 }
 
 function PiePublico() {
@@ -502,7 +504,7 @@ function PortadaNueva() {
   const { cursos: elegidos, alternarCurso } = useAlumnoLocal();
   const { hash } = useLocation();
 
-  // Con /#buscar-cursos o /#empresas se baja hasta ese apartado
+  // Con /#areas o /#buscar-cursos se baja hasta ese apartado
   useEffect(() => {
     if (!hash) return;
     document.getElementById(hash.slice(1))?.scrollIntoView();
@@ -510,6 +512,8 @@ function PortadaNueva() {
 
   const zonas = [...new Set(cursos.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)).filter(Boolean))].sort();
   const buscables = cursos.map(c => ({ ...c, titulo: tituloSinCodigo(c.titulo), provincia: cleanLocalidad(c.localidad) }));
+
+  const areas = FAMILIAS.map(f => ({ nombre: f.nombre, destino: `/cursos/${slugSector(f.nombre)}`, cursos: cursos.filter(c => c.categoria === f.nombre).length }));
 
   const guardar = (c: { id: number | string; titulo: string; centro_nombre?: string | null; modalidad?: string | null; localidad?: string | null }) => {
     try {
@@ -523,7 +527,8 @@ function PortadaNueva() {
     <>
       <CabeceraPublica />
       <main>
-        <HeroApple3D provincias={zonas} />
+        <HeroApple3D provincias={zonas} cursos={buscables} areas={areas} />
+        <AreasSection areas={areas} />
         <CourseSearchSection cursos={buscables} estado={estado} guardados={elegidos.filter(c => c.estado === 'pendiente').map(c => c.id)} onGuardar={guardar} />
         <CompaniesSection />
       </main>
