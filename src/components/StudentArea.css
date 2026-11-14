@@ -160,20 +160,40 @@
 
 .alumno-a :focus-visible { outline: 2px solid #0C3B33; outline-offset: 3px; }
 
+.alumno-a-tarjetas { display: none; }
+
 @media (max-width: 860px) {
   .alumno-a { padding-bottom: 64px; }
   .alumno-a-ancho { padding: 0 16px; }
-  .alumno-a-cabecera { padding: 36px 0 20px; }
+  .alumno-a-cabecera { padding: 28px 0 20px; }
+  .alumno-a-cabecera p { font-size: 15px; }
   .alumno-a-resumen { gap: 8px; }
-  .alumno-a-resumen li { padding: 14px 14px; border-radius: 16px; }
-  .alumno-a-resumen strong { font-size: 20px; }
-  .alumno-a-resumen span { font-size: 13px; }
-  .alumno-a-rejilla { grid-template-columns: 1fr; }
+  .alumno-a-resumen li { padding: 14px 12px; border-radius: 16px; }
+  .alumno-a-resumen strong { font-size: 19px; overflow-wrap: anywhere; }
+  .alumno-a-resumen span { font-size: 12.5px; line-height: 1.3; }
+  .alumno-a-rejilla { grid-template-columns: 1fr; gap: 12px; }
   .alumno-a-bloque { padding: 20px; border-radius: 20px; }
+  .alumno-a-comparador { margin-top: 12px; }
   .alumno-a-historial li { flex-direction: column; gap: 10px; }
   .alumno-a-estado-caja { justify-items: start; max-width: none; text-align: left; }
-  .alumno-a-tabla-caja { margin: 0 -20px -8px; padding: 0 20px 8px; }
-  .alumno-a-tabla { table-layout: auto; }
-  .alumno-a-tabla tbody th, .alumno-a-tabla thead td, .alumno-a-tabla tfoot td:first-child { width: 92px; }
-  .alumno-a-tabla thead th { min-width: 210px; }
+
+  /* Botones cómodos para el pulgar */
+  .alumno-a-boton { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+  .alumno-a-enlace { min-height: 44px; }
+  .alumno-a-cabecera .alumno-a-enlace { min-height: 0; }
+  .alumno-a-formulario input, .alumno-a-formulario select { min-height: 48px; }
+  .alumno-a-formulario .alumno-a-acciones .alumno-a-boton { flex: 1; }
+
+  /* El comparador pasa de tabla a tarjetas */
+  .alumno-a-tabla-caja { display: none; }
+  .alumno-a-tarjetas { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .alumno-a-tarjetas li { padding: 16px; border: 1px solid #E5E5E7; border-radius: 16px; background: #FFFFFF; }
+  .alumno-a-tarjetas li > a { display: block; font-size: 17px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; color: #111111; text-decoration: none; }
+  .alumno-a-tarjetas .alumno-a-estado { margin-top: 8px; }
+  .alumno-a-tarjetas dl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin: 14px 0; }
+  .alumno-a-tarjetas dl > div { min-width: 0; }
+  .alumno-a-tarjetas dl > div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .alumno-a-tarjetas dt { font-size: 12.5px; color: #6E6E73; }
+  .alumno-a-tarjetas dd { margin: 0; font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+  .alumno-a-tarjetas .alumno-a-boton { flex: 1; }
 }

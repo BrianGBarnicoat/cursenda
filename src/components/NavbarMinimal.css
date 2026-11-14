@@ -92,25 +92,66 @@
   outline-offset: 3px;
 }
 
-.nav-min-panel { display: none; }
+.nav-min-panel, .nav-min-fondo { display: none; }
 
 @media (max-width: 900px) {
-  .nav-min-fila { gap: 12px; padding: 0 16px; }
-  .nav-min-enlaces, .nav-min-botones { display: none; }
-  .nav-min-menu { display: grid; margin-left: auto; }
+  .nav-min-fila { gap: 8px; padding: 0 16px; }
+  .nav-min-enlaces, .nav-min-acceso { display: none; }
+  .nav-min-botones { margin-left: auto; }
+  .nav-min-entrar { min-height: 36px; }
+  .nav-min-menu { display: grid; width: 44px; height: 44px; }
+  .nav-min .logo-marca { height: 21px; }
 
+  /* El menú baja como una hoja translúcida, por encima de la página */
+  /* Con el menú abierto la barra deja su desenfoque: si no, el de la hoja y el del fondo no se verían */
+  .nav-min-abierto { background: #FFFFFF; -webkit-backdrop-filter: none; backdrop-filter: none; }
   .nav-min-panel:not([hidden]) {
-    display: grid;
-    gap: 20px;
-    padding: 8px 16px 24px;
+    position: absolute;
+    inset: 100% 0 auto 0;
+    z-index: 2;
+    display: block;
+    padding: 4px 16px 20px;
+    border-bottom: 1px solid #E5E5E7;
+    border-radius: 0 0 24px 24px;
+    background: rgba(255, 255, 255, 0.9);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: 0 24px 40px rgba(17, 17, 17, 0.12);
+    animation: nav-min-baja var(--dur-normal, 240ms) var(--curva-entra, ease-out) both;
   }
   .nav-min-panel nav { display: grid; }
   .nav-min-panel a {
-    padding: 14px 0;
+    display: flex;
+    align-items: center;
+    min-height: 52px;
     border-bottom: 1px solid #E5E5E7;
-    font-size: 17px;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
     color: #111111;
     text-decoration: none;
   }
-  .nav-min-panel .nav-min-entrar { padding: 13px 16px; font-size: 16px; }
+  .nav-min-panel a:last-child { border-bottom: 0; }
+  /* (cuelga de la barra y no de la ventana: una barra con desenfoque manda sobre lo que lleva dentro) */
+  .nav-min-fondo {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 1;
+    display: block;
+    border: 0;
+    background: rgba(17, 17, 17, 0.28);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    animation: nav-min-aparece var(--dur-normal, 240ms) var(--curva-normal, ease) both;
+  }
+}
+@keyframes nav-min-baja { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+@keyframes nav-min-aparece { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 350px) {
+  .nav-min .logo-marca { height: 18px; }
+  .nav-min-entrar { padding: 8px 12px; }
 }

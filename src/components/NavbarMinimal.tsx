@@ -93,8 +93,9 @@ export default function NavbarMinimal({ onMiEspacio, logo, enlaces = ENLACES, ac
           {enlaces.map(e => <Link key={e.destino} to={e.destino} onClick={() => bajar(e.destino)}>{e.texto}</Link>)}
           {acceso && <Link to={acceso.destino}>{acceso.texto}</Link>}
         </nav>
-        <button type="button" className="nav-min-entrar" onClick={entrar}>Mi espacio</button>
       </div>
+      {/* Lo de detrás se oscurece y, al tocarlo, el menú se cierra */}
+      {abierto && <button type="button" className="nav-min-fondo" aria-label="Cerrar menú" tabIndex={-1} onClick={() => setAbierto(false)} />}
     </header>
   );
 }

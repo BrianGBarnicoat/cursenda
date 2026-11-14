@@ -867,6 +867,16 @@ function AlumnosDetalle() {
     if (curso && hash === '#pedir') document.getElementById('pedir')?.scrollIntoView();
   }, [curso, hash]);
 
+  // En móvil hay un botón de pedir plaza fijo abajo; se esconde cuando el formulario ya está a la vista
+  const [formularioALaVista, setFormularioALaVista] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById('pedir');
+    if (!el || !('IntersectionObserver' in window)) return;
+    const vigia = new IntersectionObserver(([e]) => setFormularioALaVista(e.isIntersecting));
+    vigia.observe(el);
+    return () => vigia.disconnect();
+  }, [curso]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError('');
@@ -936,7 +946,7 @@ function AlumnosDetalle() {
         </dl>
 
         {!submitSuccess && libres > 0 && !curso.es_demo && (
-          <div className="pub-barra-movil"><span>{textoPlazas(curso)}</span><a href="#pedir" className="pub-boton pub-boton-pedir">Pedir plaza</a></div>
+          <div className={`pub-barra-movil ${formularioALaVista ? 'oculta' : ''}`}><span>{textoPlazas(curso)}</span><a href="#pedir" className="pub-boton pub-boton-pedir">Pedir plaza</a></div>
         )}
         <div className="pub-detalle">
           <div>

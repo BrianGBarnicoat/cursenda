@@ -171,11 +171,26 @@
 .cursos-b :focus-visible { outline: 2px solid #0C3B33; outline-offset: 3px; }
 
 @media (max-width: 760px) {
-  .cursos-b { padding: 64px 0; }
+  .cursos-b { padding: 56px 0; }
   .cursos-b-ancho { padding: 0 16px; }
   .cursos-b-cabecera p { font-size: 17px; }
-  .cursos-b-barra input { font-size: 16px; } /* 16px: el móvil no hace zum al escribir */
-  .cursos-b-pastilla { flex: 1 1 140px; min-width: 0; font-size: 16px; }
-  .cursos-b-rejilla { grid-template-columns: 1fr; }
+  .cursos-b-barra { margin-top: 24px; }
+  .cursos-b-barra input { min-height: 52px; font-size: 16px; } /* 16px: el móvil no hace zum al escribir */
+
+  /* Los filtros van en una fila que se pasa con el dedo, sin que la página se ensanche */
+  .cursos-b-filtros { flex-wrap: nowrap; gap: 8px; margin: 12px -16px 0; padding: 2px 16px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .cursos-b-filtros::-webkit-scrollbar { display: none; }
+  .cursos-b-filtros > * { flex: none; }
+  .cursos-b-pastilla { max-width: 62vw; min-height: 44px; font-size: 16px; }
+  .cursos-b-modalidad { max-width: none; overflow: visible; }
+  .cursos-b-modalidad button { min-height: 38px; padding: 6px 14px; font-size: 15px; }
+  .cursos-b-quitar { min-height: 44px; white-space: nowrap; }
+
+  .cursos-b-resumen { margin-top: 20px; }
+  .cursos-b-rejilla { grid-template-columns: 1fr; gap: 12px; }
   .cursos-b-tarjeta { padding: 20px; }
+  .cursos-b-foto { margin: -8px -8px 16px; }
+  .cursos-b-acciones { display: grid; grid-template-columns: 1fr; }
+  .cursos-b-boton { min-height: 44px; padding: 11px 12px; text-align: center; }
+  .cursos-b-mas .cursos-b-boton, .cursos-b-vacio .cursos-b-boton { padding: 11px 20px; }
 }

@@ -69,4 +69,6 @@
   .centros-s-cabecera { grid-template-columns: 1fr; gap: 20px; }
   .centros-s-lado > p { font-size: 17px; }
   .centros-s-puntos { grid-template-columns: 1fr; gap: 24px; margin-top: 48px; }
+  .centros-s-boton { display: flex; align-items: center; min-height: 48px; }
+  .centros-s-enlace { display: inline-flex; align-items: center; min-height: 44px; }
 }

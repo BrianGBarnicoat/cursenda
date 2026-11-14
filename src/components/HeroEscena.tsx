@@ -3,7 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, Float, MeshTransmissionMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { escenaViva } from './escenaViva';
+import { avivarEscena, escenaViva } from './escenaViva';
 
 // La escena 3D va en su propio fichero: así three solo se descarga cuando hace falta
 // y el título de la portada no tiene que esperarlo.
@@ -56,8 +56,14 @@ function Escultura({ quieta }: { quieta: boolean }) {
       raton.current.x = (e.clientX / window.innerWidth) * 2 - 1;
       raton.current.y = (e.clientY / window.innerHeight) * 2 - 1;
     };
+    // Al tocar la pantalla (o pulsar) la pieza se aviva un momento
+    const tocar = (e: PointerEvent) => { mover(e); avivarEscena(e.pointerType === 'touch' ? 0.8 : 0.35); };
     window.addEventListener('pointermove', mover, { passive: true });
-    return () => window.removeEventListener('pointermove', mover);
+    window.addEventListener('pointerdown', tocar, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', mover);
+      window.removeEventListener('pointerdown', tocar);
+    };
   }, [quieta]);
 
   useFrame((_, delta) => {
@@ -136,7 +142,7 @@ function Escultura({ quieta }: { quieta: boolean }) {
 export default function HeroEscena({ quieta, parada = false }: { quieta: boolean; parada?: boolean }) {
   return (
     <Canvas
-      dpr={[1, 1.75]}
+      dpr={[1, 1.5]}
       camera={{ position: [0, 0, 7.4], fov: 35 }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       frameloop={parada ? 'never' : quieta ? 'demand' : 'always'}

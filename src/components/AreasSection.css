@@ -64,9 +64,16 @@
   .areas-s-rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
-  .areas-s { padding: 64px 0; }
+  .areas-s { padding: 56px 0; }
   .areas-s-ancho { padding: 0 16px; }
   .areas-s-cabecera p { font-size: 17px; }
-  .areas-s-rejilla { grid-template-columns: 1fr; gap: 8px; margin-top: 24px; }
-  .areas-s-rejilla a { padding: 16px 18px; }
+  /* Dos columnas compactas */
+  .areas-s-rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 24px; }
+  .areas-s-rejilla a { padding: 14px; border-radius: 14px; }
+  .areas-s-rejilla strong { font-size: 15px; overflow-wrap: anywhere; }
+  .areas-s-rejilla span { font-size: 13px; }
+  .areas-s-mas { min-height: 44px; }
+}
+@media (max-width: 340px) {
+  .areas-s-rejilla { grid-template-columns: 1fr; }
 }

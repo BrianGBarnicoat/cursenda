@@ -259,6 +259,23 @@ export default function StudentArea({ alumno, guardados, solicitudes, onGuardar,
               <Link to="/#buscar-cursos" className="alumno-a-boton">Buscar cursos</Link>
             </div>
           ) : (
+            <>
+            {/* En móvil, una tarjeta por curso */}
+            <ul className="alumno-a-tarjetas">
+              {guardados.map(c => (
+                <li key={String(c.id)}>
+                  <Link to={`/curso/${c.id}`}>{c.titulo}</Link>
+                  {c.disponible === false && <span className="alumno-a-estado cerrada">Ya no está publicado</span>}
+                  <dl>
+                    {filas.filter(f => f.valor(c)).map(f => <div key={f.titulo}><dt>{f.titulo}</dt><dd>{f.valor(c)}</dd></div>)}
+                  </dl>
+                  <div className="alumno-a-acciones">
+                    {c.disponible !== false && <Link to={`/curso/${c.id}#pedir`} className="alumno-a-boton verde">Pedir plaza</Link>}
+                    <button type="button" className="alumno-a-enlace" aria-label={`Quitar ${c.titulo}`} onClick={() => onQuitar(c)}>Quitar</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
             <div className="alumno-a-tabla-caja" role="region" aria-label="Comparador de cursos" tabIndex={0}>
               <table className="alumno-a-tabla">
                 <thead>
@@ -295,6 +312,7 @@ export default function StudentArea({ alumno, guardados, solicitudes, onGuardar,
                 </tfoot>
               </table>
             </div>
+            </>
           )}
         </section>
       </div>

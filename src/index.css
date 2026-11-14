@@ -1806,3 +1806,69 @@ td { border-bottom-color: #E5E5E7; }
   .modal-content { border-radius: 0; }
   .auth-card { padding: 2rem 1.5rem; border-radius: 20px; }
 }
+
+/* --- MÓVIL (menos de 768 px): todo cómodo para el pulgar y sin nada que se salga de lado --- */
+@media (max-width: 767px) {
+  /* Web pública */
+  .pub-boton, .pub-boton-borde { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
+  .pub-filtros-boton { min-height: 48px; padding: 12px 18px; }
+  .pub-buscar-lista { max-width: none; min-height: 52px; font-size: 16px; }
+  .pub-select, .pub-pedir label > input:not([type="checkbox"]) { min-height: 48px; font-size: 16px; }
+  .pub-lista-cabeza h1, .pub-aca-portada h1, .pub-academia-cabeza h1, .pub-no-encontrada h1, .pub .legal-page h1 { font-size: clamp(30px, 8.6vw, 40px); }
+  .pub-curso { padding: 14px 0; }
+  .pub-curso-lado .pub-boton { min-width: 120px; }
+  .pub-pedir { padding: 20px; border-radius: 20px; }
+  .pub-ficha-menu { gap: 18px; padding: 4px 0; }
+  .pub .pub-ficha-menu a { display: inline-flex; align-items: center; min-height: 44px; }
+  .pub-pie-columnas a { display: inline-flex; align-items: center; min-height: 40px; }
+
+  /* Ficha del curso: "Pedir plaza" siempre a mano, pegado abajo, hasta que el formulario está a la vista */
+  .pub-barra-movil {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid #E5E5E7;
+    background: rgba(255, 255, 255, 0.9);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    transition: transform var(--dur-normal) var(--curva-normal), opacity var(--dur-normal) var(--curva-normal);
+  }
+  .pub-barra-movil.oculta { transform: translateY(110%); opacity: 0; pointer-events: none; }
+  .pub-barra-movil span { font-size: 14px; color: #6E6E73; }
+  .pub-barra-movil .pub-boton-pedir { width: auto; min-width: 150px; min-height: 48px; }
+  .pub:has(.pub-barra-movil) .pub-pie { padding-bottom: 96px; }
+
+  /* Acceso de centros */
+  .auth-container { align-items: flex-start; padding: 24px 16px; }
+  .auth-card { margin-top: 4vh; }
+  .auth-card .form-control { min-height: 48px; font-size: 16px; }
+  .auth-card .btn { min-height: 48px; }
+  .auth-links .auth-link { display: inline-flex; align-items: center; min-height: 44px; }
+
+  /* Paneles: las tablas son tarjetas sueltas, una por fila */
+  .dashboard-content { padding: 20px 16px 48px; }
+  .dashboard-layout .table-container { border: 0; border-radius: 0; background: transparent; }
+  .dashboard-layout .table-header { padding: 0 0 12px; border-bottom: 0; }
+  .dashboard-layout .table-container tr { margin-bottom: 10px; padding: 16px; border: 1px solid #E5E5E7; border-radius: 16px; background-color: #FFFFFF; }
+  .dashboard-layout .table-container tbody tr:hover { background-color: #FFFFFF; }
+  .dashboard-layout .table-container td { padding: 3px 0; }
+  .dashboard-layout .table-container td .btn, .dashboard-layout .table-container td button, .dashboard-layout .table-container td select { min-height: 44px; }
+  .dashboard-layout td .admin-acciones, .dashboard-layout td .acciones-curso { gap: 8px; margin-top: 8px; }
+  .dashboard-content .btn, .modal-content .btn { min-height: 44px; }
+  .metrics-grid, .admin-cifras { gap: 8px; }
+  .metric-card, .metric-card:hover, .admin-cifras > * { padding: 16px; border-radius: 16px; }
+  .metric-value, .admin-cifras strong { font-size: 1.75rem; }
+  .admin-titulo { font-size: 1.625rem; }
+  .form-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+
+  /* En las ventanas, Guardar y Cancelar se quedan pegados abajo */
+  .modal-footer, .admin-modal-pie { position: sticky; bottom: 0; z-index: 2; padding-bottom: calc(1rem + env(safe-area-inset-bottom)); background-color: #FFFFFF; }
+  .modal-footer .btn, .admin-modal-pie .btn { flex: 1; }
+}
