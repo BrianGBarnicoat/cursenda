@@ -127,7 +127,7 @@ export default function HeroApple3D({ provincias = [], cursos = [], areas = [], 
                 {cursosQ.map(c => (
                   <Link key={c.id} to={`/curso/${c.id}`}>
                     <strong>{c.titulo}</strong>
-                    <span>{[c.modalidad, c.modalidad === 'Online' ? '' : c.localidad].filter(Boolean).join(' · ')}</span>
+                    <span>{[c.modalidad === 'Mixta' ? 'Semipresencial' : c.modalidad, c.modalidad === 'Online' ? '' : c.localidad].filter(Boolean).join(' · ')}</span>
                   </Link>
                 ))}
                 {q && areasQ.length === 0 && cursosQ.length === 0 && <p className="hero-a3d-ayudas-vacio">No hay cursos con esa búsqueda. Prueba con otra palabra.</p>}

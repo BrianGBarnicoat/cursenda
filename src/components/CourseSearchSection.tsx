@@ -15,7 +15,7 @@ export type CursoBuscable = {
   descripcion?: string | null;
 };
 
-type Modalidad = '' | 'Online' | 'Presencial';
+type Modalidad = '' | 'Online' | 'Presencial' | 'Mixta';
 
 export type FiltrosCursos = { texto: string; area: string; provincia: string; modalidad: Modalidad };
 
@@ -35,6 +35,7 @@ const MODALIDADES: { valor: Modalidad; texto: string }[] = [
   { valor: '', texto: 'Todos' },
   { valor: 'Online', texto: 'Online' },
   { valor: 'Presencial', texto: 'Presencial' },
+  { valor: 'Mixta', texto: 'Semipresencial' },
 ];
 
 // Busca igual con tilde o sin ella
@@ -42,8 +43,8 @@ const sinTildes = (v: unknown) => String(v ?? '').normalize('NFD').replace(/[̀-
 // "SSCS0208 Atención sociosanitaria" se enseña sin el código
 const sinCodigo = (titulo: string) => titulo.replace(/^[A-Z]{4}\d{4}\S*\s*[-–:.]?\s*/, '') || titulo;
 const lugarDe = (c: CursoBuscable) => (c.provincia || c.localidad || '').trim();
-// Un curso mixto tiene parte en el aula, así que cuenta como presencial
-const esDeModalidad = (c: CursoBuscable, m: Modalidad) => !m || (m === 'Online' ? c.modalidad === 'Online' : c.modalidad !== 'Online');
+// En los datos se llama "Mixta"; al público se le dice "Semipresencial"
+const nombreModalidad = (m: string) => m === 'Mixta' ? 'Semipresencial' : m;
 
 export default function CourseSearchSection({ cursos, estado = 'listo', guardados = [], onGuardar, inicial, porPagina = 12 }: Props) {
   const [texto, setTexto] = useState(inicial?.texto ?? '');
@@ -65,7 +66,7 @@ export default function CourseSearchSection({ cursos, estado = 'listo', guardado
     return cursos.filter(c =>
       (!area || c.categoria === area) &&
       (!provincia || (c.modalidad !== 'Online' && lugarDe(c) === provincia)) &&
-      esDeModalidad(c, modalidad) &&
+      (!modalidad || c.modalidad === modalidad) &&
       (!q || [c.titulo, c.categoria, c.localidad, c.provincia, c.centro_nombre, c.descripcion].some(v => sinTildes(v).includes(q)))
     );
   }, [cursos, texto, area, provincia, modalidad]);
@@ -135,7 +136,7 @@ export default function CourseSearchSection({ cursos, estado = 'listo', guardado
             {filtrados.slice(0, visibles).map((c, i) => {
               const elegido = elegidos.has(String(c.id));
               const lugar = c.modalidad === 'Online' ? '' : lugarDe(c);
-              const datos = [c.modalidad, lugar, c.duracion_horas ? `${c.duracion_horas} horas` : ''].filter(Boolean);
+              const datos = [nombreModalidad(c.modalidad), lugar, c.duracion_horas ? `${c.duracion_horas} horas` : ''].filter(Boolean);
               return (
                 <AlBajar como="li" key={c.id} className="cursos-b-tarjeta" retraso={(i % 3) * 0.06}>
                   <span className="cursos-b-area">{c.categoria}</span>

@@ -51,7 +51,7 @@
 }
 .cursos-b-pastilla:hover, .cursos-b-pastilla.puesta { border-color: #111111; }
 
-.cursos-b-modalidad { display: inline-flex; padding: 3px; border: 1px solid #E5E5E7; border-radius: 999px; background: #F5F5F7; }
+.cursos-b-modalidad { display: inline-flex; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 3px; border: 1px solid #E5E5E7; border-radius: 999px; background: #F5F5F7; }
 .cursos-b-modalidad button {
   padding: 6px 14px;
   border: 0;
@@ -60,6 +60,7 @@
   font-size: 14px;
   color: #6E6E73;
   background: transparent;
+  white-space: nowrap;
   cursor: pointer;
   transition: color var(--dur-rapida, 120ms) var(--curva-normal, ease), background-color var(--dur-rapida, 120ms) var(--curva-normal, ease);
 }

@@ -2147,7 +2147,7 @@ async function metaDe(ruta: string): Promise<Meta> {
       const web = ALLOWED_ORIGINS[0];
       return {
         titulo: `${nombre}: curso gratis ${dondeTitulo} | Cursenda`,
-        descripcion: recortar(`Curso subvencionado de ${c.duracion_horas} horas, ${c.modalidad === 'Online' ? 'online' : `${c.modalidad === 'Mixta' ? 'mixto' : 'presencial'} en ${c.localidad}`}. Lo imparte ${c.centro_nombre}. Empieza: ${c.fecha_inicio}.`),
+        descripcion: recortar(`Curso subvencionado de ${c.duracion_horas} horas, ${c.modalidad === 'Online' ? 'online' : `${c.modalidad === 'Mixta' ? 'semipresencial' : 'presencial'} en ${c.localidad}`}. Lo imparte ${c.centro_nombre}. Empieza: ${c.fecha_inicio}.`),
         ruta,
         tipo: 'article',
         // Los cursos de ejemplo no son reales: Google no debe ofrecerlos

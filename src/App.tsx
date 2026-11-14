@@ -213,7 +213,7 @@ const textoPlazas = (curso: any) => {
 };
 const textoModalidad = (curso: any) => {
   if (curso.modalidad === 'Online') return 'Online';
-  return `${curso.modalidad === 'Mixta' ? 'Mixto' : 'Presencial'} en ${curso.localidad}`;
+  return `${curso.modalidad === 'Mixta' ? 'Semipresencial' : 'Presencial'} en ${curso.localidad}`;
 };
 // Los certificados de profesionalidad llevan un código de 4 letras y 4 números (IFCD0210)
 const codigoCertificado = (titulo: string) => titulo.match(/^([A-Z]{4}\d{4})\b/)?.[1] || null;
@@ -704,7 +704,7 @@ function AlumnosLista() {
                 <fieldset>
                   <legend>Cómo es el curso</legend>
                   {modalidadesDisponibles.map(m => (
-                    <label key={m}><input type="checkbox" checked={modalidades.includes(m)} onChange={() => setModalidades(alternar(modalidades, m))} />{m === 'Mixta' ? 'Mixto' : m}</label>
+                    <label key={m}><input type="checkbox" checked={modalidades.includes(m)} onChange={() => setModalidades(alternar(modalidades, m))} />{m === 'Mixta' ? 'Semipresencial' : m}</label>
                   ))}
                 </fieldset>
               )}

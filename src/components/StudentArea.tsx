@@ -210,7 +210,7 @@ export default function StudentArea({ alumno, cursos, onGuardar, onQuitar, onBor
             ) : (
               <ul className="alumno-a-cursos">
                 {cursos.map(c => {
-                  const detalle = [c.centro_nombre, c.modalidad, c.modalidad === 'Online' ? '' : c.localidad].filter(Boolean).join(' · ');
+                  const detalle = [c.centro_nombre, c.modalidad === 'Mixta' ? 'Semipresencial' : c.modalidad, c.modalidad === 'Online' ? '' : c.localidad].filter(Boolean).join(' · ');
                   return (
                     <li key={c.id}>
                       <div className="alumno-a-curso-texto">
