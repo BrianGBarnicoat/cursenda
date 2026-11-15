@@ -670,29 +670,39 @@ function AlumnosLista() {
   const setSituaciones = (lista: string[]) => ponerFiltro('situacion', lista.join(','));
   const duracion = ['corto', 'medio', 'largo'].find(v => v === params.get('duracion')) || '';
   const setDuracion = (valor: string) => ponerFiltro('duracion', valor);
-  const zona = params.get('zona') || '';
-  const setZona = (valor: string) => ponerFiltro('zona', valor);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const navigate = useNavigate();
-  const { sector } = useParams();
+  const { sector, lugar } = useParams();
+  const zonas = [...new Set(cursos.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)))].sort();
+  // /cursos-en/sevilla es la lista de esa localidad, con dirección propia
+  const zona = lugar ? zonas.find(z => slugSector(z) === lugar) || '' : params.get('zona') || '';
+  const lugarExiste = !lugar || estado !== 'listo' || !!zona;
   const busqueda = params.get('q') || '';
   // Compatibilidad con los enlaces antiguos con ?categoria=
   const categoria = NOMBRES_FAMILIAS.find(f => slugSector(f) === sector) || params.get('categoria') || '';
   const sectorExiste = !sector || NOMBRES_FAMILIAS.some(f => slugSector(f) === sector);
-  useTitulo(!sectorExiste ? 'Página no encontrada | Cursenda' : categoria ? `Cursos gratis de ${categoria.toLowerCase()} | Cursenda` : 'Cursos gratis | Cursenda');
+  useTitulo(!sectorExiste || !lugarExiste ? 'Página no encontrada | Cursenda' : lugar && zona ? `Cursos gratis en ${zona} | Cursenda` : categoria ? `Cursos gratis de ${categoria.toLowerCase()} | Cursenda` : 'Cursos gratis | Cursenda');
 
   const cambiarSector = (valor: string) => {
     const nuevos = new URLSearchParams(params);
     nuevos.delete('categoria');
+    // Al elegir sector desde la página de una localidad, la localidad sigue como filtro
+    if (valor && lugar && zona) nuevos.set('zona', zona);
     const resto = nuevos.toString();
-    navigate(`/cursos${valor ? `/${slugSector(valor)}` : ''}${resto ? `?${resto}` : ''}`, { replace: true });
+    navigate(`${valor ? `/cursos/${slugSector(valor)}` : lugar ? `/cursos-en/${lugar}` : '/cursos'}${resto ? `?${resto}` : ''}`, { replace: true });
+  };
+  const setZona = (valor: string) => {
+    if (sector) return ponerFiltro('zona', valor);
+    const nuevos = new URLSearchParams(params);
+    nuevos.delete('zona');
+    const resto = nuevos.toString();
+    navigate(`${valor ? `/cursos-en/${slugSector(valor)}` : '/cursos'}${resto ? `?${resto}` : ''}`, { replace: true });
   };
   const alternar = (lista: string[], valor: string) => lista.includes(valor) ? lista.filter(v => v !== valor) : [...lista, valor];
 
   // Solo se ofrecen los filtros que dan algún resultado
   const modalidadesDisponibles = ['Presencial', 'Online', 'Mixta'].filter(m => cursos.some(c => c.modalidad === m));
   const hayCursosPorSituacion = cursos.some(c => c.dirigido_a !== 'Todos');
-  const zonas = [...new Set(cursos.filter(c => c.modalidad !== 'Online').map(c => cleanLocalidad(c.localidad)))].sort();
   const dentroDeDuracion = (horas: number) => duracion === 'corto' ? horas < 300 : duracion === 'medio' ? horas >= 300 && horas <= 500 : duracion === 'largo' ? horas > 500 : true;
   const tramosDuracion = [
     { valor: 'corto', texto: 'Menos de 300 horas' },
@@ -722,14 +732,14 @@ function AlumnosLista() {
   const quitarFiltros = () => navigate('/cursos', { replace: true });
 
   // Un sector que no existe no es una lista de cursos
-  if (!sectorExiste) return <NoEncontrada />;
+  if (!sectorExiste || !lugarExiste) return <NoEncontrada />;
 
   return (
     <div className="pub">
       <CabeceraPublica />
       <div className="pub-arriba">
         <div className="pub-ancho pub-lista-cabeza">
-          <h1>{categoria || 'Todos los cursos'}</h1>
+          <h1>{categoria || (lugar && zona ? `Cursos en ${zona}` : 'Todos los cursos')}</h1>
           <p className="pub-info-entrada">{filtrados.length === 1 ? '1 curso' : `${filtrados.length} cursos`}{categoria ? ` de ${categoria}` : ''}{busqueda ? ` con "${busqueda}"` : ''}</p>
           <input className="pub-buscar-lista" type="search" aria-label="Buscar cursos" placeholder="Qué quieres aprender" maxLength={80} value={busqueda} onChange={(e) => ponerFiltro('q', e.target.value)} />
         </div>
@@ -4538,6 +4548,7 @@ function App() {
         <Route path="/mi-espacio" element={<EspacioAlumno />} />
         <Route path="/cursos" element={<AlumnosLista />} />
         <Route path="/cursos/:sector" element={<AlumnosLista />} />
+        <Route path="/cursos-en/:lugar" element={<AlumnosLista />} />
         <Route path="/como-funciona" element={<ComoFunciona />} />
         <Route path="/centros-de-formacion" element={<AcademiasPublicas />} />
         <Route path="/centro-de-formacion/:id" element={<AcademiaPublica />} />

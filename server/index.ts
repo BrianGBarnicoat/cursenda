@@ -2147,7 +2147,7 @@ app.use(express.static(distPath, { index: false }));
 // --- Títulos, descripciones y vistas previas (WhatsApp, LinkedIn, Google) ---
 
 const escapeHtml = (texto: string) => String(texto ?? '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 const recortar = (texto: string, max = 160) => {
   const limpio = String(texto ?? '').replace(/\s+/g, ' ').trim();
@@ -2158,6 +2158,23 @@ const IMAGENES_CATEGORIA: Record<string, string> = {
   'Informática y comunicaciones': 'informatica', 'Sanidad': 'sanidad', 'Servicios socioculturales y a la comunidad': 'sanidad',
   'Comercio y marketing': 'logistica', 'Hostelería y turismo': 'hosteleria', 'Administración y gestión': 'administracion'
 };
+
+// La localidad tal como se enseña en la web: "Sevilla / Dos Hermanas" es Sevilla
+const limpiarLocalidad = (loc: string) => String(loc ?? '').split(/[\/,;-]/)[0].trim();
+
+// Cursos reales a la vista, que son los únicos que se ofrecen a Google
+async function cursosIndexables() {
+  const db = await getDatabase();
+  return db.all(`SELECT cursos.id, cursos.titulo, cursos.categoria, cursos.modalidad, cursos.localidad, cursos.centro_id FROM cursos JOIN centros ON cursos.centro_id = centros.id
+    WHERE cursos.estado = 'publicado' AND centros.es_demo IS NOT 1 AND ${VISIBLE_SQL} ORDER BY cursos.id DESC`);
+}
+
+const listaDeCursos = (nombre: string, cursos: any[]) => ({
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: nombre,
+  itemListElement: cursos.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.titulo, url: `${ALLOWED_ORIGINS[0]}/curso/${c.id}` }))
+});
 
 let plantillaHtml: string | null = null;
 function leerPlantilla() {
@@ -2246,21 +2263,44 @@ async function metaDe(ruta: string): Promise<Meta> {
   if (sector) {
     const nombre = NOMBRES_SECTORES.find(n => slugSector(n) === sector[1]);
     if (!nombre) return { titulo: 'Página no encontrada | Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
-    const db = await getDatabase();
-    const lista = await db.all(`SELECT cursos.id, cursos.titulo FROM cursos JOIN centros ON cursos.centro_id = centros.id
-      WHERE cursos.categoria = ? AND cursos.estado = 'publicado' AND centros.es_demo IS NOT 1 AND ${VISIBLE_SQL}`, [nombre]);
+    const lista = (await cursosIndexables()).filter((c: any) => c.categoria === nombre);
     return {
       titulo: `Cursos gratis de ${nombre.toLowerCase()} | Cursenda`,
       descripcion: recortar(`Cursos subvencionados de ${nombre.toLowerCase()} que publican los centros de formación. Consulta fechas y plazas, y pide plaza gratis.`),
       ruta,
       // Sin cursos reales no se ofrece a Google: sería una página vacía
       noindex: lista.length === 0,
+      jsonld: lista.length ? listaDeCursos(`Cursos gratis de ${nombre.toLowerCase()}`, lista) : undefined,
+      enlaces: lista.map((c: any) => ({ texto: c.titulo, ruta: `/curso/${c.id}` }))
+    };
+  }
+
+  const lugar = ruta.match(/^\/cursos-en\/([a-z0-9-]+)$/);
+  if (lugar) {
+    const lista = (await cursosIndexables()).filter((c: any) => c.modalidad !== 'Online' && slugSector(limpiarLocalidad(c.localidad)) === lugar[1]);
+    // Una localidad sin cursos reales no existe como página
+    if (!lista.length) return { titulo: 'Página no encontrada | Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
+    const nombre = limpiarLocalidad(lista[0].localidad);
+    return {
+      titulo: `Cursos gratis en ${nombre} | Cursenda`,
+      descripcion: recortar(`Cursos subvencionados en ${nombre} que publican los centros de formación. Consulta fechas y plazas, y pide plaza gratis.`),
+      ruta,
+      jsonld: listaDeCursos(`Cursos gratis en ${nombre}`, lista),
       enlaces: lista.map((c: any) => ({ texto: c.titulo, ruta: `/curso/${c.id}` }))
     };
   }
 
   if (ruta === '/cursos') {
-    return { titulo: 'Cursos gratis | Cursenda', descripcion: 'Todos los cursos gratuitos publicados en Cursenda, por sector, modalidad, localidad y fecha de inicio.', ruta };
+    const reales = await cursosIndexables();
+    const sectores = [...new Set(reales.map((c: any) => c.categoria as string))];
+    const lugares = [...new Set(reales.filter((c: any) => c.modalidad !== 'Online').map((c: any) => limpiarLocalidad(c.localidad)))].filter(Boolean);
+    return {
+      titulo: 'Cursos gratis | Cursenda', descripcion: 'Todos los cursos gratuitos publicados en Cursenda, por sector, modalidad, localidad y fecha de inicio.', ruta,
+      enlaces: [
+        ...sectores.map(s => ({ texto: `Cursos de ${s}`, ruta: `/cursos/${slugSector(s)}` })),
+        ...lugares.map(l => ({ texto: `Cursos en ${l}`, ruta: `/cursos-en/${slugSector(l)}` }))
+      ]
+    };
   }
 
   if (ruta === '/centros') {
@@ -2308,7 +2348,10 @@ async function metaDe(ruta: string): Promise<Meta> {
             '@type': 'Course',
             name: nombre,
             description: recortar(c.descripcion, 500),
-            provider: { '@type': 'Organization', name: c.centro_nombre },
+            url: `${web}/curso/${c.id}`,
+            inLanguage: 'es-ES',
+            isAccessibleForFree: true,
+            provider: { '@type': 'Organization', name: c.centro_nombre, url: `${web}/centro-de-formacion/${c.centro_id}` },
             offers: { '@type': 'Offer', price: 0, priceCurrency: 'EUR', category: 'Free' },
             hasCourseInstance: {
               '@type': 'CourseInstance',
@@ -2339,22 +2382,45 @@ async function metaDe(ruta: string): Promise<Meta> {
   return { titulo: 'Página no encontrada | Cursenda', descripcion: META_PORTADA.descripcion, ruta, noindex: true, estado: 404 };
 }
 
+// /centros es la página pública para centros; lo que cuelga de ella (entrar, recuperar, panel) es privado
 app.get('/robots.txt', (req, res) => {
-  res.type('text/plain').send(`User-agent: *\nDisallow: /centros/\nDisallow: /api/\n\nSitemap: ${ALLOWED_ORIGINS[0]}/sitemap.xml\n`);
+  res.type('text/plain').send([
+    'User-agent: *',
+    'Allow: /centros$',
+    'Disallow: /centros/',
+    'Disallow: /admin',
+    'Disallow: /api/',
+    'Disallow: /mi-espacio',
+    '',
+    `Sitemap: ${ALLOWED_ORIGINS[0]}/sitemap.xml`,
+    ''
+  ].join('\n'));
 });
+
+// El mapa del sitio se guarda 15 minutos en memoria para no leer la base de datos en cada visita de un buscador
+const SITEMAP_DURA = 15 * 60 * 1000;
+let sitemapGuardado: { xml: string; caduca: number } | null = null;
+
+async function crearSitemap() {
+  const reales = await cursosIndexables();
+  const unicos = (lista: string[]) => [...new Set(lista)];
+  const rutas = ['/', '/cursos', '/como-funciona', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies',
+    ...(reales.length ? ['/centros-de-formacion'] : []),
+    ...unicos(reales.map((c: any) => `/cursos/${slugSector(c.categoria)}`)),
+    ...unicos(reales.filter((c: any) => c.modalidad !== 'Online').map((c: any) => slugSector(limpiarLocalidad(c.localidad))).filter(Boolean).map((l: string) => `/cursos-en/${l}`)),
+    ...unicos(reales.map((c: any) => `/centro-de-formacion/${c.centro_id}`)),
+    ...reales.map((c: any) => `/curso/${c.id}`)];
+  const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+}
 
 app.get('/sitemap.xml', async (req, res) => {
   try {
-    const db = await getDatabase();
-    const reales = await db.all(`SELECT cursos.id, cursos.categoria, cursos.centro_id FROM cursos JOIN centros ON cursos.centro_id = centros.id
-      WHERE cursos.estado = 'publicado' AND centros.es_demo IS NOT 1 AND ${VISIBLE_SQL}`);
-    const rutas = ['/', '/cursos', '/como-funciona', '/centros', '/legal/aviso-legal', '/legal/privacidad', '/legal/cookies',
-      ...(reales.length ? ['/centros-de-formacion'] : []),
-      ...[...new Set(reales.map((c: any) => `/cursos/${slugSector(c.categoria)}`))],
-      ...[...new Set(reales.map((c: any) => `/centro-de-formacion/${c.centro_id}`))],
-      ...reales.map((c: any) => `/curso/${c.id}`)];
-    const urls = rutas.map(r => `  <url><loc>${escapeHtml(ALLOWED_ORIGINS[0] + r)}</loc></url>`).join('\n');
-    res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+    if (!sitemapGuardado || sitemapGuardado.caduca < Date.now()) {
+      sitemapGuardado = { xml: await crearSitemap(), caduca: Date.now() + SITEMAP_DURA };
+    }
+    res.setHeader('Cache-Control', 'public, max-age=900');
+    res.type('application/xml').send(sitemapGuardado.xml);
   } catch (err) {
     res.status(500).send('');
   }
